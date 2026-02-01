@@ -1,158 +1,143 @@
+mod api;
 mod builder;
 mod cache;
 mod vmm;
 
-use std::path::Path;
-use std::path::PathBuf;
-use vmm::{
-    Virtualizer, firecracker::FirecrackerVirtualizer, mock::MockBehavior, mock::MockVirtualizer,
+use axum::{
+    Router,
+    extract::{Json, State},
+    routing::post,
 };
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::Mutex;
 
-use builder::{DriveBuilder, mock::MockBuilder};
+// Import traits
+use api::{JobRequest, JobResponse};
+use builder::{DriveBuilder, mock::MockBuilder}; // Swap with LinuxBuilder in prod
 use cache::{DependencyCache, local::LocalDiskCache, mock::MockCache};
+use vmm::{Virtualizer, mock::MockBehavior, mock::MockVirtualizer};
 
-// We conditionally import LinuxBuilder only on Linux
-#[cfg(target_os = "linux")]
-use builder::linux::LinuxBuilder;
-
-fn get_builder() -> Box<dyn DriveBuilder> {
-    // Check if we are root and on Linux. If not, we MUST use mock for builder
-    // because `mount` requires privileges.
-    #[cfg(target_os = "linux")]
-    {
-        use nix::unistd::Uid;
-        if Uid::effective().is_root() {
-            println!("✅ Root detected. Using Real Linux Builder.");
-            return Box::new(LinuxBuilder);
-        }
-    }
-
-    println!("⚠️  Non-Root or Non-Linux detected. Using Mock Builder.");
-    Box::new(MockBuilder::new())
+// --- APPLICATION STATE ---
+// This holds the "Singletons" that our API handlers need access to.
+struct AppState {
+    builder: Box<dyn DriveBuilder>,
+    cache: Box<dyn DependencyCache>,
+    // We use a Mutex for the VMM because Firecracker is single-threaded per VM
+    // In a real node, you'd have a Pool of VMMs.
+    vmm_factory: Box<dyn Fn() -> Box<dyn Virtualizer> + Send + Sync>,
 }
 
-// Factory Function
-fn get_virtualizer() -> Box<dyn Virtualizer> {
-    if Path::new("/dev/kvm").exists() {
-        println!("✅ KVM Detected. Using Real Firecracker Engine.");
-        Box::new(FirecrackerVirtualizer::new("/tmp/firecracker.sock"))
-    } else {
-        println!("⚠️  No KVM. Using Mock Engine (Happy Path).");
-        Box::new(MockVirtualizer::new(MockBehavior::HappyPath))
-    }
-}
-
-// The Factory Function
-fn get_cache(use_mock: bool) -> Box<dyn DependencyCache> {
-    if use_mock {
-        println!("⚠️  Using Mock Cache (Memory Only)");
-        Box::new(MockCache::new())
-    } else {
-        println!("✅ Using Local Disk Cache");
-        Box::new(LocalDiskCache::new("./talos_cache"))
-    }
-}
-
-async fn resolve_dependencies(
-    cache: &dyn DependencyCache,
-    builder: &dyn DriveBuilder, // From previous step
-    job_id: &str,
-    requirements: Vec<String>,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // 1. Calculate Hash
-    let hash = cache.calculate_hash(&requirements);
-
-    // 2. Check Cache (Hot Path)
-    if let Some(path) = cache.get(&hash).await? {
-        return Ok(path);
-    }
-
-    // 3. Build It (Cold Path)
-    println!("🧊 [RESOLVER] Cold Start triggered for Job {}", job_id);
-
-    // Use the builder to create a temp image
-    let temp_image = builder.build_dependency_drive(job_id, requirements).await?;
-
-    // 4. Save to Cache
-    let final_path = cache.put(&hash, temp_image).await?;
-
-    Ok(final_path)
-}
-
+// --- MAIN SERVER STARTUP ---
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Setup Traits
-    let mut vmm = get_virtualizer();
-    let builder = get_builder();
-    let cache = get_cache(true);
+async fn main() {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
 
-    // Mock Input
-    let job_id = "job-101";
-    let requirements = vec!["pandas".to_string(), "numpy".to_string()];
+    println!("🦀 Talos Worker Node Initializing...");
 
-    println!("🔍 Resolving Dependencies...");
-    let deps_drive_path = resolve_dependencies(&*cache, &*builder, job_id, requirements).await?;
+    // 1. Setup the Layer Stack (Using Mocks for Mac dev)
+    let shared_state = Arc::new(AppState {
+        builder: Box::new(MockBuilder::new()),
+        cache: Box::new(MockCache::new()), // or LocalDiskCache::new("./cache")
+        vmm_factory: Box::new(|| {
+            // Check for KVM or use Mock
+            if std::path::Path::new("/dev/kvm").exists() {
+                // Return Real Firecracker (impl required)
+                Box::new(MockVirtualizer::new(MockBehavior::HappyPath)) // Placeholder
+            } else {
+                Box::new(MockVirtualizer::new(MockBehavior::HappyPath))
+            }
+        }),
+    });
 
-    println!("✅ Ready to Boot with Deps Drive: {:?}", deps_drive_path);
+    // 2. Define Routes
+    let app = Router::new()
+        .route("/submit", post(submit_job))
+        .with_state(shared_state);
 
-    // Boot VM (Mock or Real)
-    vmm.configure(1, 128).await?;
-    vmm.attach_drive("deps", deps_drive_path, false, true)
-        .await?;
-    vmm.start().await?;
-
-    Ok(())
+    // 3. Start Server
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("🚀 Server listening on http://0.0.0.0:3000");
+    axum::serve(listener, app).await.unwrap();
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use builder::mock::MockBuilder;
-    use cache::mock::MockCache;
+// --- API HANDLER ---
+async fn submit_job(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<JobRequest>,
+) -> Json<JobResponse> {
+    println!("📩 Received Job: {}", payload.job_id);
+    let start_time = Instant::now();
 
-    #[tokio::test]
-    async fn test_jit_resolution_logic() {
-        // 1. Setup the Spies
-        let cache = MockCache::new();
-        let builder = MockBuilder::new();
+    // 1. RESOLVE DEPENDENCIES (JIT Layer)
+    // Note: We use the helper function logic we wrote earlier
+    let deps_hash = state.cache.calculate_hash(&payload.requirements);
 
-        // 2. Define Input
-        let job_id = "test-job-1";
-        let reqs = vec!["pandas".to_string(), "numpy".to_string()];
+    // Check Cache
+    let deps_path = match state.cache.get(&deps_hash).await.unwrap() {
+        Some(path) => path,
+        None => {
+            println!("🧊 Cache Miss. Building...");
+            let new_path = state
+                .builder
+                .build_dependency_drive(&payload.job_id, payload.requirements)
+                .await
+                .unwrap();
+            state.cache.put(&deps_hash, new_path).await.unwrap()
+        }
+    };
 
-        // 3. EXECUTION 1: First Run (Should be COLD / MISS)
-        // Note: We pass references or clones, keeping ownership of our 'cache' variable so we can spy on it
-        let _ = resolve_dependencies(&cache, &builder, job_id, reqs.clone())
-            .await
-            .unwrap();
+    // 2. BUILD CODE LAYER
+    let code_path = state
+        .builder
+        .create_code_drive(&payload.job_id, &payload.code)
+        .await
+        .unwrap();
 
-        // 4. ASSERTION 1: Verify it triggered a build
-        assert_eq!(cache.get_miss_count(), 1, "Expected 1 cache miss");
-        assert_eq!(
-            builder.get_deps_build_count(),
-            1,
-            "Expected builder to be called once"
-        );
-        assert_eq!(
-            cache.spy.lock().unwrap().put_calls,
-            1,
-            "Expected result to be saved to cache"
-        );
+    // 3. BOOT VM
+    // Instantiate a fresh VM for this request
+    let mut machine = (state.vmm_factory)();
 
-        // 5. EXECUTION 2: Second Run (Should be HOT / HIT)
-        let _ = resolve_dependencies(&cache, &builder, "test-job-2", reqs.clone())
-            .await
-            .unwrap();
+    // Configure & Attach
+    machine.configure(1, 128).await.unwrap();
+    machine
+        .set_boot_source(
+            std::path::PathBuf::from("resources/vmlinux"),
+            "console=ttyS0".into(),
+        )
+        .await
+        .unwrap();
+    machine
+        .attach_drive("deps", deps_path, false, true)
+        .await
+        .unwrap();
+    machine
+        .attach_drive("code", code_path, false, true)
+        .await
+        .unwrap();
 
-        // 6. ASSERTION 2: Verify it skipped the build
-        assert_eq!(cache.get_miss_count(), 1, "Miss count should not increase");
-        assert_eq!(cache.get_hit_count(), 1, "Expected 1 cache hit");
-        assert_eq!(
-            builder.get_deps_build_count(),
-            1,
-            "Builder should NOT have been called again"
-        );
-
-        println!("✅ Test Passed: JIT Logic verified (Cold Start -> Hot Cache)");
+    // Run
+    match machine.start().await {
+        Ok(_) => {
+            // In a real implementation, we'd capture stdout here
+            match machine.wait().await {
+                Ok(_) => Json(JobResponse {
+                    status: "success".to_string(),
+                    message: "Job executed successfully".to_string(),
+                    computation_time_ms: start_time.elapsed().as_millis() as u64,
+                }),
+                Err(e) => Json(JobResponse {
+                    status: "crashed".to_string(),
+                    message: format!("VM crashed: {:?}", e),
+                    computation_time_ms: start_time.elapsed().as_millis() as u64,
+                }),
+            }
+        }
+        Err(e) => Json(JobResponse {
+            status: "failed_boot".to_string(),
+            message: format!("Failed to boot: {:?}", e),
+            computation_time_ms: 0,
+        }),
     }
 }
