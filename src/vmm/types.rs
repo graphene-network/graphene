@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -7,6 +9,28 @@ pub enum VmmError {
     BootError(String),
     RuntimeError(String),
     Crash(String), // Simulated crash
+}
+
+impl Error for VmmError {
+    fn description(&self) -> &str {
+        match self {
+            VmmError::ConfigError(_) => "Configuration error",
+            VmmError::BootError(_) => "Boot error",
+            VmmError::RuntimeError(_) => "Runtime error",
+            VmmError::Crash(_) => "Crash",
+        }
+    }
+}
+
+impl Display for VmmError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VmmError::ConfigError(msg) => write!(f, "Configuration error: {}", msg),
+            VmmError::BootError(msg) => write!(f, "Boot error: {}", msg),
+            VmmError::RuntimeError(msg) => write!(f, "Runtime error: {}", msg),
+            VmmError::Crash(msg) => write!(f, "Crash: {}", msg),
+        }
+    }
 }
 
 #[async_trait]
