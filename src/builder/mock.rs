@@ -1,50 +1,6 @@
 use super::{BuilderError, DriveBuilder};
 use async_trait::async_trait;
 use std::env;
-use std::fs::File;
-use std::path::PathBuf;
-
-pub struct MockBuilder;
-
-#[async_trait]
-impl DriveBuilder for MockBuilder {
-    async fn create_code_drive(
-        &self,
-        job_id: &str,
-        _content: &str,
-    ) -> Result<PathBuf, BuilderError> {
-        println!(
-            "🔨 [MOCK] Pretending to format ext4 drive for Job {}...",
-            job_id
-        );
-
-        // Create a dummy file in temp dir so downstream code doesn't crash if it checks existence
-        let mut path = env::temp_dir();
-        path.push(format!("mock_drive_{}.img", job_id));
-
-        // "Touch" the file
-        File::create(&path).map_err(|e| BuilderError::IoError(e.to_string()))?;
-
-        println!("   -> Created dummy file at {:?}", path);
-        Ok(path)
-    }
-
-    async fn build_dependency_drive(
-        &self,
-        job_id: &str,
-        packages: Vec<String>,
-    ) -> Result<PathBuf, BuilderError> {
-        println!("🔨 [MOCK] Pretending to pip install {:?}", packages);
-        let mut path = env::temp_dir();
-        path.push(format!("mock_deps_{}.img", job_id));
-        File::create(&path).map_err(|e| BuilderError::IoError(e.to_string()))?;
-        Ok(path)
-    }
-}
-
-use super::{BuilderError, DriveBuilder};
-use async_trait::async_trait;
-use std::env;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -57,8 +13,6 @@ pub struct BuilderSpyState {
 
 #[derive(Clone)]
 pub struct MockBuilder {
-    // We use Arc<Mutex> so the test can read this
-    // even after the logic engine takes ownership of the struct.
     pub spy: Arc<Mutex<BuilderSpyState>>,
 }
 
