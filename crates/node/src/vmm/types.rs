@@ -8,7 +8,12 @@ pub enum VmmError {
     ConfigError(String),
     BootError(String),
     RuntimeError(String),
-    Crash(String), // Simulated crash
+    Crash(String),
+    ProcessSpawnError(String),
+    SocketError(String),
+    ApiError(String),
+    TimeoutError(String),
+    IoError(std::io::Error),
 }
 
 impl Error for VmmError {
@@ -18,6 +23,11 @@ impl Error for VmmError {
             VmmError::BootError(_) => "Boot error",
             VmmError::RuntimeError(_) => "Runtime error",
             VmmError::Crash(_) => "Crash",
+            VmmError::ProcessSpawnError(_) => "Process spawn error",
+            VmmError::SocketError(_) => "Socket error",
+            VmmError::ApiError(_) => "API error",
+            VmmError::TimeoutError(_) => "Timeout error",
+            VmmError::IoError(_) => "I/O error",
         }
     }
 }
@@ -29,7 +39,18 @@ impl Display for VmmError {
             VmmError::BootError(msg) => write!(f, "Boot error: {}", msg),
             VmmError::RuntimeError(msg) => write!(f, "Runtime error: {}", msg),
             VmmError::Crash(msg) => write!(f, "Crash: {}", msg),
+            VmmError::ProcessSpawnError(msg) => write!(f, "Process spawn error: {}", msg),
+            VmmError::SocketError(msg) => write!(f, "Socket error: {}", msg),
+            VmmError::ApiError(msg) => write!(f, "API error: {}", msg),
+            VmmError::TimeoutError(msg) => write!(f, "Timeout error: {}", msg),
+            VmmError::IoError(err) => write!(f, "I/O error: {}", err),
         }
+    }
+}
+
+impl From<std::io::Error> for VmmError {
+    fn from(err: std::io::Error) -> Self {
+        VmmError::IoError(err)
     }
 }
 
