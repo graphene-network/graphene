@@ -1,9 +1,9 @@
-# Node.js 20 LTS Unikernel
+# Node.js 21 Unikernel
 # Built with Unikraft for Firecracker
 
 spec: v0.6
 
-runtime: unikraft.org/node:20
+runtime: unikraft.org/node:21
 
 targets:
   - platform: fc
