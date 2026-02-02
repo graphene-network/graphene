@@ -212,6 +212,53 @@ socket.connect(("10.0.0.1", 22))  # RFC1918 addresses blocked
 
 ---
 
+## Kernel Library
+
+Pre-built unikernels for common runtimes are managed through the kernel library system.
+
+### Supported Runtimes
+
+| Runtime | Versions | Source |
+|---------|----------|--------|
+| Python  | 3.10, 3.12 | [Unikraft Catalog](https://github.com/unikraft/catalog) |
+| Node.js | 20, 21 | [Unikraft Catalog](https://github.com/unikraft/catalog) |
+| Bun     | 1.1 | [Unikraft Catalog](https://github.com/unikraft/catalog) |
+
+**Important**: Only versions available in the Unikraft catalog are supported. Check `kernels/kernel-matrix.toml` for current versions.
+
+### Key Files
+
+| Path | Description |
+|------|-------------|
+| `kernels/kernel-matrix.toml` | Version matrix defining supported runtimes |
+| `kernels/<runtime>/<version>/Kraftfile.yaml` | Unikraft build configuration |
+| `crates/node/src/kernel/` | Rust kernel registry implementation |
+| `.github/workflows/kernel-build.yml` | CI workflow for building kernels |
+
+### Kraftfile Format
+
+Use the modern `runtime:` directive (pulls from Unikraft catalog):
+
+```yaml
+spec: v0.6
+runtime: unikraft.org/python:3.12
+targets:
+  - platform: fc
+    architecture: x86_64
+cmd: ["/usr/bin/python3", "/app/main.py"]
+```
+
+**Do NOT use** the older `libraries:` approach - it requires package versions that may not exist in kraft's index.
+
+### Adding New Runtimes
+
+1. Check [Unikraft Catalog](https://github.com/unikraft/catalog) for availability
+2. Add version to `kernels/kernel-matrix.toml`
+3. Create `kernels/<runtime>/<version>/Kraftfile.yaml`
+4. Push to trigger CI build
+
+---
+
 ## Infrastructure Trait Pattern
 
 All infrastructure integrations (Firecracker, Unikraft, Iroh, etc.) **must** be defined as traits to enable mock implementations for testing.
