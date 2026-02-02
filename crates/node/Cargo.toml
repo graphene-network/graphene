@@ -41,6 +41,10 @@ futures-lite = "2.6"
 tar = "0.4"
 dockerfile-parser = "0.9"
 
+# Kernel library
+toml = "0.8"
+dirs = "5.0"
+
 [dev-dependencies]
 tempfile = "3.8"
 rand = "0.8"

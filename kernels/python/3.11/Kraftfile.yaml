@@ -1,0 +1,46 @@
+# Python 3.11 Unikernel
+# Built with Unikraft for Firecracker
+
+spec: v0.6
+
+name: python-3.11
+
+unikraft:
+  version: "0.17.0"
+  kconfig:
+    # Core configuration
+    CONFIG_LIBUKDEBUG: "y"
+    CONFIG_LIBUKALLOC: "y"
+    CONFIG_LIBUKMMAP: "y"
+    CONFIG_LIBPOSIX_PROCESS: "y"
+    CONFIG_LIBPOSIX_USER: "y"
+    CONFIG_LIBVFSCORE: "y"
+    CONFIG_LIBRAMFS: "y"
+    CONFIG_LIB9PFS: "y"
+
+libraries:
+  python3:
+    version: "3.11"
+  lwip:
+    version: stable
+    kconfig:
+      CONFIG_LWIP_IPV4: "y"
+      CONFIG_LWIP_TCP: "y"
+      CONFIG_LWIP_UDP: "y"
+      CONFIG_LWIP_DHCP: "y"
+      CONFIG_LWIP_DNS: "y"
+  newlib:
+    version: stable
+
+targets:
+  - platform: fc
+    architecture: x86_64
+    kconfig:
+      CONFIG_PLAT_KVM: "y"
+      CONFIG_KVM_VMM_FIRECRACKER: "y"
+      CONFIG_VIRTIO_NET: "y"
+      CONFIG_VIRTIO_BLK: "y"
+      CONFIG_VIRTIO_9P: "y"
+
+# Entry point
+cmd: ["/usr/bin/python3", "/app/main.py"]

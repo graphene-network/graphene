@@ -1,0 +1,33 @@
+# Kernel Version Matrix
+# Defines which runtime versions and architectures to build
+
+unikraft_version = "0.17.0"
+
+[defaults]
+min_memory_mib = 128
+recommended_memory_mib = 256
+boot_args = "console=ttyS0 noapic reboot=k panic=1 pci=off nomodules"
+
+[runtimes.python]
+versions = ["3.11", "3.12"]
+architectures = ["x86_64"]
+min_memory_mib = 128
+recommended_memory_mib = 256
+
+[runtimes.node]
+versions = ["20", "22"]
+architectures = ["x86_64"]
+min_memory_mib = 256
+recommended_memory_mib = 512
+
+[runtimes.bun]
+versions = ["1.x"]
+architectures = ["x86_64"]
+min_memory_mib = 256
+recommended_memory_mib = 512
+
+[runtimes.deno]
+versions = ["2.x"]
+architectures = ["x86_64"]
+min_memory_mib = 256
+recommended_memory_mib = 512

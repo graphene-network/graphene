@@ -1,0 +1,123 @@
+name: Build Kernels
+
+on:
+  push:
+    paths:
+      - 'kernels/**'
+      - '.github/workflows/kernel-build.yml'
+  pull_request:
+    paths:
+      - 'kernels/**'
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: 'Specific runtime to build (leave empty for all)'
+        required: false
+        type: string
+      version:
+        description: 'Specific version to build (leave empty for all)'
+        required: false
+        type: string
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install toml
+
+      - name: Generate build matrix
+        id: generate
+        run: |
+          python scripts/generate-build-matrix.py \
+            --matrix kernels/kernel-matrix.toml \
+            --runtime "${{ inputs.runtime }}" \
+            --version "${{ inputs.version }}" \
+            >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: generate-matrix
+    runs-on: ubicloud-standard-4
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kraft CLI
+        run: |
+          curl -sSfL https://get.kraftkit.sh | sh
+          kraft --version
+
+      - name: Build kernel
+        working-directory: kernels/${{ matrix.runtime }}/${{ matrix.version }}
+        run: |
+          kraft build --plat fc --arch ${{ matrix.arch }} --no-cache
+
+      - name: Generate metadata
+        run: |
+          python scripts/generate-kernel-metadata.py \
+            --runtime ${{ matrix.runtime }} \
+            --version ${{ matrix.version }} \
+            --arch ${{ matrix.arch }} \
+            --kernel-path kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/*.fc \
+            --output ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}
+          path: |
+            kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/*.fc
+            ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
+          retention-days: 30
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get Unikraft version
+        id: version
+        run: |
+          VERSION=$(grep 'unikraft_version' kernels/kernel-matrix.toml | cut -d'"' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Kernels v${{ steps.version.outputs.version }}
+          body: |
+            Pre-built unikernels for Graphene Network.
+
+            ## Included Runtimes
+            - Python 3.11, 3.12
+            - Node.js 20, 22
+            - Bun 1.x
+            - Deno 2.x
+
+            Built with Unikraft ${{ steps.version.outputs.version }}
+          files: |
+            artifacts/**/*.fc
+            artifacts/**/*.json
+          draft: false
+          prerelease: false
