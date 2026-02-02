@@ -1,4 +1,5 @@
 use super::{CacheError, DependencyCache};
+use crate::metrics::{record_cache_hit, record_cache_miss, CacheLevel};
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -39,10 +40,12 @@ impl DependencyCache for LocalDiskCache {
         let path = self.root_path.join(format!("{}.ext4", hash));
 
         if path.exists() {
-            println!("✅ [CACHE] Hit! Found layer for {}", &hash[0..8]);
+            record_cache_hit(CacheLevel::Local);
+            tracing::debug!(hash = &hash[0..8], "Cache hit (local)");
             Ok(Some(path))
         } else {
-            println!("❌ [CACHE] Miss. Layer {} not found.", &hash[0..8]);
+            record_cache_miss(CacheLevel::Local);
+            tracing::debug!(hash = &hash[0..8], "Cache miss (local)");
             Ok(None)
         }
     }
@@ -50,7 +53,7 @@ impl DependencyCache for LocalDiskCache {
     async fn put(&self, hash: &str, source_path: PathBuf) -> Result<PathBuf, CacheError> {
         let dest_path = self.root_path.join(format!("{}.ext4", hash));
 
-        println!("💾 [CACHE] Saving new layer to {:?}", dest_path);
+        tracing::debug!(path = ?dest_path, "Saving new cache layer");
 
         // Move the temp file to the permanent cache
         fs::rename(source_path, &dest_path)
