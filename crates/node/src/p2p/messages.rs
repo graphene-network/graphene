@@ -20,20 +20,84 @@ pub enum ComputeMessage {
     DiscoveryResponse(DiscoveryResponse),
 }
 
+/// Worker hardware and software capabilities.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkerCapabilities {
+    /// Maximum vCPUs available.
+    pub max_vcpu: u8,
+
+    /// Maximum memory in MB.
+    pub max_memory_mb: u32,
+
+    /// Supported unikernel images (e.g., "node-20-unikraft", "python-3.11-unikraft").
+    pub kernels: Vec<String>,
+}
+
+impl Default for WorkerCapabilities {
+    fn default() -> Self {
+        Self {
+            max_vcpu: 1,
+            max_memory_mb: 512,
+            kernels: Vec::new(),
+        }
+    }
+}
+
+/// Worker pricing information.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkerPricing {
+    /// Price per CPU-millisecond in microtokens.
+    pub cpu_ms_micros: u64,
+
+    /// Price per memory-MB-millisecond in microtokens.
+    pub memory_mb_ms_micros: f64,
+}
+
+impl Default for WorkerPricing {
+    fn default() -> Self {
+        Self {
+            cpu_ms_micros: 1,
+            memory_mb_ms_micros: 0.1,
+        }
+    }
+}
+
+/// Worker load status.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkerLoad {
+    /// Number of available job slots.
+    pub available_slots: u8,
+
+    /// Number of jobs waiting in queue.
+    pub queue_depth: u32,
+}
+
+impl Default for WorkerLoad {
+    fn default() -> Self {
+        Self {
+            available_slots: 1,
+            queue_depth: 0,
+        }
+    }
+}
+
 /// Worker availability announcement.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerAnnouncement {
     /// The worker's node ID.
     pub node_id: PublicKey,
 
-    /// Supported capability tags (e.g., "gpu", "high-memory").
-    pub capabilities: Vec<String>,
+    /// Worker software version.
+    pub version: String,
 
-    /// Current price per compute unit (in smallest token denomination).
-    pub price_per_unit: u64,
+    /// Worker hardware and software capabilities.
+    pub capabilities: WorkerCapabilities,
 
-    /// Maximum job duration in seconds.
-    pub max_duration_secs: u64,
+    /// Worker pricing information.
+    pub pricing: WorkerPricing,
+
+    /// Current load status.
+    pub load: WorkerLoad,
 
     /// Timestamp of this announcement (Unix epoch seconds).
     pub timestamp: u64,
@@ -45,11 +109,8 @@ pub struct WorkerHeartbeat {
     /// The worker's node ID.
     pub node_id: PublicKey,
 
-    /// Current load (0-100 percentage).
-    pub load_percent: u8,
-
-    /// Number of active jobs.
-    pub active_jobs: u32,
+    /// Current load status.
+    pub load: WorkerLoad,
 
     /// Timestamp of this heartbeat.
     pub timestamp: u64,
@@ -61,11 +122,17 @@ pub struct DiscoveryQuery {
     /// Unique query ID for correlation.
     pub query_id: String,
 
-    /// Required capabilities.
-    pub required_capabilities: Vec<String>,
+    /// Required vCPUs.
+    pub required_vcpu: u8,
 
-    /// Maximum acceptable price per unit.
-    pub max_price: Option<u64>,
+    /// Required memory in MB.
+    pub required_memory_mb: u32,
+
+    /// Required kernel.
+    pub required_kernel: String,
+
+    /// Maximum acceptable CPU price per ms.
+    pub max_price_cpu_ms: Option<u64>,
 }
 
 /// Response to a discovery query.
