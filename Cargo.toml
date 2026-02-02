@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "crates/node"
+    "crates/node",
 ]
 resolver = "2"
