@@ -1,12 +1,10 @@
 use anchor_lang::prelude::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ChannelStatus {
+pub enum ChannelState {
     #[default]
-    Closed,
     Open,
-    Disputing,
-    Settled,
+    Closing,
 }
 
 /// Payment channel PDA between a user and worker
@@ -18,28 +16,32 @@ pub struct PaymentChannel {
     pub user: Pubkey,
     /// Worker receiving payments
     pub worker: Pubkey,
-    /// Current balance in channel (lamports or token smallest unit)
+    /// Token mint for this channel
+    pub mint: Pubkey,
+    /// Total deposited balance in channel
     pub balance: u64,
+    /// Cumulative amount spent (claimed by worker)
+    pub spent: u64,
     /// Last settled nonce (monotonically increasing)
-    pub nonce: u64,
-    /// Current channel status
-    pub status: ChannelStatus,
-    /// Unix timestamp when dispute window ends (0 if not disputing)
-    pub dispute_deadline: i64,
-    /// Unix timestamp of last settlement
-    pub last_settlement: i64,
+    pub last_nonce: u64,
+    /// Unix timestamp when dispute window ends (0 if not closing)
+    pub timeout: i64,
+    /// Current channel state
+    pub state: ChannelState,
     /// PDA bump seed
     pub bump: u8,
 }
 
 impl PaymentChannel {
-    pub const LEN: usize = 8 // discriminator
+    pub const LEN: usize = 8  // discriminator
         + 32 // user
         + 32 // worker
+        + 32 // mint
         + 8  // balance
-        + 8  // nonce
-        + 1  // status
-        + 8  // dispute_deadline
-        + 8  // last_settlement
+        + 8  // spent
+        + 8  // last_nonce
+        + 8  // timeout
+        + 1  // state
         + 1; // bump
+    // Total: 138 bytes
 }

@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 pub mod error;
 pub mod instructions;
 pub mod state;
+pub mod utils;
 
 use instructions::*;
 use state::WorkerCapabilities;
@@ -24,9 +25,24 @@ pub mod graphene {
         instructions::channel::open_channel(ctx, amount)
     }
 
-    /// Close a payment channel (initiates 24h dispute window)
-    pub fn close_channel(ctx: Context<CloseChannel>) -> Result<()> {
-        instructions::channel::close_channel(ctx)
+    /// Top up an existing payment channel
+    pub fn top_up_channel(ctx: Context<TopUpChannel>, amount: u64) -> Result<()> {
+        instructions::channel::top_up_channel(ctx, amount)
+    }
+
+    /// Initiate channel closure (starts 24h dispute window)
+    pub fn initiate_close(ctx: Context<InitiateClose>) -> Result<()> {
+        instructions::channel::initiate_close(ctx)
+    }
+
+    /// Force close a channel after timeout expires
+    pub fn force_close(ctx: Context<ForceClose>) -> Result<()> {
+        instructions::channel::force_close(ctx)
+    }
+
+    /// Cooperative close - both parties agree to settle immediately
+    pub fn cooperative_close(ctx: Context<CooperativeClose>, final_spent: u64) -> Result<()> {
+        instructions::channel::cooperative_close(ctx, final_spent)
     }
 
     /// Settle a channel - worker claims with Ed25519 signed ticket
