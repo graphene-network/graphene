@@ -28,3 +28,4 @@ execution_timeout_secs = 300
 [logging]
 level = "info"
 format = "pretty"
+
