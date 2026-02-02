@@ -57,8 +57,8 @@ jobs:
         run: |
           # Install kraftkit from GitHub releases (apt repo is unavailable)
           KRAFT_VERSION=$(curl -s https://api.github.com/repos/unikraft/kraftkit/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
-          curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraftkit_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraftkit.tar.gz
-          tar -xzf kraftkit.tar.gz
+          curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraft_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraft.tar.gz
+          tar -xzf kraft.tar.gz
           sudo mv kraft /usr/local/bin/kraft
           kraft --version
 
