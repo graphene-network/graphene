@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11994 | 12:49 AM | 🔵 | DependencyCache trait defines hash-based caching for dependency images with Iroh module disabled | ~476 |
+| #12008 | 12:50 AM | 🔵 | TypeScript tests demonstrate worker registration PDA derivation and transaction construction | ~443 |
 </claude-mem-context>

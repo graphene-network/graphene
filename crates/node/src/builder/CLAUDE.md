@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11666 | 12:31 AM | 🔵 | Node Infrastructure Trait Architecture Patterns | ~236 |
+| #12012 | 12:50 AM | 🔵 | MockBuilder provides spy state tracking for testing drive creation without filesystem operations | ~410 |
+| #11930 | 12:46 AM | 🔵 | DriveBuilder trait defines interface for creating ext4 filesystem images for VM code and dependencies | ~434 |
 </claude-mem-context>

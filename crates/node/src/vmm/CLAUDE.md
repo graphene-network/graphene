@@ -7,5 +7,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11666 | 12:31 AM | 🔵 | Node Infrastructure Trait Architecture Patterns | ~236 |
+| #11945 | 12:47 AM | 🔵 | FirecrackerVirtualizer implementation uses firecracker-rs-sdk with comprehensive lifecycle state tracking | ~538 |
+| #11917 | 12:45 AM | 🔵 | Virtualizer trait defines async VM lifecycle interface with nine VmmError variants | ~492 |
+| #11915 | " | 🔵 | MockVirtualizer implements Virtualizer trait with four testable failure behaviors | ~486 |
+| #11913 | " | 🔵 | VMM module exports Virtualizer trait and FirecrackerVirtualizer with conditional integration tests | ~191 |
 </claude-mem-context>
