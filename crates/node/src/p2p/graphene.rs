@@ -394,6 +394,9 @@ impl P2PNetwork for GrapheneNode {
         // Shutdown gossip
         let _ = self.gossip.shutdown().await;
 
+        // Shutdown blobs protocol (releases database locks)
+        let _ = self.blobs.shutdown().await;
+
         // Close the endpoint
         self.endpoint.close().await;
 
