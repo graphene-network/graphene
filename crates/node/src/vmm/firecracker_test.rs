@@ -5,7 +5,7 @@
 //!
 //! Run with: `cargo test -p monad_node --features integration-tests`
 
-use super::{FirecrackerConfig, FirecrackerVirtualizer, VmState, Virtualizer, VmmError};
+use super::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer, VmState, VmmError};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -181,7 +181,10 @@ async fn test_socket_cleanup_on_drop() {
         };
 
         // Socket should exist while VMM is alive
-        assert!(socket_path.exists(), "Socket should exist while VMM is running");
+        assert!(
+            socket_path.exists(),
+            "Socket should exist while VMM is running"
+        );
     }
 
     // Give a moment for cleanup

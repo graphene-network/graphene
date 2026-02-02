@@ -1,8 +1,8 @@
+use super::types::{Virtualizer, VmmError};
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::sleep;
-use super::types::{Virtualizer, VmmError};
 
 // Behaviors we can simulate for testing
 #[derive(Clone)]

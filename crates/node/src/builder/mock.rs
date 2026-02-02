@@ -16,6 +16,12 @@ pub struct MockBuilder {
     pub spy: Arc<Mutex<BuilderSpyState>>,
 }
 
+impl Default for MockBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockBuilder {
     pub fn new() -> Self {
         Self {

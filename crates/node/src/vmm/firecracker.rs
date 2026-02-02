@@ -117,10 +117,7 @@ impl FirecrackerVirtualizer {
             std::fs::remove_file(&socket_path)?;
         }
 
-        info!(
-            "Starting Firecracker VMM with socket: {:?}",
-            socket_path
-        );
+        info!("Starting Firecracker VMM with socket: {:?}", socket_path);
 
         // Build the Firecracker instance
         let mut option = FirecrackerOption::new(&config.firecracker_bin);
@@ -218,13 +215,14 @@ impl FirecrackerVirtualizer {
 
     /// Wait for the VM process to exit, with a timeout.
     async fn wait_for_exit(&self, wait_timeout: Duration) -> Result<bool, VmmError> {
-        let instance = self.instance.as_ref().ok_or_else(|| {
-            VmmError::RuntimeError("VMM instance not initialized".to_string())
-        })?;
+        let instance = self
+            .instance
+            .as_ref()
+            .ok_or_else(|| VmmError::RuntimeError("VMM instance not initialized".to_string()))?;
 
-        let pid = instance.firecracker_pid().ok_or_else(|| {
-            VmmError::RuntimeError("Firecracker process not started".to_string())
-        })?;
+        let pid = instance
+            .firecracker_pid()
+            .ok_or_else(|| VmmError::RuntimeError("Firecracker process not started".to_string()))?;
 
         let poll_interval = Duration::from_millis(100);
         let start = std::time::Instant::now();
@@ -250,7 +248,7 @@ impl Virtualizer for FirecrackerVirtualizer {
         self.validate_state(&[VmState::Created], "configure")?;
 
         // Validate resource bounds per spec
-        if vcpu < 1 || vcpu > 16 {
+        if !(1..=16).contains(&vcpu) {
             return Err(VmmError::ConfigError(format!(
                 "vCPU count must be between 1 and 16, got {}",
                 vcpu
@@ -263,10 +261,7 @@ impl Virtualizer for FirecrackerVirtualizer {
             )));
         }
 
-        info!(
-            "Configuring VM: {} vCPUs, {} MiB memory",
-            vcpu, mem_mib
-        );
+        info!("Configuring VM: {} vCPUs, {} MiB memory", vcpu, mem_mib);
 
         let machine_config = MachineConfiguration {
             vcpu_count: vcpu as isize,
@@ -293,7 +288,10 @@ impl Virtualizer for FirecrackerVirtualizer {
         kernel_path: PathBuf,
         boot_args: String,
     ) -> Result<(), VmmError> {
-        self.validate_state(&[VmState::Configured, VmState::BootReady], "set_boot_source")?;
+        self.validate_state(
+            &[VmState::Configured, VmState::BootReady],
+            "set_boot_source",
+        )?;
 
         info!("Setting boot source: {:?}", kernel_path);
 
@@ -398,10 +396,7 @@ impl Virtualizer for FirecrackerVirtualizer {
             return Ok(());
         }
 
-        self.validate_state(
-            &[VmState::Running, VmState::ShuttingDown],
-            "shutdown",
-        )?;
+        self.validate_state(&[VmState::Running, VmState::ShuttingDown], "shutdown")?;
 
         info!(
             "Initiating graceful shutdown for VM: {}",

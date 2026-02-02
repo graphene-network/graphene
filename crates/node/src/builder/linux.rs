@@ -10,7 +10,7 @@ impl DriveBuilder for LinuxBuilder {
     async fn create_code_drive(
         &self,
         job_id: &str,
-        content: &str,
+        _content: &str,
     ) -> Result<PathBuf, BuilderError> {
         println!("🔨 [REAL] Creating ext4 filesystem for Job {}...", job_id);
 
@@ -18,7 +18,7 @@ impl DriveBuilder for LinuxBuilder {
 
         // 1. Create Empty File (dd)
         let status = Command::new("dd")
-            .args(&[
+            .args([
                 "if=/dev/zero",
                 &format!("of={}", image_path.display()),
                 "bs=1M",
