@@ -123,9 +123,7 @@ mod tests {
         timer.complete(JobStatus::Success);
 
         // Verify the metric was recorded
-        let count = types::JOBS_TOTAL
-            .with_label_values(&["success"])
-            .get();
+        let count = types::JOBS_TOTAL.with_label_values(&["success"]).get();
         assert!(count >= 1.0);
     }
 
@@ -136,9 +134,7 @@ mod tests {
         record_cache_hit(CacheLevel::Local);
         record_cache_miss(CacheLevel::Local);
 
-        let hits = types::CACHE_HITS_TOTAL
-            .with_label_values(&["local"])
-            .get();
+        let hits = types::CACHE_HITS_TOTAL.with_label_values(&["local"]).get();
         let misses = types::CACHE_MISSES_TOTAL
             .with_label_values(&["local"])
             .get();
