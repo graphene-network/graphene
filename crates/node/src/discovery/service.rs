@@ -104,7 +104,9 @@ impl<N: P2PNetwork + 'static> IrohWorkerDiscovery<N> {
             while running.load(Ordering::Relaxed) {
                 match subscription.recv().await {
                     Some(Event::Received(gossip_msg)) => {
-                        if let Ok(msg) = serde_json::from_slice::<ComputeMessage>(&gossip_msg.content) {
+                        if let Ok(msg) =
+                            serde_json::from_slice::<ComputeMessage>(&gossip_msg.content)
+                        {
                             match msg {
                                 ComputeMessage::Announcement(ann) => {
                                     // Don't add ourselves
