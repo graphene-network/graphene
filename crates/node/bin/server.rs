@@ -4,8 +4,7 @@ use iroh::SecretKey;
 use iroh::endpoint::Endpoint;
 use protocol::{Message, TALOS_ALPN};
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use rand::rngs::OsRng;
+use rand::RngCore;
 
 // Import your existing Mock/Real logic
 use vmm::{Virtualizer, mock::{MockVirtualizer, MockBehavior}};
@@ -16,8 +15,9 @@ async fn main() -> Result<()> {
 
     // 1. Generate Identity (The "Wallet" of the networking layer)
     // In prod, load this from disk so your PeerID stays the same.
-    let mut rng = OsRng;
-    let secret_key = SecretKey::generate(&mut rng);
+    let mut key_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut key_bytes);
+    let secret_key = SecretKey::from_bytes(&key_bytes);
     println!("🆔 My Peer ID: {}", secret_key.public());
 
     // 2. Bind to a UDP port (Iroh uses QUIC/UDP)
@@ -30,10 +30,10 @@ async fn main() -> Result<()> {
 
     // Print the "Ticket" (How others find us)
     // This combines IP + Port + PeerID into one string.
-    let addr = endpoint.local_addr()?;
+    let addr = endpoint.addr();
     println!("🌍 Listening on: {:?}", addr);
     // println!("🎟️  Ticket to Connect: {}", my_addr.node_id);
-    // (In reality, you'd print the full NodeAddr ticket string here)
+    // (In reality, you'd print the full EndpointAddr ticket string here)
 
     // 3. Start the VMM Engine (Shared State)
     let vmm = Arc::new(tokio::sync::Mutex::new(MockVirtualizer::new(MockBehavior::HappyPath)));
@@ -54,14 +54,13 @@ async fn main() -> Result<()> {
 
 /// Handle a new peer connecting to us
 async fn handle_connection(
-    mut incoming: iroh::endpoint::Incoming,
+    incoming: iroh::endpoint::Incoming,
     vmm: Arc<tokio::sync::Mutex<impl Virtualizer>>,
 ) -> Result<()> {
     // A. Perform the TLS Handshake
-    let connecting = incoming.accept()?;
-    let connection = connecting.await?;
-    let remote_peer = connection.remote_id()?;
-    println!("🔗 Connected to Peer: {}", remote_peer);
+    let connection = incoming.await?;
+    let remote_peer = connection.remote_id();
+    println!("🔗 Connected to Peer: {:?}", remote_peer);
 
     // B. Accept a bi-directional stream (like a TCP socket)
     let (mut send, mut recv) = connection.accept_bi().await?;
@@ -81,7 +80,7 @@ async fn handle_connection(
     match msg {
         Message::JobRequest {
             job_id,
-            code,
+            code: _,
             requirements,
         } => {
             println!("📩 Received Job: {} | Reqs: {:?}", job_id, requirements);
