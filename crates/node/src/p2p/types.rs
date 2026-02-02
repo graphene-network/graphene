@@ -2,7 +2,104 @@
 
 use iroh_gossip::api::Event as GossipEvent;
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::sync::mpsc;
+
+// ─── NAT Traversal Types ──────────────────────────────────────────────────────
+
+/// The type of network path being used for a connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PathType {
+    /// Direct UDP connection (hole-punched or LAN).
+    Direct,
+    /// Connection via DERP relay server.
+    Relay,
+}
+
+/// Information about a single network path to a peer.
+#[derive(Debug, Clone)]
+pub struct PathMetrics {
+    /// Whether this is a direct or relayed path.
+    pub path_type: PathType,
+    /// Round-trip time for this path.
+    pub rtt: Duration,
+    /// Whether this path is currently selected for use.
+    pub is_active: bool,
+    /// Remote address (IP:port or relay URL).
+    pub remote_addr: String,
+}
+
+/// Quality metrics for a connection.
+#[derive(Debug, Clone)]
+pub struct ConnectionQuality {
+    /// All known paths to the peer.
+    pub paths: Vec<PathMetrics>,
+    /// Whether any direct path has been discovered.
+    pub has_direct_path: bool,
+    /// Whether a direct path is currently being used.
+    pub using_direct_path: bool,
+    /// Best (lowest) RTT across all paths.
+    pub best_rtt: Option<Duration>,
+}
+
+impl ConnectionQuality {
+    /// Create connection quality metrics from a list of path metrics.
+    pub fn from_paths(paths: Vec<PathMetrics>) -> Self {
+        let has_direct_path = paths.iter().any(|p| p.path_type == PathType::Direct);
+        let using_direct_path = paths
+            .iter()
+            .any(|p| p.path_type == PathType::Direct && p.is_active);
+        let best_rtt = paths.iter().map(|p| p.rtt).min();
+
+        Self {
+            paths,
+            has_direct_path,
+            using_direct_path,
+            best_rtt,
+        }
+    }
+}
+
+/// Relay server configuration for NAT traversal.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum RelayConfig {
+    /// Disable relay servers entirely (direct connections only).
+    Disabled,
+    /// Use n0's default production relay servers.
+    #[default]
+    Default,
+    /// Use n0's staging relay servers.
+    Staging,
+    /// Use custom relay server URLs.
+    Custom(Vec<String>),
+}
+
+impl From<bool> for RelayConfig {
+    fn from(use_relay: bool) -> Self {
+        if use_relay {
+            RelayConfig::Default
+        } else {
+            RelayConfig::Disabled
+        }
+    }
+}
+
+/// Aggregated P2P metrics for monitoring.
+#[derive(Debug, Clone, Default)]
+pub struct P2PMetrics {
+    /// Total connections opened since node start.
+    pub connections_opened: u64,
+    /// Total connections closed since node start.
+    pub connections_closed: u64,
+    /// Number of direct paths discovered.
+    pub direct_paths: u64,
+    /// Number of relay paths in use.
+    pub relay_paths: u64,
+    /// Total hole-punch attempts made.
+    pub holepunch_attempts: u64,
+    /// Current number of connections using direct paths.
+    pub connections_direct: u64,
+}
 
 /// Topic identifier for gossip subscriptions.
 ///
@@ -53,9 +150,8 @@ pub struct P2PConfig {
     /// Path for persistent storage (identity key, blob store).
     pub storage_path: PathBuf,
 
-    /// Whether to use the default Iroh relay servers.
-    /// If false, the node operates in direct-connection-only mode.
-    pub use_relay: bool,
+    /// Relay server configuration for NAT traversal.
+    pub relay_config: RelayConfig,
 
     /// Bootstrap peers to connect to on startup.
     pub bootstrap_peers: Vec<iroh::EndpointAddr>,
@@ -68,7 +164,7 @@ impl Default for P2PConfig {
     fn default() -> Self {
         Self {
             storage_path: PathBuf::from(".graphene"),
-            use_relay: true,
+            relay_config: RelayConfig::Default,
             bootstrap_peers: Vec::new(),
             bind_port: 0,
         }
@@ -84,9 +180,15 @@ impl P2PConfig {
         }
     }
 
-    /// Set whether to use relay servers.
+    /// Set whether to use relay servers (backward compatibility).
     pub fn with_relay(mut self, use_relay: bool) -> Self {
-        self.use_relay = use_relay;
+        self.relay_config = use_relay.into();
+        self
+    }
+
+    /// Set the relay configuration.
+    pub fn with_relay_config(mut self, relay_config: RelayConfig) -> Self {
+        self.relay_config = relay_config;
         self
     }
 
@@ -139,5 +241,140 @@ impl GossipSubscription {
     /// Broadcast a message to the topic.
     pub async fn broadcast(&self, message: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
         self.sender.send(message).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_connection_quality_from_paths_empty() {
+        let quality = ConnectionQuality::from_paths(vec![]);
+        assert!(!quality.has_direct_path);
+        assert!(!quality.using_direct_path);
+        assert!(quality.best_rtt.is_none());
+        assert!(quality.paths.is_empty());
+    }
+
+    #[test]
+    fn test_connection_quality_from_paths_direct_only() {
+        let paths = vec![PathMetrics {
+            path_type: PathType::Direct,
+            rtt: Duration::from_millis(25),
+            is_active: true,
+            remote_addr: "192.168.1.100:12345".to_string(),
+        }];
+
+        let quality = ConnectionQuality::from_paths(paths);
+        assert!(quality.has_direct_path);
+        assert!(quality.using_direct_path);
+        assert_eq!(quality.best_rtt, Some(Duration::from_millis(25)));
+        assert_eq!(quality.paths.len(), 1);
+    }
+
+    #[test]
+    fn test_connection_quality_from_paths_relay_only() {
+        let paths = vec![PathMetrics {
+            path_type: PathType::Relay,
+            rtt: Duration::from_millis(100),
+            is_active: true,
+            remote_addr: "relay.example.com".to_string(),
+        }];
+
+        let quality = ConnectionQuality::from_paths(paths);
+        assert!(!quality.has_direct_path);
+        assert!(!quality.using_direct_path);
+        assert_eq!(quality.best_rtt, Some(Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn test_connection_quality_from_paths_mixed() {
+        let paths = vec![
+            PathMetrics {
+                path_type: PathType::Direct,
+                rtt: Duration::from_millis(25),
+                is_active: false,
+                remote_addr: "192.168.1.100:12345".to_string(),
+            },
+            PathMetrics {
+                path_type: PathType::Relay,
+                rtt: Duration::from_millis(100),
+                is_active: true,
+                remote_addr: "relay.example.com".to_string(),
+            },
+        ];
+
+        let quality = ConnectionQuality::from_paths(paths);
+        assert!(quality.has_direct_path);
+        assert!(!quality.using_direct_path); // Relay is active, not direct
+        assert_eq!(quality.best_rtt, Some(Duration::from_millis(25)));
+        assert_eq!(quality.paths.len(), 2);
+    }
+
+    #[test]
+    fn test_connection_quality_using_direct_when_active() {
+        let paths = vec![
+            PathMetrics {
+                path_type: PathType::Direct,
+                rtt: Duration::from_millis(25),
+                is_active: true,
+                remote_addr: "192.168.1.100:12345".to_string(),
+            },
+            PathMetrics {
+                path_type: PathType::Relay,
+                rtt: Duration::from_millis(100),
+                is_active: false,
+                remote_addr: "relay.example.com".to_string(),
+            },
+        ];
+
+        let quality = ConnectionQuality::from_paths(paths);
+        assert!(quality.has_direct_path);
+        assert!(quality.using_direct_path);
+    }
+
+    #[test]
+    fn test_relay_config_from_bool() {
+        assert_eq!(RelayConfig::from(true), RelayConfig::Default);
+        assert_eq!(RelayConfig::from(false), RelayConfig::Disabled);
+    }
+
+    #[test]
+    fn test_relay_config_default() {
+        assert_eq!(RelayConfig::default(), RelayConfig::Default);
+    }
+
+    #[test]
+    fn test_path_type_equality() {
+        assert_eq!(PathType::Direct, PathType::Direct);
+        assert_eq!(PathType::Relay, PathType::Relay);
+        assert_ne!(PathType::Direct, PathType::Relay);
+    }
+
+    #[test]
+    fn test_p2p_config_with_relay_config() {
+        let config = P2PConfig::new("/tmp/test").with_relay_config(RelayConfig::Staging);
+        assert_eq!(config.relay_config, RelayConfig::Staging);
+
+        let config2 = P2PConfig::new("/tmp/test").with_relay_config(RelayConfig::Custom(vec![
+            "https://relay.example.com".to_string(),
+        ]));
+        match config2.relay_config {
+            RelayConfig::Custom(urls) => {
+                assert_eq!(urls.len(), 1);
+                assert_eq!(urls[0], "https://relay.example.com");
+            }
+            _ => panic!("Expected Custom relay config"),
+        }
+    }
+
+    #[test]
+    fn test_p2p_config_with_relay_backward_compat() {
+        let config = P2PConfig::new("/tmp/test").with_relay(true);
+        assert_eq!(config.relay_config, RelayConfig::Default);
+
+        let config2 = P2PConfig::new("/tmp/test").with_relay(false);
+        assert_eq!(config2.relay_config, RelayConfig::Disabled);
     }
 }

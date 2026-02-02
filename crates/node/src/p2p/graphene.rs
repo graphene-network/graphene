@@ -3,9 +3,13 @@
 //! [`GrapheneNode`] provides blob storage, gossip messaging, and direct connections
 //! using Iroh's QUIC-based networking stack.
 
-use super::{GossipSubscription, P2PConfig, P2PError, P2PNetwork, TopicId};
+use super::{
+    ConnectionQuality, GossipSubscription, P2PConfig, P2PError, P2PMetrics, P2PNetwork,
+    PathMetrics, PathType, RelayConfig, TopicId,
+};
 use async_trait::async_trait;
 use iroh::endpoint::{Connection, Endpoint};
+use iroh::Watcher;
 use iroh::{EndpointAddr, PublicKey, SecretKey};
 use iroh_blobs::{BlobsProtocol, Hash};
 use iroh_gossip::net::Gossip;
@@ -59,9 +63,27 @@ impl GrapheneNode {
         // Build the QUIC endpoint
         let mut endpoint_builder = Endpoint::builder().secret_key(secret_key.clone());
 
-        if !config.use_relay {
-            endpoint_builder = endpoint_builder.relay_mode(iroh::RelayMode::Disabled);
-        }
+        // Configure relay mode based on RelayConfig
+        let relay_mode = match &config.relay_config {
+            RelayConfig::Disabled => iroh::RelayMode::Disabled,
+            RelayConfig::Default => iroh::RelayMode::Default,
+            RelayConfig::Staging => iroh::RelayMode::Staging,
+            RelayConfig::Custom(urls) => {
+                // For custom relays, we need to build a RelayMap
+                // For now, fall back to default if custom URLs provided
+                // TODO: Implement custom relay map construction
+                if urls.is_empty() {
+                    iroh::RelayMode::Default
+                } else {
+                    warn!(
+                        "Custom relay URLs not yet implemented, using default relays. URLs: {:?}",
+                        urls
+                    );
+                    iroh::RelayMode::Default
+                }
+            }
+        };
+        endpoint_builder = endpoint_builder.relay_mode(relay_mode);
 
         // Add ALPNs for all protocols we support
         endpoint_builder = endpoint_builder.alpns(vec![
@@ -385,6 +407,69 @@ impl P2PNetwork for GrapheneNode {
             .connect(addr, alpn)
             .await
             .map_err(|e| P2PError::ConnectionError(format!("Failed to connect: {}", e)))
+    }
+
+    fn connection_quality(&self, conn: &Connection) -> Result<ConnectionQuality, P2PError> {
+        // Get the path info list from the connection
+        let mut paths_watcher = conn.paths();
+        let path_list = paths_watcher.get();
+
+        // Collect path info - consume the PathInfoList via into_iter
+        let path_metrics: Vec<PathMetrics> = path_list
+            .into_iter()
+            .map(|path| {
+                let path_type = if path.is_relay() {
+                    PathType::Relay
+                } else {
+                    PathType::Direct
+                };
+
+                PathMetrics {
+                    path_type,
+                    rtt: path.rtt(),
+                    is_active: path.is_selected(),
+                    remote_addr: format!("{:?}", path.remote_addr()),
+                }
+            })
+            .collect();
+
+        Ok(ConnectionQuality::from_paths(path_metrics))
+    }
+
+    fn is_direct_connection(&self, conn: &Connection) -> bool {
+        let mut paths_watcher = conn.paths();
+        let path_list = paths_watcher.get();
+
+        // Check if the currently selected path is direct (not relay)
+        path_list
+            .into_iter()
+            .any(|path| path.is_selected() && !path.is_relay())
+    }
+
+    fn active_path_type(&self, conn: &Connection) -> PathType {
+        let mut paths_watcher = conn.paths();
+        let path_list = paths_watcher.get();
+
+        // Find the selected path and return its type
+        for path in path_list.into_iter() {
+            if path.is_selected() {
+                return if path.is_relay() {
+                    PathType::Relay
+                } else {
+                    PathType::Direct
+                };
+            }
+        }
+
+        // Default to relay if no path is selected (shouldn't happen for active connections)
+        PathType::Relay
+    }
+
+    fn metrics(&self) -> P2PMetrics {
+        // Return default metrics - Iroh's metrics API requires the "metrics" feature
+        // and the exact field names vary by version. For now, return zeros.
+        // TODO: Enable iroh/metrics feature and use actual endpoint metrics
+        P2PMetrics::default()
     }
 
     async fn shutdown(&self) -> Result<(), P2PError> {
