@@ -135,6 +135,8 @@ async fn shutdown_signal() -> Result<(), WorkerError> {
 
 /// Create a worker announcement from config.
 fn create_announcement(config: &WorkerConfig, node: &Arc<GrapheneNode>) -> WorkerAnnouncement {
+    use crate::p2p::messages::{WorkerCapabilities, WorkerLoad, WorkerPricing};
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -142,9 +144,20 @@ fn create_announcement(config: &WorkerConfig, node: &Arc<GrapheneNode>) -> Worke
 
     WorkerAnnouncement {
         node_id: node.node_id(),
-        capabilities: config.worker.capabilities.clone(),
-        price_per_unit: config.worker.price_per_unit,
-        max_duration_secs: config.worker.max_duration_secs,
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        capabilities: WorkerCapabilities {
+            max_vcpu: 4,         // TODO: Detect or configure
+            max_memory_mb: 4096, // TODO: Detect or configure
+            kernels: config.worker.capabilities.clone(),
+        },
+        pricing: WorkerPricing {
+            cpu_ms_micros: config.worker.price_per_unit,
+            memory_mb_ms_micros: 0.0, // TODO: Add to config
+        },
+        load: WorkerLoad {
+            available_slots: config.worker.job_slots as u8,
+            queue_depth: 0,
+        },
         timestamp,
     }
 }
@@ -160,10 +173,14 @@ async fn heartbeat_loop(
     loop {
         tokio::select! {
             _ = tokio::time::sleep(interval) => {
+                use crate::p2p::messages::WorkerLoad;
+
                 let heartbeat = WorkerHeartbeat {
                     node_id: node.node_id(),
-                    load_percent: 0, // TODO: Calculate actual load
-                    active_jobs: 0,  // TODO: Track active jobs
+                    load: WorkerLoad {
+                        available_slots: 4, // TODO: Track actual available slots
+                        queue_depth: 0,     // TODO: Track job queue depth
+                    },
                     timestamp: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
@@ -206,8 +223,8 @@ async fn handle_gossip_event(
                     }
                     ComputeMessage::Heartbeat(hb) => {
                         info!(
-                            "Received heartbeat from peer: {} (load={}%)",
-                            hb.node_id, hb.load_percent
+                            "Received heartbeat from peer: {} (slots={}, queue={})",
+                            hb.node_id, hb.load.available_slots, hb.load.queue_depth
                         );
                     }
                     ComputeMessage::DiscoveryQuery(query) => {
