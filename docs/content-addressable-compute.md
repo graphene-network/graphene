@@ -58,7 +58,7 @@ This is the JSON file the Agent uploads to IPFS *before* talking to Solana.
 ```json
 {
   "version": "1.0",
-  "kernel": "python-3.11-minimal", 
+  "kernel": "python-3.11-minimal",
   "requirements_hash": "a1b2c3...", // SHA256 of the sorted requirements.txt
   "code_hash": "9z8y7x...",       // SHA256 of the script content
   "entrypoint": "main.py",

@@ -1,7 +1,7 @@
 use super::{CacheError, DependencyCache};
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 
 pub struct LocalDiskCache {

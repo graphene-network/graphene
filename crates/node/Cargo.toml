@@ -1,0 +1,33 @@
+[package]
+name = "monad_node"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# The official AWS Firecracker SDK.
+# Note: Ensure you have the firecracker binary (v1.7+) installed globally or in path.
+firecracker-rs-sdk = { version = "0.1", features = ["_rt-tokio"] }
+tempfile = "3.8"
+reqwest = { version = "0.11", features = ["json"] }
+async-trait = "0.1.89"
+uuid = { version = "1.4", features = ["v4"] }
+sha2 = "0.10"
+hex = "0.4"
+axum = "0.7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+iroh = { version = "0.96.0", features = ["default"] }
+tokio = { version = "1.49.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+anyhow = "1.0.100"
+rand = "0.8"
+
+
+[[bin]]
+name = "monad-server"
+path = "bin/server.rs"
+
+[[bin]]
+name = "monad-client"
+path = "bin/client.rs"

@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
+pub mod iroh;
 pub mod local;
 pub mod mock;
 
