@@ -3,7 +3,10 @@
 //! Provides [`MockGrapheneNode`] which implements [`P2PNetwork`] with configurable
 //! behaviors for testing different scenarios.
 
-use super::{GossipSubscription, P2PError, P2PNetwork, TopicId};
+use super::{
+    ConnectionQuality, GossipSubscription, P2PError, P2PMetrics, P2PNetwork, PathMetrics, PathType,
+    TopicId,
+};
 use async_trait::async_trait;
 use iroh::endpoint::Connection;
 use iroh::{EndpointAddr, PublicKey, SecretKey};
@@ -372,6 +375,32 @@ impl P2PNetwork for MockGrapheneNode {
         Err(P2PError::ConnectionError(
             "Mock node cannot create real connections - use integration tests".into(),
         ))
+    }
+
+    fn connection_quality(&self, _conn: &Connection) -> Result<ConnectionQuality, P2PError> {
+        // Mock always returns a direct connection with reasonable RTT
+        let path = PathMetrics {
+            path_type: PathType::Direct,
+            rtt: std::time::Duration::from_millis(50),
+            is_active: true,
+            remote_addr: "127.0.0.1:12345".to_string(),
+        };
+        Ok(ConnectionQuality::from_paths(vec![path]))
+    }
+
+    fn is_direct_connection(&self, _conn: &Connection) -> bool {
+        // Mock always reports direct connections
+        true
+    }
+
+    fn active_path_type(&self, _conn: &Connection) -> PathType {
+        // Mock always uses direct path
+        PathType::Direct
+    }
+
+    fn metrics(&self) -> P2PMetrics {
+        // Return default metrics for mock
+        P2PMetrics::default()
     }
 
     async fn shutdown(&self) -> Result<(), P2PError> {

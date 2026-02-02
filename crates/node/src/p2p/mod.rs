@@ -18,7 +18,10 @@ pub mod types;
 
 pub use graphene::GrapheneNode;
 pub use mock::{MockGrapheneNode, MockNetwork};
-pub use types::{GossipSubscription, P2PConfig, TopicId};
+pub use types::{
+    ConnectionQuality, GossipSubscription, P2PConfig, P2PMetrics, PathMetrics, PathType,
+    RelayConfig, TopicId,
+};
 
 /// Errors that can occur during P2P operations.
 #[derive(Debug)]
@@ -108,6 +111,29 @@ pub trait P2PNetwork: Send + Sync {
 
     /// Open a direct QUIC connection to a peer using the specified ALPN.
     async fn connect(&self, addr: EndpointAddr, alpn: &[u8]) -> Result<Connection, P2PError>;
+
+    // ─── NAT Traversal / Connection Quality ─────────────────────────────────────
+
+    /// Get quality metrics for a connection.
+    ///
+    /// Returns information about all known paths to the peer, including
+    /// whether they are direct or relayed, their RTT, and which is active.
+    fn connection_quality(&self, conn: &Connection) -> Result<ConnectionQuality, P2PError>;
+
+    /// Check if a connection is currently using a direct path.
+    ///
+    /// Returns `true` if the active path is a direct UDP connection
+    /// (hole-punched or LAN), `false` if using a relay.
+    fn is_direct_connection(&self, conn: &Connection) -> bool;
+
+    /// Get the type of the currently active path for a connection.
+    fn active_path_type(&self, conn: &Connection) -> PathType;
+
+    /// Get aggregated P2P metrics for monitoring.
+    ///
+    /// Returns counters for connections, paths, and hole-punch attempts
+    /// since the node started.
+    fn metrics(&self) -> P2PMetrics;
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
