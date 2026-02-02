@@ -1,0 +1,30 @@
+# Graphene Worker Configuration Example
+# Copy to worker.toml and adjust settings for your environment
+
+[worker]
+name = "my-worker"
+capabilities = ["python", "cpu"]
+price_per_unit = 1000       # Lamports per compute unit
+max_duration_secs = 300     # 5 minutes max job duration
+job_slots = 4               # Max concurrent jobs
+
+[p2p]
+storage_path = ".graphene-worker"
+use_relay = true
+bind_port = 0               # 0 = random available port
+
+[solana]
+rpc_url = "https://api.devnet.solana.com"
+keypair_path = "~/.config/solana/id.json"
+program_id = "DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs"
+
+[vmm]
+firecracker_path = "firecracker"
+runtime_dir = "/tmp/graphene-worker"
+default_vcpu = 2
+default_memory_mib = 512
+execution_timeout_secs = 300
+
+[logging]
+level = "info"
+format = "pretty"

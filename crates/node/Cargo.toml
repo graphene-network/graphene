@@ -22,8 +22,8 @@ sha2 = "0.10"
 hex = "0.4"
 axum = "0.7"
 tracing = "0.1"
-tracing-subscriber = "0.3"
-tokio = { version = "1.49.0", features = ["full"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.49.0", features = ["full", "signal"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.100"
@@ -32,6 +32,7 @@ rand = "0.8"
 libc = "0.2"
 prometheus = "0.13"
 lazy_static = "1.4"
+thiserror = "2.0"
 
 # Iroh P2P networking
 iroh = "0.96"
@@ -44,7 +45,8 @@ futures-lite = "2.6"
 tar = "0.4"
 dockerfile-parser = "0.9"
 
-# Kernel library
+# CLI and configuration
+clap = { version = "4.5", features = ["derive", "env"] }
 toml = "0.8"
 dirs = "5.0"
 
@@ -56,10 +58,18 @@ ed25519-dalek = { version = "2.0", features = ["hazmat"] }
 curve25519-dalek = { version = "4.1", features = ["digest"] }
 zeroize = { version = "1.7", features = ["derive"] }
 
+# Solana integration
+solana-sdk = "2.1"
+solana-client = "2.1"
+
 [dev-dependencies]
 tempfile = "3.8"
 rand = "0.8"
 
+
+[[bin]]
+name = "graphene-worker"
+path = "bin/worker.rs"
 
 # TODO: Binaries need updating for iroh 0.96.0 API changes
 # [[bin]]
