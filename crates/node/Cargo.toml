@@ -1,7 +1,11 @@
 [package]
 name = "monad_node"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[features]
+default = []
+integration-tests = []
 
 [dependencies]
 # The official AWS Firecracker SDK.
@@ -22,12 +26,14 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.100"
 rand = "0.8"
+libc = "0.2"
 
 
-[[bin]]
-name = "monad-server"
-path = "bin/server.rs"
+# TODO: Binaries need updating for iroh 0.96.0 API changes
+# [[bin]]
+# name = "monad-server"
+# path = "bin/server.rs"
 
-[[bin]]
-name = "monad-client"
-path = "bin/client.rs"
+# [[bin]]
+# name = "monad-client"
+# path = "bin/client.rs"

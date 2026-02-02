@@ -3,7 +3,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
-pub mod iroh;
+// TODO: iroh module needs updating for iroh 0.96.0 API changes
+// pub mod iroh;
 pub mod local;
 pub mod mock;
 
@@ -11,6 +12,7 @@ pub mod mock;
 pub enum CacheError {
     IoError(String),
     ComputeError(String),
+    InvalidHash,
 }
 
 impl Error for CacheError {
@@ -18,6 +20,7 @@ impl Error for CacheError {
         match self {
             CacheError::IoError(msg) => msg,
             CacheError::ComputeError(msg) => msg,
+            CacheError::InvalidHash => "Invalid hash",
         }
     }
 }
@@ -27,7 +30,14 @@ impl Display for CacheError {
         match self {
             CacheError::IoError(msg) => write!(f, "IO Error: {}", msg),
             CacheError::ComputeError(msg) => write!(f, "Compute Error: {}", msg),
+            CacheError::InvalidHash => write!(f, "Invalid hash"),
         }
+    }
+}
+
+impl From<std::io::Error> for CacheError {
+    fn from(err: std::io::Error) -> Self {
+        CacheError::IoError(err.to_string())
     }
 }
 

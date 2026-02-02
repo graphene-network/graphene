@@ -18,6 +18,12 @@ pub struct MockCache {
     pub spy: Arc<Mutex<CacheSpyState>>,
 }
 
+impl Default for MockCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockCache {
     pub fn new() -> Self {
         Self {

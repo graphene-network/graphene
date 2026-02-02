@@ -36,7 +36,7 @@ impl Display for BuilderError {
 pub trait DriveBuilder: Send + Sync {
     /// Takes raw code string, returns path to a bootable ext4 image
     async fn create_code_drive(&self, job_id: &str, content: &str)
-    -> Result<PathBuf, BuilderError>;
+        -> Result<PathBuf, BuilderError>;
 
     /// (Future) Takes list of packages, returns path to dependency drive
     async fn build_dependency_drive(
