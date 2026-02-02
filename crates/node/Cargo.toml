@@ -3,6 +3,10 @@ name = "monad_node"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+integration-tests = []
+
 [dependencies]
 # The official AWS Firecracker SDK.
 # Note: Ensure you have the firecracker binary (v1.7+) installed globally or in path.

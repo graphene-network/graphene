@@ -2,8 +2,10 @@
 //!
 //! These tests only run on Linux where Firecracker is supported.
 //! Some tests require the `firecracker` binary to be installed.
+//!
+//! Run with: `cargo test -p monad_node --features integration-tests`
 
-#![cfg(target_os = "linux")]
+#![cfg(all(target_os = "linux", feature = "integration-tests"))]
 
 use monad_node::vmm::{FirecrackerConfig, FirecrackerVirtualizer, VmState, Virtualizer, VmmError};
 use std::path::PathBuf;
