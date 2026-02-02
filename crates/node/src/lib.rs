@@ -1,6 +1,7 @@
 pub mod api;
 pub mod builder;
 pub mod cache;
+pub mod ephemeral;
 pub mod metrics;
 pub mod p2p;
 pub mod protocol;
