@@ -196,7 +196,7 @@ impl GrapheneNode {
                             }
                         });
                     } else {
-                        debug!("Connection with ALPN: {:?}", String::from_utf8_lossy(&alpn));
+                        debug!("Connection with ALPN: {:?}", String::from_utf8_lossy(alpn));
                     }
                 }
                 None => break,

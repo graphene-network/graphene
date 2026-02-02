@@ -173,12 +173,9 @@ impl MockGrapheneNode {
     }
 
     /// Inject a gossip event into an active subscription.
-    pub async fn inject_gossip_event(
-        &self,
-        topic: TopicId,
-        event: GossipEvent,
-    ) -> bool {
-        if let Some(sender) = self.gossip_injectors.read().unwrap().get(&topic) {
+    pub async fn inject_gossip_event(&self, topic: TopicId, event: GossipEvent) -> bool {
+        let sender = self.gossip_injectors.read().unwrap().get(&topic).cloned();
+        if let Some(sender) = sender {
             sender.send(event).await.is_ok()
         } else {
             false
