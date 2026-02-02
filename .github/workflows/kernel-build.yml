@@ -60,7 +60,7 @@ jobs:
           curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraft_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraft.tar.gz
           tar -xzf kraft.tar.gz
           sudo mv kraft /usr/local/bin/kraft
-          kraft --version
+          kraft version
 
       - name: Build kernel
         working-directory: kernels/${{ matrix.runtime }}/${{ matrix.version }}
