@@ -28,3 +28,6 @@ target
 /resources
 
 node_modules
+
+# Anchor
+.anchor
