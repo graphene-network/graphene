@@ -313,3 +313,46 @@ bd sync               # Sync with git
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+
+---
+
+## Pull Request Guidelines
+
+### Always Reference GitHub Issues
+
+**MANDATORY**: Every PR description MUST reference relevant GitHub issues.
+
+**Format:**
+```markdown
+## Summary
+[Brief description of changes]
+
+## Changes
+- [List of key changes]
+
+## Test plan
+- [x] Tests pass
+- [x] No clippy warnings
+- [ ] Manual testing completed
+
+Closes #123
+Closes #456
+Related to #789
+```
+
+**Keywords that auto-close issues:**
+- `Closes #N`
+- `Fixes #N`
+- `Resolves #N`
+
+**For partial progress:**
+- `Related to #N`
+- `Partial progress on #N`
+- `Blocked by #N`
+
+**Best Practices:**
+1. Review open issues BEFORE starting work to find relevant issue numbers
+2. Create new issues if no existing issue covers the work
+3. Reference ALL issues that the PR addresses (even partially)
+4. Use "Closes" only when the issue is fully resolved
+5. Update issue status with `gh issue close N --comment "..."` if auto-close doesn't work
