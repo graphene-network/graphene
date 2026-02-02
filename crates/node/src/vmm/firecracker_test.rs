@@ -5,9 +5,7 @@
 //!
 //! Run with: `cargo test -p monad_node --features integration-tests`
 
-#![cfg(all(target_os = "linux", feature = "integration-tests"))]
-
-use monad_node::vmm::{FirecrackerConfig, FirecrackerVirtualizer, VmState, Virtualizer, VmmError};
+use super::{FirecrackerConfig, FirecrackerVirtualizer, VmState, Virtualizer, VmmError};
 use std::path::PathBuf;
 use std::time::Duration;
 
