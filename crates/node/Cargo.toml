@@ -20,13 +20,23 @@ hex = "0.4"
 axum = "0.7"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-iroh = { version = "0.96.0", features = ["default"] }
 tokio = { version = "1.49.0", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.100"
 rand = "0.8"
 libc = "0.2"
+
+# Iroh P2P networking
+iroh = "0.96"
+iroh-blobs = { version = "0.98", features = ["fs-store"] }
+iroh-gossip = { version = "0.96", features = ["net"] }
+blake3 = "1.5"
+futures-lite = "2.6"
+
+[dev-dependencies]
+tempfile = "3.8"
+rand = "0.8"
 
 
 # TODO: Binaries need updating for iroh 0.96.0 API changes
