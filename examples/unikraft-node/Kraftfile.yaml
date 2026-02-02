@@ -1,0 +1,5 @@
+spec: v0.6
+name: unikraft-node-example
+runtime: node:20
+rootfs: ./Dockerfile
+cmd: ["node", "index.js"]

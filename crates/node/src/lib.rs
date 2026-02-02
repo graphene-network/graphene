@@ -5,4 +5,5 @@ pub mod ephemeral;
 pub mod metrics;
 pub mod p2p;
 pub mod protocol;
+pub mod unikraft;
 pub mod vmm;
