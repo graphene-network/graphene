@@ -1,218 +1,343 @@
-//! P2P integration tests using mock implementations.
+//! P2P integration tests using real Iroh infrastructure.
 //!
-//! These tests verify the P2P networking abstraction works correctly
-//! without requiring actual network connections.
+//! These tests spin up actual GrapheneNode instances and verify real P2P
+//! networking operations work correctly.
+//!
+//! Run with: cargo test --features integration-tests
 
-use monad_node::p2p::{
-    mock::{MockBehavior, MockGrapheneNode, MockNetwork},
-    P2PNetwork,
-};
+#![cfg(feature = "integration-tests")]
+
+use monad_node::p2p::{GrapheneNode, P2PConfig, P2PNetwork, TopicId};
+use std::sync::Arc;
+use std::time::Duration;
+use tempfile::TempDir;
+
+/// Helper to create a GrapheneNode with a temporary storage directory.
+async fn create_test_node() -> (GrapheneNode, TempDir) {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = P2PConfig::new(temp_dir.path()).with_relay(false);
+    let node = GrapheneNode::new(config)
+        .await
+        .expect("Failed to create GrapheneNode");
+    (node, temp_dir)
+}
 
 #[tokio::test]
-async fn test_mock_blob_roundtrip() {
-    let node = MockGrapheneNode::new();
+async fn test_node_initialization() {
+    let (node, _temp_dir) = create_test_node().await;
+
+    // Node should have a valid identity
+    let node_id = node.node_id();
+    assert!(!node_id.as_bytes().iter().all(|&b| b == 0));
+
+    // Should be able to get the node address
+    let addr = node.node_addr().await.expect("Failed to get node address");
+    assert_eq!(addr.id, node_id);
+
+    node.shutdown().await.expect("Failed to shutdown");
+}
+
+#[tokio::test]
+async fn test_blob_upload_and_local_download() {
+    let (node, _temp_dir) = create_test_node().await;
 
     // Upload a blob
-    let data = b"Hello, Graphene Network!";
-    let hash = node.upload_blob(data).await.unwrap();
+    let data = b"Hello, Graphene Network! This is a real blob.";
+    let hash = node
+        .upload_blob(data)
+        .await
+        .expect("Failed to upload blob");
 
-    // Verify we can check it exists
-    assert!(node.has_blob(hash).await.unwrap());
+    // Verify the blob exists locally
+    assert!(node.has_blob(hash).await.expect("Failed to check blob"));
 
     // Download and verify content
-    let downloaded = node.download_blob(hash, None).await.unwrap();
+    let downloaded = node
+        .download_blob(hash, None)
+        .await
+        .expect("Failed to download blob");
     assert_eq!(downloaded, data);
 
-    // Verify spy state recorded the operations
-    let spy = node.spy();
-    assert_eq!(spy.uploaded_blobs.len(), 1);
-    assert_eq!(spy.download_attempts.len(), 1);
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_network_blob_sharing() {
-    // Create a shared network
-    let network = MockNetwork::new();
+async fn test_blob_upload_from_file() {
+    let (node, temp_dir) = create_test_node().await;
 
-    // Create two nodes on the same network
-    let node1 = MockGrapheneNode::with_network(network.clone());
-    let node2 = MockGrapheneNode::with_network(network);
+    // Create a test file
+    let file_path = temp_dir.path().join("test_file.txt");
+    let file_content = b"This is content from a file on disk.";
+    std::fs::write(&file_path, file_content).expect("Failed to write test file");
 
-    // Upload from node1
-    let data = b"Shared blob data";
-    let hash = node1.upload_blob(data).await.unwrap();
+    // Upload from path
+    let hash = node
+        .upload_blob_from_path(&file_path)
+        .await
+        .expect("Failed to upload blob from path");
 
-    // Download from node2 (should find it via shared network)
-    let downloaded = node2.download_blob(hash, None).await.unwrap();
-    assert_eq!(downloaded, data);
+    // Verify it exists and content matches
+    assert!(node.has_blob(hash).await.expect("Failed to check blob"));
+    let downloaded = node
+        .download_blob(hash, None)
+        .await
+        .expect("Failed to download blob");
+    assert_eq!(downloaded, file_content);
 
-    // Verify node2 can also check the blob exists
-    assert!(node2.has_blob(hash).await.unwrap());
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_blob_not_found() {
-    let node = MockGrapheneNode::new();
+async fn test_blob_not_found() {
+    let (node, _temp_dir) = create_test_node().await;
 
     // Try to download a non-existent blob
-    let fake_hash = iroh_blobs::Hash::new(b"nonexistent");
+    let fake_hash = iroh_blobs::Hash::new(b"this content does not exist anywhere");
+
+    // Should not exist locally
+    assert!(!node.has_blob(fake_hash).await.expect("Failed to check blob"));
+
+    // Download should fail
     let result = node.download_blob(fake_hash, None).await;
-
     assert!(result.is_err());
+
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_behavior_blob_failure() {
-    let node = MockGrapheneNode::with_behavior(MockBehavior::BlobDownloadFailure);
+async fn test_large_blob_upload() {
+    let (node, _temp_dir) = create_test_node().await;
 
-    // Upload should still work
-    let data = b"test data";
-    let hash = node.upload_blob(data).await.unwrap();
+    // Create a 1MB blob
+    let data: Vec<u8> = (0..1024 * 1024).map(|i| (i % 256) as u8).collect();
+    let hash = node
+        .upload_blob(&data)
+        .await
+        .expect("Failed to upload large blob");
 
-    // But download should fail
-    let result = node.download_blob(hash, None).await;
-    assert!(result.is_err());
+    // Verify it exists and content matches
+    assert!(node.has_blob(hash).await.expect("Failed to check blob"));
+    let downloaded = node
+        .download_blob(hash, None)
+        .await
+        .expect("Failed to download blob");
+    assert_eq!(downloaded.len(), data.len());
+    assert_eq!(downloaded, data);
+
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_gossip_subscription() {
-    let node = MockGrapheneNode::new();
+async fn test_gossip_subscription() {
+    let (node, _temp_dir) = create_test_node().await;
 
-    // Create a topic
-    let topic = monad_node::p2p::TopicId::from_name("test-topic-1");
+    let topic = TopicId::from_name("integration-test-topic");
 
-    // Subscribe to the topic
-    let subscription = node.subscribe(topic).await.unwrap();
-
-    // Verify subscription was recorded
-    assert_eq!(node.spy().subscribed_topics.len(), 1);
-    assert_eq!(node.spy().subscribed_topics[0], topic);
+    // Subscribe to a topic
+    let subscription = node
+        .subscribe(topic)
+        .await
+        .expect("Failed to subscribe to topic");
 
     // Verify subscription has the correct topic
     assert_eq!(subscription.topic, topic);
+
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_broadcast() {
-    let node = MockGrapheneNode::new();
+async fn test_gossip_broadcast() {
+    let (node, _temp_dir) = create_test_node().await;
 
-    let topic = monad_node::p2p::TopicId::from_name("broadcast-topic");
-    let message = b"Hello, gossip network!";
+    let topic = TopicId::from_name("broadcast-test-topic");
+    let message = b"Hello from the gossip network!";
 
-    // Broadcast a message
-    node.broadcast(topic, message).await.unwrap();
+    // Broadcasting should succeed (even with no peers)
+    node.broadcast(topic, message)
+        .await
+        .expect("Failed to broadcast message");
 
-    // Verify it was recorded
-    let spy = node.spy();
-    assert_eq!(spy.broadcast_messages.len(), 1);
-    assert_eq!(spy.broadcast_messages[0].0, topic);
-    assert_eq!(spy.broadcast_messages[0].1, message.to_vec());
+    node.shutdown().await.expect("Failed to shutdown");
 }
 
 #[tokio::test]
-async fn test_mock_shutdown() {
-    let node = MockGrapheneNode::new();
+async fn test_identity_persistence() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let storage_path = temp_dir.path().to_path_buf();
 
-    // Upload something first
+    // Create a node and get its identity
+    let config1 = P2PConfig::new(storage_path.clone()).with_relay(false);
+    let node1 = GrapheneNode::new(config1)
+        .await
+        .expect("Failed to create first node");
+    let node_id1 = node1.node_id();
+    node1.shutdown().await.expect("Failed to shutdown first node");
+
+    // Create another node with the same storage path
+    let config2 = P2PConfig::new(storage_path).with_relay(false);
+    let node2 = GrapheneNode::new(config2)
+        .await
+        .expect("Failed to create second node");
+    let node_id2 = node2.node_id();
+    node2
+        .shutdown()
+        .await
+        .expect("Failed to shutdown second node");
+
+    // Both should have the same identity
+    assert_eq!(node_id1, node_id2);
+}
+
+#[tokio::test]
+async fn test_multiple_blobs() {
+    let (node, _temp_dir) = create_test_node().await;
+
+    let blobs: Vec<&[u8]> = vec![
+        b"First blob content",
+        b"Second blob content with different data",
+        b"Third blob - even more data here",
+    ];
+
+    let mut hashes = Vec::new();
+
+    // Upload all blobs
+    for data in &blobs {
+        let hash = node.upload_blob(*data).await.expect("Failed to upload blob");
+        hashes.push(hash);
+    }
+
+    // Verify all exist and have correct content
+    for (data, hash) in blobs.iter().zip(hashes.iter()) {
+        assert!(node.has_blob(*hash).await.expect("Failed to check blob"));
+        let downloaded = node
+            .download_blob(*hash, None)
+            .await
+            .expect("Failed to download blob");
+        assert_eq!(&downloaded[..], *data);
+    }
+
+    node.shutdown().await.expect("Failed to shutdown");
+}
+
+#[tokio::test]
+async fn test_shutdown_prevents_operations() {
+    let (node, _temp_dir) = create_test_node().await;
+
+    // Upload before shutdown
     let data = b"pre-shutdown data";
-    node.upload_blob(data).await.unwrap();
+    let hash = node
+        .upload_blob(data)
+        .await
+        .expect("Failed to upload before shutdown");
 
     // Shutdown
-    node.shutdown().await.unwrap();
-
-    // Verify shutdown was recorded
-    assert!(node.spy().shutdown_called);
+    node.shutdown().await.expect("Failed to shutdown");
 
     // Operations should now fail
     let result = node.upload_blob(b"post-shutdown").await;
     assert!(result.is_err());
-}
 
-#[tokio::test]
-async fn test_mock_node_identity() {
-    let node = MockGrapheneNode::new();
-
-    // Node should have a valid identity
-    let _node_id = node.node_id();
-
-    // Should be able to get the node address
-    let addr = node.node_addr().await.unwrap();
-
-    // The address should be valid (we can't easily compare the node ID)
-    // Just verify we got an address without error
-    let _ = addr;
-}
-
-#[tokio::test]
-async fn test_mock_inject_blob() {
-    let node = MockGrapheneNode::new();
-
-    // Pre-inject a blob
-    let data = b"injected blob data";
-    let hash = iroh_blobs::Hash::new(data);
-    node.inject_blob(hash, data.to_vec());
-
-    // Should be able to download it without uploading
-    let downloaded = node.download_blob(hash, None).await.unwrap();
-    assert_eq!(downloaded, data);
-
-    // Upload spy should be empty (we didn't use upload_blob)
-    assert!(node.spy().uploaded_blobs.is_empty());
-}
-
-#[tokio::test]
-async fn test_mock_behavior_gossip_failure() {
-    let node = MockGrapheneNode::with_behavior(MockBehavior::GossipFailure);
-
-    let topic = monad_node::p2p::TopicId::from_name("failing-topic");
-
-    // Subscribe should fail
-    let result = node.subscribe(topic).await;
+    let result = node.download_blob(hash, None).await;
     assert!(result.is_err());
 
-    // Broadcast should also fail
-    let result = node.broadcast(topic, b"message").await;
+    let result = node.has_blob(hash).await;
+    assert!(result.is_err());
+
+    let result = node.node_addr().await;
     assert!(result.is_err());
 }
 
 #[tokio::test]
-async fn test_mock_behavior_connection_failure() {
-    let node = MockGrapheneNode::with_behavior(MockBehavior::ConnectionFailure);
+async fn test_two_node_connection() {
+    let (node1, _temp_dir1) = create_test_node().await;
+    let (node2, _temp_dir2) = create_test_node().await;
 
-    // Create a fake address
-    let mut key_bytes = [0u8; 32];
-    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut key_bytes);
-    let fake_key = iroh::SecretKey::from_bytes(&key_bytes);
-    let fake_addr = iroh::EndpointAddr::new(fake_key.public());
+    // Get node1's address
+    let addr1 = node1
+        .node_addr()
+        .await
+        .expect("Failed to get node1 address");
 
-    // Connection should fail
-    let result = node.connect(fake_addr, b"test-alpn").await;
-    assert!(result.is_err());
+    // Node2 connects to node1 using the job ALPN
+    let result = node2
+        .connect(addr1, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+        .await;
 
-    // But the attempt should be recorded
-    assert_eq!(node.spy().connection_attempts.len(), 1);
+    // Connection should succeed (node1 supports this ALPN)
+    assert!(result.is_ok());
+
+    node1.shutdown().await.expect("Failed to shutdown node1");
+    node2.shutdown().await.expect("Failed to shutdown node2");
 }
 
 #[tokio::test]
-async fn test_mock_dynamic_behavior_change() {
-    let node = MockGrapheneNode::new();
+async fn test_accept_loop_with_handler() {
+    let (node1, _temp_dir1) = create_test_node().await;
+    let node1 = Arc::new(node1);
 
-    // Start with happy path - upload works
-    let data = b"test";
-    let hash = node.upload_blob(data).await.unwrap();
+    // Start accept loop with a simple handler
+    let handler = Arc::new(|_conn: iroh::endpoint::Connection, _node: Arc<GrapheneNode>| async move {
+        Ok::<(), monad_node::p2p::P2PError>(())
+    });
 
-    // Download works
-    assert!(node.download_blob(hash, None).await.is_ok());
+    let node1_clone = node1.clone();
+    let accept_handle = tokio::spawn(async move {
+        node1_clone.accept_loop(handler).await;
+    });
 
-    // Change behavior to failure mode
-    node.set_behavior(MockBehavior::BlobDownloadFailure);
+    // Create a second node and connect
+    let (node2, _temp_dir2) = create_test_node().await;
 
-    // Now download fails
-    assert!(node.download_blob(hash, None).await.is_err());
+    let addr1 = node1
+        .node_addr()
+        .await
+        .expect("Failed to get node1 address");
 
-    // Change back to happy path
-    node.set_behavior(MockBehavior::HappyPath);
+    // Give the accept loop time to start
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Download works again
-    assert!(node.download_blob(hash, None).await.is_ok());
+    // Connect should work
+    let conn = node2
+        .connect(addr1, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+        .await
+        .expect("Failed to connect");
+
+    // Connection should be usable
+    assert!(!conn.alpn().is_empty());
+
+    // Cleanup
+    node1.shutdown().await.expect("Failed to shutdown node1");
+    node2.shutdown().await.expect("Failed to shutdown node2");
+    accept_handle.abort();
+}
+
+#[tokio::test]
+async fn test_concurrent_blob_operations() {
+    let (node, _temp_dir) = create_test_node().await;
+    let node = Arc::new(node);
+
+    // Spawn multiple concurrent upload tasks
+    let mut handles = Vec::new();
+    for i in 0..10 {
+        let node_clone = node.clone();
+        let handle = tokio::spawn(async move {
+            let data = format!("Concurrent blob number {}", i);
+            node_clone.upload_blob(data.as_bytes()).await
+        });
+        handles.push(handle);
+    }
+
+    // Wait for all uploads and collect hashes
+    let mut hashes = Vec::new();
+    for handle in handles {
+        let hash = handle.await.expect("Task panicked").expect("Upload failed");
+        hashes.push(hash);
+    }
+
+    // Verify all blobs exist
+    for hash in &hashes {
+        assert!(node.has_blob(*hash).await.expect("Failed to check blob"));
+    }
+
+    node.shutdown().await.expect("Failed to shutdown");
 }

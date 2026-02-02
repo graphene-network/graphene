@@ -389,38 +389,52 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_mock_blob_upload_download() {
+    async fn test_mock_blob_roundtrip() {
         let node = MockGrapheneNode::new();
 
-        let data = b"hello world";
+        let data = b"Hello, Graphene Network!";
         let hash = node.upload_blob(data).await.unwrap();
+
+        assert!(node.has_blob(hash).await.unwrap());
 
         let downloaded = node.download_blob(hash, None).await.unwrap();
         assert_eq!(downloaded, data);
 
-        assert!(node.has_blob(hash).await.unwrap());
+        let spy = node.spy();
+        assert_eq!(spy.uploaded_blobs.len(), 1);
+        assert_eq!(spy.download_attempts.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_mock_network_sharing() {
+    async fn test_mock_network_blob_sharing() {
         let network = MockNetwork::new();
         let node1 = MockGrapheneNode::with_network(network.clone());
         let node2 = MockGrapheneNode::with_network(network);
 
-        // Upload from node1
-        let data = b"shared data";
+        let data = b"Shared blob data";
         let hash = node1.upload_blob(data).await.unwrap();
 
-        // Download from node2
         let downloaded = node2.download_blob(hash, None).await.unwrap();
         assert_eq!(downloaded, data);
+
+        assert!(node2.has_blob(hash).await.unwrap());
     }
 
     #[tokio::test]
-    async fn test_mock_behavior_failure() {
+    async fn test_mock_blob_not_found() {
+        let node = MockGrapheneNode::new();
+
+        let fake_hash = Hash::new(b"nonexistent");
+        let result = node.download_blob(fake_hash, None).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mock_behavior_blob_failure() {
         let node = MockGrapheneNode::with_behavior(MockBehavior::BlobDownloadFailure);
 
-        let data = b"test";
+        let data = b"test data";
         let hash = node.upload_blob(data).await.unwrap();
 
         let result = node.download_blob(hash, None).await;
@@ -428,22 +442,110 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mock_spy_state() {
+    async fn test_mock_gossip_subscription() {
         let node = MockGrapheneNode::new();
 
-        node.upload_blob(b"data1").await.unwrap();
-        node.upload_blob(b"data2").await.unwrap();
+        let topic = TopicId::from_name("test-topic-1");
+        let subscription = node.subscribe(topic).await.unwrap();
 
-        assert_eq!(node.spy().uploaded_blobs.len(), 2);
+        assert_eq!(node.spy().subscribed_topics.len(), 1);
+        assert_eq!(node.spy().subscribed_topics[0], topic);
+        assert_eq!(subscription.topic, topic);
+    }
+
+    #[tokio::test]
+    async fn test_mock_broadcast() {
+        let node = MockGrapheneNode::new();
+
+        let topic = TopicId::from_name("broadcast-topic");
+        let message = b"Hello, gossip network!";
+
+        node.broadcast(topic, message).await.unwrap();
+
+        let spy = node.spy();
+        assert_eq!(spy.broadcast_messages.len(), 1);
+        assert_eq!(spy.broadcast_messages[0].0, topic);
+        assert_eq!(spy.broadcast_messages[0].1, message.to_vec());
     }
 
     #[tokio::test]
     async fn test_mock_shutdown() {
         let node = MockGrapheneNode::new();
 
+        let data = b"pre-shutdown data";
+        node.upload_blob(data).await.unwrap();
+
         node.shutdown().await.unwrap();
 
         assert!(node.spy().shutdown_called);
-        assert!(node.upload_blob(b"test").await.is_err());
+        let result = node.upload_blob(b"post-shutdown").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mock_node_identity() {
+        let node = MockGrapheneNode::new();
+
+        let _node_id = node.node_id();
+        let addr = node.node_addr().await.unwrap();
+        let _ = addr;
+    }
+
+    #[tokio::test]
+    async fn test_mock_inject_blob() {
+        let node = MockGrapheneNode::new();
+
+        let data = b"injected blob data";
+        let hash = Hash::new(data);
+        node.inject_blob(hash, data.to_vec());
+
+        let downloaded = node.download_blob(hash, None).await.unwrap();
+        assert_eq!(downloaded, data);
+
+        assert!(node.spy().uploaded_blobs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_mock_behavior_gossip_failure() {
+        let node = MockGrapheneNode::with_behavior(MockBehavior::GossipFailure);
+
+        let topic = TopicId::from_name("failing-topic");
+
+        let result = node.subscribe(topic).await;
+        assert!(result.is_err());
+
+        let result = node.broadcast(topic, b"message").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mock_behavior_connection_failure() {
+        let node = MockGrapheneNode::with_behavior(MockBehavior::ConnectionFailure);
+
+        let mut key_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut key_bytes);
+        let fake_key = SecretKey::from_bytes(&key_bytes);
+        let fake_addr = EndpointAddr::new(fake_key.public());
+
+        let result = node.connect(fake_addr, b"test-alpn").await;
+        assert!(result.is_err());
+
+        assert_eq!(node.spy().connection_attempts.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_mock_dynamic_behavior_change() {
+        let node = MockGrapheneNode::new();
+
+        let data = b"test";
+        let hash = node.upload_blob(data).await.unwrap();
+
+        assert!(node.download_blob(hash, None).await.is_ok());
+
+        node.set_behavior(MockBehavior::BlobDownloadFailure);
+        assert!(node.download_blob(hash, None).await.is_err());
+
+        node.set_behavior(MockBehavior::HappyPath);
+        assert!(node.download_blob(hash, None).await.is_ok());
     }
 }

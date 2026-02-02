@@ -36,6 +36,7 @@ futures-lite = "2.6"
 
 [dev-dependencies]
 tempfile = "3.8"
+rand = "0.8"
 
 
 # TODO: Binaries need updating for iroh 0.96.0 API changes
