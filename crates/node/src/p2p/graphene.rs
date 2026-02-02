@@ -4,8 +4,8 @@
 //! using Iroh's QUIC-based networking stack.
 
 use super::{
-    ConnectionQuality, GossipSubscription, P2PConfig, P2PError, P2PMetrics, P2PNetwork, PathMetrics,
-    PathType, RelayConfig, TopicId,
+    ConnectionQuality, GossipSubscription, P2PConfig, P2PError, P2PMetrics, P2PNetwork,
+    PathMetrics, PathType, RelayConfig, TopicId,
 };
 use async_trait::async_trait;
 use iroh::endpoint::{Connection, Endpoint};

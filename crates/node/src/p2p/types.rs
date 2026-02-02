@@ -354,12 +354,12 @@ mod tests {
 
     #[test]
     fn test_p2p_config_with_relay_config() {
-        let config = P2PConfig::new("/tmp/test")
-            .with_relay_config(RelayConfig::Staging);
+        let config = P2PConfig::new("/tmp/test").with_relay_config(RelayConfig::Staging);
         assert_eq!(config.relay_config, RelayConfig::Staging);
 
-        let config2 = P2PConfig::new("/tmp/test")
-            .with_relay_config(RelayConfig::Custom(vec!["https://relay.example.com".to_string()]));
+        let config2 = P2PConfig::new("/tmp/test").with_relay_config(RelayConfig::Custom(vec![
+            "https://relay.example.com".to_string(),
+        ]));
         match config2.relay_config {
             RelayConfig::Custom(urls) => {
                 assert_eq!(urls.len(), 1);
