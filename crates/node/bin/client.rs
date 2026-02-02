@@ -1,10 +1,9 @@
 use anyhow::Result;
-use iroh::SecretKey;
+use iroh::{EndpointAddr, SecretKey};
 use iroh::endpoint::Endpoint;
 use monad_node::protocol::{Message, TALOS_ALPN};
+use rand::RngCore;
 use std::env;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use rand::rngs::OsRng;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,8 +27,9 @@ async fn run_client(target: iroh::PublicKey) -> Result<()> {
     println!("🚀 Client Mode. Dialing {}...", target);
 
     // 1. Setup Local Endpoint
-    let mut rng = OsRng;
-    let secret = SecretKey::generate(&mut rng);
+    let mut key_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut key_bytes);
+    let secret = SecretKey::from_bytes(&key_bytes);
     let endpoint = Endpoint::builder()
         .secret_key(secret)
         .alpns(vec![TALOS_ALPN.to_vec()])
@@ -37,14 +37,11 @@ async fn run_client(target: iroh::PublicKey) -> Result<()> {
         .await?;
 
     // 2. Dial the Target
-    // Attempt to use iroh::net::NodeAddr if iroh::NodeAddr is missing.
-    // If iroh::net doesn't exist, this will fail.
-    // We construct a NodeAddr from the PublicKey (NodeId) and no relay/direct addresses.
-    // Assuming NodeAddr::new(NodeId) exists.
-    let addr = iroh::net::NodeAddr::new(target);
+    // Construct an EndpointAddr from the PublicKey
+    let addr = EndpointAddr::new(target);
 
-    // Explicit type annotation to help inference
-    let conn: iroh::endpoint::Connection = endpoint.connect(addr, TALOS_ALPN).await?;
+    // Connect to the target
+    let conn = endpoint.connect(addr, TALOS_ALPN).await?;
     println!("✅ Connected!");
 
     // 3. Open Stream
@@ -60,8 +57,7 @@ async fn run_client(target: iroh::PublicKey) -> Result<()> {
     send.finish()?;
 
     // 5. Await Result
-    let mut buf = Vec::new();
-    recv.read_to_end(&mut buf).await?;
+    let buf = recv.read_to_end(64 * 1024).await?; // 64KB limit
     let response: Message = serde_json::from_slice(&buf)?;
 
     println!("🎉 Result Received: {:?}", response);

@@ -12,7 +12,8 @@ pub mod mock;
 pub enum CacheError {
     IoError(String),
     ComputeError(String),
-    InvalidHash,
+    InvalidHash(String),
+    P2PError(String),
 }
 
 impl Error for CacheError {
@@ -20,7 +21,8 @@ impl Error for CacheError {
         match self {
             CacheError::IoError(msg) => msg,
             CacheError::ComputeError(msg) => msg,
-            CacheError::InvalidHash => "Invalid hash",
+            CacheError::InvalidHash(msg) => msg,
+            CacheError::P2PError(msg) => msg,
         }
     }
 }
@@ -30,7 +32,8 @@ impl Display for CacheError {
         match self {
             CacheError::IoError(msg) => write!(f, "IO Error: {}", msg),
             CacheError::ComputeError(msg) => write!(f, "Compute Error: {}", msg),
-            CacheError::InvalidHash => write!(f, "Invalid hash"),
+            CacheError::InvalidHash(msg) => write!(f, "Invalid Hash: {}", msg),
+            CacheError::P2PError(msg) => write!(f, "P2P Error: {}", msg),
         }
     }
 }
