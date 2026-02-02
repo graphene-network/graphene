@@ -55,12 +55,11 @@ jobs:
 
       - name: Install kraft CLI
         run: |
-          # Install kraftkit non-interactively via apt
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://deb.pkg.kraftkit.sh/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/unikraft.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/unikraft.gpg] https://deb.pkg.kraftkit.sh stable main" | sudo tee /etc/apt/sources.list.d/unikraft.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y kraftkit
+          # Install kraftkit from GitHub releases (apt repo is unavailable)
+          KRAFT_VERSION=$(curl -s https://api.github.com/repos/unikraft/kraftkit/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraftkit_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraftkit.tar.gz
+          tar -xzf kraftkit.tar.gz
+          sudo mv kraft /usr/local/bin/kraft
           kraft --version
 
       - name: Build kernel
