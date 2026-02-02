@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 integration-tests = []
+e2e = []
 
 [dependencies]
 # The official AWS Firecracker SDK.
@@ -35,6 +36,9 @@ iroh-blobs = { version = "0.98", features = ["fs-store"] }
 iroh-gossip = { version = "0.96", features = ["net"] }
 blake3 = "1.5"
 futures-lite = "2.6"
+
+# Unikraft build pipeline
+tar = "0.4"
 
 [dev-dependencies]
 tempfile = "3.8"
