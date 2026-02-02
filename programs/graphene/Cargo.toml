@@ -30,6 +30,9 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"
 
 [workspace]
 
+[profile.release]
+overflow-checks = true
+
 # Pin blake3 to 1.5.5 for Solana BPF toolchain (Cargo 1.84 doesn't support edition 2024)
 [patch.crates-io]
 blake3 = { git = "https://github.com/BLAKE3-team/BLAKE3", tag = "1.5.5" }

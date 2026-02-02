@@ -26,4 +26,12 @@ pub enum GrapheneError {
     WorkerNotUnbonding,
     #[msg("Unbonding period not complete (14 days required)")]
     UnbondingNotComplete,
+    #[msg("Timeout has not expired yet")]
+    TimeoutNotExpired,
+    #[msg("Ed25519 instruction not found at expected index")]
+    Ed25519InstructionNotFound,
+    #[msg("Invalid Ed25519 instruction data")]
+    InvalidEd25519InstructionData,
+    #[msg("Signature verification failed")]
+    SignatureVerificationFailed,
 }
