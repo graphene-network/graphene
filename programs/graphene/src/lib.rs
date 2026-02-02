@@ -5,6 +5,7 @@ pub mod instructions;
 pub mod state;
 
 use instructions::*;
+use state::WorkerCapabilities;
 
 declare_id!("DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs");
 
@@ -33,14 +34,23 @@ pub mod graphene {
         instructions::channel::settle_channel(ctx, amount, nonce)
     }
 
-    /// Register a new worker with stake
-    pub fn register_worker(ctx: Context<RegisterWorker>, stake: u64) -> Result<()> {
-        instructions::registry::register_worker(ctx, stake)
+    /// Register a new worker with SPL token stake
+    pub fn register_worker(
+        ctx: Context<RegisterWorker>,
+        stake_amount: u64,
+        capabilities: WorkerCapabilities,
+    ) -> Result<()> {
+        instructions::registry::register_worker(ctx, stake_amount, capabilities)
     }
 
-    /// Unregister a worker (starts unbonding period)
-    pub fn unregister_worker(ctx: Context<UnregisterWorker>) -> Result<()> {
-        instructions::registry::unregister_worker(ctx)
+    /// Initiate unbonding - starts 14-day countdown
+    pub fn initiate_unbonding(ctx: Context<InitiateUnbonding>) -> Result<()> {
+        instructions::registry::initiate_unbonding(ctx)
+    }
+
+    /// Complete unbonding after 14-day period - returns stake and closes account
+    pub fn complete_unbonding(ctx: Context<CompleteUnbonding>) -> Result<()> {
+        instructions::registry::complete_unbonding(ctx)
     }
 }
 

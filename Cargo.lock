@@ -1874,14 +1874,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "monad_client"
-version = "0.1.0"
-
-[[package]]
-name = "monad_common"
-version = "0.1.0"
-
-[[package]]
 name = "monad_node"
 version = "0.1.0"
 dependencies = [
