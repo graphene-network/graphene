@@ -55,7 +55,7 @@ jobs:
 
       - name: Install kraft CLI
         run: |
-          curl -sSfL https://get.kraftkit.sh | sh
+          curl -sSfL https://get.kraftkit.sh | sudo sh
           kraft --version
 
       - name: Build kernel
