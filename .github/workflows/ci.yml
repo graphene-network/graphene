@@ -105,7 +105,6 @@ jobs:
   e2e-unikraft:
     name: E2E Unikraft Build
     runs-on: ubicloud-standard-4
-    if: runner.os == 'Linux'
     steps:
       - uses: actions/checkout@v4
 
