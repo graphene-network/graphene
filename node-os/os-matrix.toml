@@ -4,7 +4,7 @@
 [build]
 # Build system (Yocto for production)
 system = "yocto"
-yocto_version = "kirkstone"
+yocto_version = "scarthgap"
 
 [versions]
 # Component versions
