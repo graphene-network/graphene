@@ -38,12 +38,35 @@ impl BuildStatus {
     }
 }
 
-/// Cache level for metrics labeling
-#[derive(Debug, Clone, Copy)]
+/// Cache level for metrics labeling.
+///
+/// The L1/L2/L3 hierarchy represents:
+/// - **L1**: Pre-built kernel binaries (~100% hit rate)
+/// - **L2**: Kernel + dependencies (~95% hit rate)
+/// - **L3**: Full builds including user code
+///
+/// Each level can be served from local disk or Iroh P2P.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheLevel {
+    /// Legacy: Local disk cache (backward compatibility).
     Local,
+    /// Legacy: Iroh P2P cache (backward compatibility).
     Iroh,
+    /// Legacy: Cache miss, rebuild required (backward compatibility).
     Rebuild,
+
+    /// L1 kernel cache hit (local).
+    L1Kernel,
+    /// L2 dependencies cache hit (local).
+    L2DepsLocal,
+    /// L2 dependencies cache hit (Iroh P2P).
+    L2DepsIroh,
+    /// L3 full build cache hit (local).
+    L3Local,
+    /// L3 full build cache hit (Iroh P2P).
+    L3Iroh,
+    /// L3 cache miss, rebuild required.
+    L3Rebuild,
 }
 
 impl CacheLevel {
@@ -52,6 +75,12 @@ impl CacheLevel {
             CacheLevel::Local => "local",
             CacheLevel::Iroh => "iroh",
             CacheLevel::Rebuild => "rebuild",
+            CacheLevel::L1Kernel => "l1_kernel",
+            CacheLevel::L2DepsLocal => "l2_deps_local",
+            CacheLevel::L2DepsIroh => "l2_deps_iroh",
+            CacheLevel::L3Local => "l3_local",
+            CacheLevel::L3Iroh => "l3_iroh",
+            CacheLevel::L3Rebuild => "l3_rebuild",
         }
     }
 }

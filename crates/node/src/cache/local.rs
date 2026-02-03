@@ -1,7 +1,6 @@
 use super::{CacheError, DependencyCache};
 use crate::metrics::{record_cache_hit, record_cache_miss, CacheLevel};
 use async_trait::async_trait;
-use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -30,10 +29,8 @@ impl DependencyCache for LocalDiskCache {
         // 2. Join strings
         let payload = sorted.join("|");
 
-        // 3. Hash
-        let mut hasher = Sha256::new();
-        hasher.update(payload);
-        hex::encode(hasher.finalize())
+        // 3. Hash using BLAKE3 (matches Iroh's content addressing)
+        hex::encode(blake3::hash(payload.as_bytes()).as_bytes())
     }
 
     async fn get(&self, hash: &str) -> Result<Option<PathBuf>, CacheError> {

@@ -3,7 +3,6 @@
 //! Handles creation of ext4 filesystems for input (code) and output (artifacts) drives,
 //! as well as extraction of build results.
 
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::fs;
@@ -221,13 +220,20 @@ impl DriveHelper {
         result
     }
 
-    /// Calculate cache key from build inputs.
+    /// Calculate cache key from build inputs using BLAKE3.
+    ///
+    /// The cache key is computed from:
+    /// - Dockerfile content
+    /// - Kraftfile content (if present)
+    /// - Code tarball contents
+    ///
+    /// This matches Iroh's content addressing scheme.
     pub fn calculate_cache_key(
         dockerfile: &str,
         kraftfile: Option<&str>,
         code_tarball: &Path,
     ) -> Result<String, BuildError> {
-        let mut hasher = Sha256::new();
+        let mut hasher = blake3::Hasher::new();
 
         // Hash Dockerfile
         hasher.update(dockerfile.as_bytes());
@@ -246,7 +252,7 @@ impl DriveHelper {
         }
 
         let hash = hasher.finalize();
-        Ok(hex::encode(hash))
+        Ok(hex::encode(hash.as_bytes()))
     }
 
     /// Clean up all drive files for a build.
