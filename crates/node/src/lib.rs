@@ -4,6 +4,7 @@ pub mod cache;
 pub mod crypto;
 pub mod discovery;
 pub mod ephemeral;
+pub mod job;
 pub mod kernel;
 pub mod metrics;
 pub mod p2p;
