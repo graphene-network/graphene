@@ -73,37 +73,22 @@ jobs:
           # Create output directory
           mkdir -p .unikraft/build
 
-          # Debug: show what kraft created
-          echo "=== .unikraft directory contents ==="
-          find .unikraft -type f 2>/dev/null || echo "No .unikraft directory"
-
-          # Try to find the kernel binary
-          # kraft build with runtime directive may store output in different locations
           KERNEL_NAME="${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }}"
           KERNEL_PATH=".unikraft/build/${KERNEL_NAME}"
+          PACKAGE="unikraft.org/${{ matrix.runtime }}:${{ matrix.version }}"
 
-          # Check if kernel was already created by kraft build
-          if [ -f ".unikraft/build/"*"_fc-"* ]; then
-            echo "Found kernel from kraft build"
-            # Copy/rename to expected name
-            cp .unikraft/build/*_fc-* "${KERNEL_PATH}" 2>/dev/null || true
-          fi
+          echo "=== Pulling package ${PACKAGE} ==="
+          kraft pkg pull --plat fc --arch ${{ matrix.arch }} "${PACKAGE}"
 
-          # If no kernel found, try kraft pkg export
-          if [ ! -f "${KERNEL_PATH}" ]; then
-            echo "Attempting kraft pkg export..."
-            kraft pkg export --output "${KERNEL_PATH}" . || true
-          fi
-
-          # List exported files for debugging
-          echo "=== Final .unikraft/build contents ==="
-          ls -la .unikraft/build/
+          echo "=== Exporting kernel from ${PACKAGE} ==="
+          kraft pkg export --plat fc --arch ${{ matrix.arch }} --output "${KERNEL_PATH}" "${PACKAGE}"
 
           # Verify kernel exists
           if [ ! -f "${KERNEL_PATH}" ]; then
             echo "Error: Kernel file not found at ${KERNEL_PATH}"
-            echo "Searching for any potential kernel files..."
-            find . -name "*_fc-*" -o -name "*.fc" -o -name "*kernel*" 2>/dev/null || true
+            echo "=== Checking kraft cache ==="
+            find ~/.local/share/kraftkit -type f -name "*kernel*" 2>/dev/null | head -20 || true
+            find ~/.cache/kraftkit -type f 2>/dev/null | head -20 || true
             exit 1
           fi
 
