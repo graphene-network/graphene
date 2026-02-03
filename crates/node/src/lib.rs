@@ -12,5 +12,6 @@ pub mod metrics;
 pub mod p2p;
 pub mod protocol;
 pub mod result;
+pub mod ticket;
 pub mod unikraft;
 pub mod vmm;
