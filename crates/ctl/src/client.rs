@@ -239,20 +239,17 @@ impl ManagementClient {
         write_frame(&mut send, &request_bytes).await?;
 
         // Read log responses until callback returns false or connection closes
-        loop {
-            match read_frame(&mut recv).await {
-                Ok(bytes) => match serde_json::from_slice::<ManagementResponse>(&bytes) {
-                    Ok(ManagementResponse::LogLines(log_lines)) => {
-                        for line in log_lines {
-                            if !callback(line) {
-                                return Ok(());
-                            }
+        while let Ok(bytes) = read_frame(&mut recv).await {
+            match serde_json::from_slice::<ManagementResponse>(&bytes) {
+                Ok(ManagementResponse::LogLines(log_lines)) => {
+                    for line in log_lines {
+                        if !callback(line) {
+                            return Ok(());
                         }
                     }
-                    Ok(_) => break,
-                    Err(e) => return Err(ClientError::Json(e)),
-                },
-                Err(_) => break,
+                }
+                Ok(_) => break,
+                Err(e) => return Err(ClientError::Json(e)),
             }
         }
 
