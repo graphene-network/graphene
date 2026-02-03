@@ -4,6 +4,10 @@ use iroh::PublicKey;
 use iroh_blobs::Hash;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+// Re-export canonical PaymentTicket from ticket module
+pub use crate::ticket::PaymentTicket;
 
 /// A 64-byte signature with proper serde support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -555,6 +559,12 @@ pub struct JobManifest {
 
     /// Allowed egress endpoints (for firewall configuration).
     pub egress_allowlist: Vec<EgressRule>,
+
+    /// Environment variables to set in the unikernel.
+    /// Names must match `^[A-Za-z_][A-Za-z0-9_]*$` and cannot use `GRAPHENE_*` prefix.
+    /// Total size (keys + values) must not exceed 128KB.
+    #[serde(default)]
+    pub env: HashMap<String, String>,
 }
 
 /// An allowed egress destination.
@@ -601,27 +611,6 @@ pub struct EncryptedJobRequest {
     /// Requested result delivery mode (defaults to Sync).
     #[serde(default)]
     pub delivery_mode: ResultDeliveryMode,
-}
-
-/// Payment ticket for job authorization.
-///
-/// Contains a signed authorization from the user's payment channel.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PaymentTicket {
-    /// Payment channel address (Solana pubkey).
-    pub channel: [u8; 32],
-
-    /// Amount authorized for this job (in lamports or tokens).
-    pub amount: u64,
-
-    /// Sequence number (prevents replay).
-    pub sequence: u64,
-
-    /// Expiry timestamp (Unix epoch seconds).
-    pub expiry: u64,
-
-    /// Ed25519 signature over (channel, amount, sequence, expiry, job_id).
-    pub signature: Signature64,
 }
 
 /// Encrypted job result from worker to user.

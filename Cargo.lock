@@ -3635,8 +3635,10 @@ dependencies = [
  "lazy_static",
  "libc",
  "num_cpus",
+ "once_cell",
  "prometheus",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.11.27",
  "schemars",
  "serde",
@@ -8555,6 +8557,7 @@ checksum = "ee48d38b119b0cd71fe4141b30f5ba9c7c5d9f4e7a3a8b4a674e4b6ef789976f"
 dependencies = [
  "getrandom 0.3.4",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 
