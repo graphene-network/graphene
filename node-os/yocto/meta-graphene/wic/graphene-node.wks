@@ -1,0 +1,22 @@
+# Graphene Node OS Disk Image Layout
+# SPDX-License-Identifier: Apache-2.0
+#
+# Creates a UEFI-bootable disk image with:
+# - EFI System Partition (ESP)
+# - Root filesystem (ext4, will be protected by dm-verity in Phase 2)
+
+# EFI System Partition
+# Contains bootloader (GRUB) and kernel
+part /boot/efi --source bootimg-efi --sourceparams="loader=grub-efi" \
+    --ondisk sda --label msdos --active --align 1024 --size 64M
+
+# Root filesystem
+# In Phase 2, this will be read-only with dm-verity
+part / --source rootfs --ondisk sda --fstype=ext4 --label root \
+    --align 1024 --size 48M
+
+# Note: dm-verity hash partition will be added in Phase 2
+# part /hash --ondisk sda --fstype=ext4 --label verity-hash \
+#     --align 1024 --size 8M
+
+bootloader --ptable gpt --timeout=0 --append="console=ttyS0,115200 panic=1 quiet"

@@ -1,0 +1,240 @@
+name: Build Node OS (Yocto)
+
+on:
+  push:
+    paths:
+      - 'node-os/yocto/**'
+      - '.github/workflows/node-os-yocto.yml'
+  pull_request:
+    paths:
+      - 'node-os/yocto/**'
+  workflow_dispatch:
+    inputs:
+      machine:
+        description: 'Machine to build (or "all")'
+        required: false
+        default: 'graphene-node-x86_64'
+        type: choice
+        options:
+          - graphene-node-x86_64
+          - graphene-node-aarch64
+          - all
+      skip_cache:
+        description: 'Skip sstate cache'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  YOCTO_RELEASE: "kirkstone"
+  SSTATE_BUCKET: "graphene-sstate"
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate build matrix
+        id: generate
+        run: |
+          if [ "${{ inputs.machine }}" = "all" ] || [ -z "${{ inputs.machine }}" ]; then
+            MATRIX='{"machine":["graphene-node-x86_64"]}'
+            # aarch64 requires cross-compilation setup, disabled for now
+            # MATRIX='{"machine":["graphene-node-x86_64","graphene-node-aarch64"]}'
+          else
+            MATRIX='{"machine":["${{ inputs.machine }}"]}'
+          fi
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: generate-matrix
+    runs-on: ubicloud-standard-8
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Yocto dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+            python3-subunit zstd liblz4-tool file locales libacl1 \
+            qemu-system-x86
+
+          # Set locale
+          sudo locale-gen en_US.UTF-8
+
+      - name: Clone Poky (Yocto reference)
+        run: |
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://git.yoctoproject.org/poky poky
+
+      - name: Configure S3 sstate cache
+        if: ${{ !inputs.skip_cache }}
+        run: |
+          # Configure read-only sstate mirror from S3
+          mkdir -p build/conf
+          echo 'SSTATE_MIRRORS = "file://.* https://${{ env.SSTATE_BUCKET }}.s3.amazonaws.com/sstate-cache/PATH"' >> build/conf/site.conf
+
+      - name: Configure build
+        run: |
+          cd poky
+          source oe-init-build-env ../build
+
+          # Configure layers
+          cat > conf/bblayers.conf << 'EOF'
+          POKY_BBLAYERS_CONF_VERSION = "2"
+          BBPATH = "${TOPDIR}"
+          BBFILES ?= ""
+          BBLAYERS ?= " \
+              ${TOPDIR}/../poky/meta \
+              ${TOPDIR}/../poky/meta-poky \
+              ${TOPDIR}/../poky/meta-yocto-bsp \
+              ${TOPDIR}/../node-os/yocto/meta-graphene \
+          "
+          EOF
+
+          # Configure local.conf
+          cat > conf/local.conf << 'EOF'
+          MACHINE = "${{ matrix.machine }}"
+          BB_NUMBER_THREADS = "8"
+          PARALLEL_MAKE = "-j 8"
+          DL_DIR = "${TOPDIR}/../downloads"
+          SSTATE_DIR = "${TOPDIR}/../sstate-cache"
+          TMPDIR = "${TOPDIR}/tmp"
+          PACKAGE_CLASSES = "package_rpm"
+          INHERIT += "create-spdx"
+          EOF
+
+      - name: Build image
+        run: |
+          cd poky
+          source oe-init-build-env ../build
+          bitbake graphene-node-image
+
+      - name: Verify shell removal
+        run: |
+          cd build
+          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: No image found"
+            exit 1
+          fi
+
+          echo "Checking image: $IMAGE"
+          mkdir -p /tmp/rootfs
+          sudo mount -o loop,ro "$IMAGE" /tmp/rootfs
+
+          SHELLS_FOUND=0
+          for shell in sh bash ash dash zsh; do
+            if [ -f "/tmp/rootfs/bin/${shell}" ] || [ -f "/tmp/rootfs/usr/bin/${shell}" ]; then
+              echo "ERROR: Shell found: ${shell}"
+              SHELLS_FOUND=1
+            fi
+          done
+
+          sudo umount /tmp/rootfs
+
+          if [ $SHELLS_FOUND -eq 1 ]; then
+            echo "FAIL: Shell binaries found in rootfs"
+            exit 1
+          fi
+          echo "PASS: No shell binaries in rootfs"
+
+      - name: Check image size
+        run: |
+          cd build
+          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+          SIZE=$(stat -c%s "$IMAGE")
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Image size: ${SIZE_MB}MB"
+
+          if [ $SIZE_MB -gt 50 ]; then
+            echo "WARNING: Image size exceeds 50MB target"
+          else
+            echo "PASS: Image size under 50MB target"
+          fi
+
+      - name: Generate build metadata
+        run: |
+          cd build
+          cat > build-info.json << EOF
+          {
+            "yocto_release": "${{ env.YOCTO_RELEASE }}",
+            "machine": "${{ matrix.machine }}",
+            "image_size_bytes": $(stat -c%s "$(find tmp/deploy/images -name 'graphene-node-image-*.ext4' | head -1)"),
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphene-node-os-yocto-${{ matrix.machine }}
+          path: |
+            build/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.wic.gz
+            build/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.ext4
+            build/tmp/deploy/licenses/graphene-node-image/
+            build/build-info.json
+          retention-days: 30
+
+      - name: Upload sstate to S3
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          # Sync new sstate entries to S3
+          aws s3 sync sstate-cache/ s3://${{ env.SSTATE_BUCKET }}/sstate-cache/ \
+            --exclude "*" --include "sstate:*" \
+            --no-progress
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: node-os-${{ github.sha }}
+          name: Node OS (Yocto) - ${{ github.sha }}
+          body: |
+            Graphene Node OS built with Yocto (${{ env.YOCTO_RELEASE }}).
+
+            ## Features
+            - Minimal Linux host OS for Firecracker
+            - Shell-less (no /bin/sh, /bin/bash)
+            - Security hardened (RELRO, stack protector, fortify)
+            - SPDX SBOM included
+
+            ## Architectures
+            - x86_64
+
+            ## Image Details
+            - Target size: <50MB
+            - Init system: systemd
+            - dm-verity: Planned (Phase 2)
+          files: |
+            artifacts/**/*.wic.gz
+            artifacts/**/*.json
+          draft: false
+          prerelease: true

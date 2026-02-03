@@ -1,0 +1,13 @@
+[Unit]
+Description=dm-verity Root Mount
+DefaultDependencies=no
+Before=local-fs.target
+
+[Mount]
+What=/dev/mapper/vroot
+Where=/
+Type=ext4
+Options=ro
+
+[Install]
+WantedBy=local-fs.target
