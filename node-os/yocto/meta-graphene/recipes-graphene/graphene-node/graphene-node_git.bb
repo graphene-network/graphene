@@ -7,7 +7,9 @@ LICENSE = "AGPL-3.0-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=FIXME_ADD_CHECKSUM"
 
 # Fetch from git - uses the monad repository
-SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=main"
+SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=main \
+           file://node-config.toml \
+           "
 SRCREV = "${AUTOREV}"
 PV = "0.1.0+git${SRCPV}"
 
@@ -44,8 +46,7 @@ do_install() {
 
     # Install default configuration
     install -d ${D}${sysconfdir}/graphene
-    install -m 0644 ${S}/node-os/buildroot/board/graphene/node-config.toml \
-        ${D}${sysconfdir}/graphene/node-config.toml
+    install -m 0644 ${WORKDIR}/node-config.toml ${D}${sysconfdir}/graphene/node-config.toml
 
     # Install systemd service
     install -d ${D}${systemd_system_unitdir}

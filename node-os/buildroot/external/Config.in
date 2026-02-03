@@ -1,2 +1,0 @@
-source "$BR2_EXTERNAL_GRAPHENE_PATH/package/graphene-node/Config.in"
-source "$BR2_EXTERNAL_GRAPHENE_PATH/package/firecracker/Config.in"

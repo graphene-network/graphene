@@ -1,7 +1,0 @@
-#!/bin/busybox
-# Graphene Node OS shutdown script runner
-
-# Stop all S* scripts in reverse order
-for script in $(ls -r /etc/init.d/S??*); do
-    [ -x "$script" ] && "$script" stop
-done

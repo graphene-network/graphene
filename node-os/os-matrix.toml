@@ -2,9 +2,8 @@
 # Defines build system configuration and target versions
 
 [build]
-# Build system selection (buildroot for prototype, yocto for production)
-system = "buildroot"
-buildroot_version = "2024.02.1"
+# Build system (Yocto for production)
+system = "yocto"
 yocto_version = "kirkstone"
 
 [versions]
@@ -25,16 +24,10 @@ max_image_size_mb = 50
 [targets.x86_64]
 enabled = true
 machine = "graphene-node-x86_64"
-# Buildroot architecture
-br2_arch = "x86_64"
-# Yocto machine (Phase 1)
-yocto_machine = "qemux86-64"
 
 [targets.aarch64]
-enabled = false  # Enable in Phase 1 with Yocto
+enabled = false  # Enable in Phase 2
 machine = "graphene-node-aarch64"
-br2_arch = "aarch64"
-yocto_machine = "qemuarm64"
 
 [variants.minimal]
 # Minimal variant for production

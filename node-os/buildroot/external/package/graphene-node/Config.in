@@ -1,8 +1,0 @@
-config BR2_PACKAGE_GRAPHENE_NODE
-	bool "graphene-node"
-	depends on BR2_PACKAGE_HOST_RUSTC
-	help
-	  Graphene network node binary. Manages Firecracker VMs
-	  and executes unikernel jobs.
-
-	  https://graphene.network

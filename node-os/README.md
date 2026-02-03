@@ -11,29 +11,9 @@ This is the **HOST operating system** that runs on bare metal or VMs. It provide
 - dm-verity integrity verification (Phase 2)
 - TPM-based attestation (Phase 2)
 
-## Build Systems
+## Building
 
-### Buildroot (Prototype)
-
-Quick prototype for architecture validation.
-
-```bash
-# Clone buildroot
-git clone https://github.com/buildroot/buildroot.git
-cd buildroot
-
-# Configure
-make BR2_EXTERNAL=/path/to/node-os/buildroot/external graphene_node_defconfig
-
-# Build
-make
-```
-
-Output: `output/images/rootfs.ext4` (~48MB)
-
-### Yocto (Production)
-
-Production-quality build with SBOM generation.
+Graphene Node OS is built with Yocto for production-quality images with SBOM generation.
 
 ```bash
 # Clone Poky
@@ -60,10 +40,6 @@ Output: `tmp/deploy/images/graphene-node-x86_64/graphene-node-image-*.wic.gz`
 ```
 node-os/
 ├── os-matrix.toml          # Version matrix configuration
-├── buildroot/              # Buildroot prototype
-│   ├── configs/            # Defconfig files
-│   ├── board/graphene/     # Board-specific files
-│   └── external/           # External packages
 └── yocto/
     └── meta-graphene/      # Yocto layer
         ├── conf/           # Layer and machine configs
@@ -77,16 +53,16 @@ node-os/
 
 ## Security Features
 
-| Feature | Buildroot | Yocto |
-|---------|-----------|-------|
-| No shell binaries | ✅ | ✅ |
-| No SSH server | ✅ | ✅ |
-| Stripped binaries | ✅ | ✅ |
-| Stack protector | ✅ | ✅ |
-| RELRO/NOW | ⚠️ partial | ✅ |
-| dm-verity | ❌ | ⚠️ Phase 2 |
-| TPM attestation | ❌ | ⚠️ Phase 2 |
-| SPDX SBOM | ❌ | ✅ |
+| Feature | Status |
+|---------|--------|
+| No shell binaries | ✅ |
+| No SSH server | ✅ |
+| Stripped binaries | ✅ |
+| Stack protector | ✅ |
+| RELRO/NOW | ✅ |
+| SPDX SBOM | ✅ |
+| dm-verity | Phase 2 |
+| TPM attestation | Phase 2 |
 
 ## Management
 
@@ -104,4 +80,4 @@ See `crates/ctl/` for the management CLI.
 ## References
 
 - [WHITEPAPER.md](../docs/WHITEPAPER.md) - Graphene Network architecture
-- [GitHub Issue #103](https://github.com/marcus-sa/monad/issues/103) - Yocto/Buildroot tracking
+- [GitHub Issue #103](https://github.com/marcus-sa/monad/issues/103) - Node OS tracking
