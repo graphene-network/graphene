@@ -13,8 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 /// Configurable behavior for the mock cost calculator.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub enum MockCostBehavior {
     /// Always return a fixed estimate.
     FixedEstimate(JobCostEstimate),
@@ -32,7 +31,6 @@ pub enum MockCostBehavior {
     /// Delegate to the default calculator.
     Delegate,
 }
-
 
 /// Mock cost calculator for testing.
 ///
