@@ -2163,6 +2163,64 @@ const result = await client.run({
 console.log(result.output); // { squared: 1764 }
 ```
 
+### 13.6 SDK Architecture
+
+The SDK uses a two-phase architecture that separates network bootstrap from worker selection:
+
+**Phase 1: Network Bootstrap**
+```typescript
+import { Network } from '@graphene/sdk';
+
+const network = await Network.create({
+  secretKey: mySecretKey,
+  discoveryMode: 'gateway',  // or 'p2p' for full decentralization
+});
+```
+
+**Phase 2: Worker Discovery**
+```typescript
+const workers = await network.discoverWorkers({
+  kernel: 'python:3.12',
+  minVcpu: 2,
+  regions: ['us-*'],
+  maxPriceCpuMs: 100,
+});
+```
+
+**Phase 3: Channel Opening**
+```typescript
+const channel = await network.openChannel({
+  worker: workers[0],
+  channelPda: myChannelPda,
+});
+```
+
+**Phase 4: Job Execution**
+```typescript
+const result = await channel.run({
+  code: 'print(2 + 2)',
+  kernel: 'python:3.12',
+});
+```
+
+The simplified `new Client()` API wraps these phases for the common case:
+
+```typescript
+const client = new Client();  // Auto-discovers via gateway
+const result = await client.run({ code: '...' });
+```
+
+**Discovery Modes:**
+
+| Mode | How It Works | Best For |
+|------|--------------|----------|
+| `gateway` | Queries REST API that aggregates gossip | Browsers, mobile, serverless |
+| `p2p` | Joins gossip network directly | Long-running services, full decentralization |
+
+Channel keys are derived only after worker selection, ensuring proper cryptographic isolation per worker relationship.
+
+See [ADR-0001](./adr/ADR-0001-sdk-discovery-architecture.md) for detailed architecture decisions.
+
 ---
 
 ## 14. Roadmap
