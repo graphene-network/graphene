@@ -574,6 +574,8 @@ pub struct JobManifest {
     pub env: HashMap<String, String>,
     /// Estimated network egress in megabytes (optional).
     pub estimated_egress_mb: Option<BigInt>,
+    /// Estimated network ingress in megabytes (optional).
+    pub estimated_ingress_mb: Option<BigInt>,
 }
 
 /// References to code and input blobs in Iroh.
@@ -746,6 +748,7 @@ pub fn serialize_job_request(request: JobRequest) -> Result<Buffer> {
 
     let (_, timeout_ms, _) = request.manifest.timeout_ms.get_u64();
     let estimated_egress_mb = request.manifest.estimated_egress_mb.map(|b| b.get_u64().1);
+    let estimated_ingress_mb = request.manifest.estimated_ingress_mb.map(|b| b.get_u64().1);
 
     let manifest = RustJobManifest {
         vcpu: request.manifest.vcpu as u8,
@@ -755,6 +758,7 @@ pub fn serialize_job_request(request: JobRequest) -> Result<Buffer> {
         egress_allowlist,
         env: request.manifest.env,
         estimated_egress_mb,
+        estimated_ingress_mb,
     };
 
     // Deserialize the ticket from bytes
