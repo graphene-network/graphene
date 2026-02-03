@@ -18,17 +18,18 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use monad_node::result::{ResultDeliveryService, DeliveryOutcome};
-//!
-//! let service = ResultDeliveryService::new(p2p_network, crypto_provider);
+//! ```text
+//! // Pseudocode showing the delivery flow
+//! let delivery = MockResultDelivery::new();  // or SyncDelivery/AsyncDelivery
 //!
 //! // Attempt sync delivery with automatic fallback to async
-//! let outcome = service.deliver(job, encrypted_result, user_addr).await?;
+//! let outcome = delivery.deliver(job_id, &encrypted_result, mode, user_addr, true).await?;
 //!
 //! match outcome {
 //!     DeliveryOutcome::SyncDelivered => println!("Streamed directly"),
-//!     DeliveryOutcome::AsyncUploaded { hash } => println!("Uploaded to {}", hash),
+//!     DeliveryOutcome::AsyncUploaded { result_hash, .. } => {
+//!         println!("Uploaded to {}", result_hash)
+//!     }
 //! }
 //! ```
 
