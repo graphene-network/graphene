@@ -125,7 +125,7 @@ jobs:
   # Full build for releases, scheduled runs, and manual dispatch
   generate-matrix:
     if: github.event_name != 'pull_request'
-    runs-on: ubicloud-standard-8
+    runs-on: ubicloud-standard-2
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
     steps:
@@ -340,7 +340,7 @@ jobs:
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/node-os-v')
-    runs-on: ubicloud-standard-8
+    runs-on: ubicloud-standard-2
     permissions:
       contents: write
     steps:
