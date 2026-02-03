@@ -11,35 +11,22 @@ import { Client, ConfigError, GrapheneError, JobRejectedError, CryptoError } fro
 /**
  * Helper to generate test keys.
  */
-function generateTestKeys(): { secret: Buffer; pubkey: Buffer } {
+function generateTestKeys(): { secret: Buffer } {
   // Use deterministic test keys
   const secret = Buffer.alloc(32, 0x01);
-  const pubkey = Buffer.alloc(32, 0x02);
-  return { secret, pubkey };
+  return { secret };
 }
 
 describe('Client.create', () => {
   const userKeys = generateTestKeys();
-  const workerKeys = { secret: Buffer.alloc(32, 0x03), pubkey: Buffer.alloc(32, 0x04) };
   const channelPda = Buffer.alloc(32, 0x42);
+  // Valid 64-char hex string (32 bytes)
   const workerNodeId = '0000000000000000000000000000000000000000000000000000000000000000';
 
   it('rejects invalid secretKey length', async () => {
     await expect(
       Client.create({
         secretKey: Buffer.alloc(31),
-        workerPubkey: workerKeys.pubkey,
-        channelPda,
-        workerNodeId,
-      })
-    ).rejects.toThrow(ConfigError);
-  });
-
-  it('rejects invalid workerPubkey length', async () => {
-    await expect(
-      Client.create({
-        secretKey: userKeys.secret,
-        workerPubkey: Buffer.alloc(16),
         channelPda,
         workerNodeId,
       })
@@ -50,20 +37,28 @@ describe('Client.create', () => {
     await expect(
       Client.create({
         secretKey: userKeys.secret,
-        workerPubkey: workerKeys.pubkey,
         channelPda: Buffer.alloc(64),
         workerNodeId,
       })
     ).rejects.toThrow(ConfigError);
   });
 
-  it('rejects missing workerNodeId', async () => {
+  it('rejects empty workerNodeId', async () => {
     await expect(
       Client.create({
         secretKey: userKeys.secret,
-        workerPubkey: workerKeys.pubkey,
         channelPda,
         workerNodeId: '',
+      })
+    ).rejects.toThrow(ConfigError);
+  });
+
+  it('rejects invalid workerNodeId (wrong length)', async () => {
+    await expect(
+      Client.create({
+        secretKey: userKeys.secret,
+        channelPda,
+        workerNodeId: '00001111', // Too short - not 64 hex chars
       })
     ).rejects.toThrow(ConfigError);
   });
@@ -74,7 +69,6 @@ describe('Client.create', () => {
     await expect(
       Client.create({
         secretKey: new Uint8Array(userKeys.secret),
-        workerPubkey: new Uint8Array(workerKeys.pubkey),
         channelPda: new Uint8Array(channelPda),
         workerNodeId,
       })

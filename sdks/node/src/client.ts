@@ -28,10 +28,9 @@ import { ConfigError } from './errors.js';
  * import { Client } from '@graphene/sdk';
  *
  * const client = await Client.create({
- *   secretKey: mySecretKey,      // Your Ed25519 secret key (32 bytes)
- *   workerPubkey: workerPubkey,  // Worker's public key (32 bytes)
- *   channelPda: channelPda,      // Payment channel PDA (32 bytes)
- *   workerNodeId: nodeId,        // Worker's P2P node ID (hex string)
+ *   secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
+ *   channelPda: channelPda,  // Payment channel PDA (32 bytes)
+ *   workerNodeId: nodeId,    // Worker's node ID (hex-encoded Ed25519 pubkey)
  * });
  *
  * const result = await client.run({
@@ -64,24 +63,20 @@ export class Client {
         `secretKey must be 32 bytes, got ${config.secretKey.length}`
       );
     }
-    if (config.workerPubkey.length !== 32) {
-      throw new ConfigError(
-        `workerPubkey must be 32 bytes, got ${config.workerPubkey.length}`
-      );
-    }
     if (config.channelPda.length !== 32) {
       throw new ConfigError(
         `channelPda must be 32 bytes, got ${config.channelPda.length}`
       );
     }
-    if (!config.workerNodeId) {
-      throw new ConfigError('workerNodeId is required');
+    if (!config.workerNodeId || config.workerNodeId.length !== 64) {
+      throw new ConfigError(
+        'workerNodeId must be a 64-character hex string (Ed25519 public key)'
+      );
     }
 
     const nativeConfig: NativeClientConfig = {
       storagePath: config.storagePath ?? '.graphene-sdk',
       secretKey: Buffer.from(config.secretKey),
-      workerPubkey: Buffer.from(config.workerPubkey),
       channelPda: Buffer.from(config.channelPda),
       workerNodeId: config.workerNodeId,
       useRelay: config.useRelay ?? true,

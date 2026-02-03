@@ -12,10 +12,9 @@
  * import { Client } from '@graphene/sdk';
  *
  * const client = await Client.create({
- *   secretKey: mySecretKey,      // Your Ed25519 secret key (32 bytes)
- *   workerPubkey: workerPubkey,  // Worker's public key (32 bytes)
- *   channelPda: channelPda,      // Payment channel PDA (32 bytes)
- *   workerNodeId: nodeId,        // Worker's P2P node ID (hex string)
+ *   secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
+ *   channelPda: channelPda,  // Payment channel PDA (32 bytes)
+ *   workerNodeId: nodeId,    // Worker's node ID (hex-encoded Ed25519 pubkey)
  * });
  *
  * const result = await client.run({

@@ -327,11 +327,12 @@ export interface ClientConfig {
   storagePath: string
   /** Your Ed25519 secret key (32 bytes). */
   secretKey: Buffer
-  /** Worker's Ed25519 public key (32 bytes). */
-  workerPubkey: Buffer
   /** Payment channel PDA (32 bytes). */
   channelPda: Buffer
-  /** Worker's node ID for P2P connection (hex string). */
+  /**
+   * Worker's node ID - hex-encoded Ed25519 public key (64 hex chars).
+   * This is used for both P2P connection and encryption key derivation.
+   */
   workerNodeId: string
   /** Whether to use relay servers for NAT traversal. */
   useRelay?: boolean

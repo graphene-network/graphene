@@ -1005,11 +1005,10 @@ pub struct ClientConfig {
     pub storage_path: String,
     /// Your Ed25519 secret key (32 bytes).
     pub secret_key: Buffer,
-    /// Worker's Ed25519 public key (32 bytes).
-    pub worker_pubkey: Buffer,
     /// Payment channel PDA (32 bytes).
     pub channel_pda: Buffer,
-    /// Worker's node ID for P2P connection (hex string).
+    /// Worker's node ID - hex-encoded Ed25519 public key (64 hex chars).
+    /// This is used for both P2P connection and encryption key derivation.
     pub worker_node_id: String,
     /// Whether to use relay servers for NAT traversal.
     pub use_relay: Option<bool>,
@@ -1093,12 +1092,6 @@ impl GrapheneClient {
                 config.secret_key.len()
             )));
         }
-        if config.worker_pubkey.len() != 32 {
-            return Err(napi::Error::from_reason(format!(
-                "worker_pubkey must be 32 bytes, got {}",
-                config.worker_pubkey.len()
-            )));
-        }
         if config.channel_pda.len() != 32 {
             return Err(napi::Error::from_reason(format!(
                 "channel_pda must be 32 bytes, got {}",
@@ -1106,9 +1099,18 @@ impl GrapheneClient {
             )));
         }
 
+        // Parse worker_node_id (hex-encoded Ed25519 public key)
+        let worker_pubkey: [u8; 32] = hex::decode(&config.worker_node_id)
+            .map_err(|e| napi::Error::from_reason(format!("Invalid worker_node_id hex: {}", e)))?
+            .try_into()
+            .map_err(|_| {
+                napi::Error::from_reason(
+                    "worker_node_id must be 64 hex characters (32 bytes)".to_string(),
+                )
+            })?;
+
         // Convert to fixed arrays
         let secret_key: [u8; 32] = config.secret_key.as_ref().try_into().unwrap();
-        let worker_pubkey: [u8; 32] = config.worker_pubkey.as_ref().try_into().unwrap();
         let channel_pda: [u8; 32] = config.channel_pda.as_ref().try_into().unwrap();
 
         // Derive channel keys

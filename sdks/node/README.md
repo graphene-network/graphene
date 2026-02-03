@@ -13,10 +13,10 @@ npm install @graphene/sdk
 ```typescript
 import { Client } from '@graphene/sdk';
 
-const client = new Client({
-  secretKey: mySecretKey,      // Your Ed25519 secret key (32 bytes)
-  workerPubkey: workerPubkey,  // Worker's Ed25519 public key (32 bytes)
-  channelPda: channelPda,      // Solana payment channel PDA (32 bytes)
+const client = await Client.create({
+  secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
+  channelPda: channelPda,  // Solana payment channel PDA (32 bytes)
+  workerNodeId: nodeId,    // Worker's node ID (hex-encoded Ed25519 pubkey)
 });
 
 const result = await client.run({
@@ -34,20 +34,34 @@ await client.close();
 - **End-to-end encryption**: All code and data is encrypted using XChaCha20-Poly1305
 - **Forward secrecy**: Per-job ephemeral keys ensure past jobs can't be decrypted
 - **Payment channels**: Off-chain payment tickets for efficient micropayments
-- **Progress tracking**: Real-time progress callbacks during job execution
-- **Multiple transports**: Support for QUIC (Iroh), HTTP gateway, and mock transport
+- **Native performance**: Crypto, networking, and protocol handling in Rust via NAPI
+
+## Architecture
+
+This SDK is a thin TypeScript wrapper over native Rust bindings. All heavy lifting happens in Rust:
+
+- Channel key derivation (Ed25519 → X25519 → HKDF)
+- Job encryption/decryption (XChaCha20-Poly1305)
+- Payment ticket creation (Ed25519 signatures)
+- Blob upload/download (BLAKE3 content-addressing)
+- Protocol serialization (bincode)
+- Network transport (QUIC via Iroh)
 
 ## API Reference
 
-### `new Client(config)`
+### `Client.create(config)`
 
 Create a new Graphene client.
 
 **Parameters:**
 - `config.secretKey` - Your Ed25519 secret key (32 bytes)
-- `config.workerPubkey` - Worker's Ed25519 public key (32 bytes)
 - `config.channelPda` - Solana payment channel PDA (32 bytes)
-- `config.transport?` - Optional custom transport (default: MockTransport)
+- `config.workerNodeId` - Worker's node ID (64 hex chars = Ed25519 pubkey)
+- `config.storagePath?` - Storage path for persistent data (default: '.graphene-sdk')
+- `config.useRelay?` - Enable relay servers for NAT traversal (default: true)
+- `config.bindPort?` - Local port to bind (default: random)
+
+**Returns:** `Promise<Client>`
 
 ### `client.run(options)`
 
@@ -62,7 +76,7 @@ Run a job on a Graphene worker.
 - `options.timeoutMs?` - Timeout in ms (default: 30000)
 - `options.env?` - Environment variables (Record<string, string>)
 - `options.egressAllowlist?` - Allowed egress endpoints
-- `options.onProgress?` - Progress callback
+- `options.deliveryMode?` - 'sync' (default) or 'async'
 
 **Returns:** `Promise<RunResult>`
 - `exitCode` - Exit code (0 = success)
@@ -70,27 +84,11 @@ Run a job on a Graphene worker.
 - `durationMs` - Execution time in milliseconds
 - `metrics` - Resource usage metrics
 
-### `client.encrypt(data, jobId, direction)`
+### `client.nodeId()`
 
-Encrypt data for a specific job.
+Get this client's node ID (public key) as a hex string.
 
-**Parameters:**
-- `data` - Data to encrypt (Uint8Array)
-- `jobId` - Job ID for key derivation (string)
-- `direction` - 'input' (user->worker) or 'output' (worker->user)
-
-**Returns:** `Uint8Array` - Serialized encrypted blob
-
-### `client.decrypt(data, jobId, direction)`
-
-Decrypt data from a specific job.
-
-**Parameters:**
-- `data` - Serialized encrypted blob (Uint8Array)
-- `jobId` - Job ID used for encryption (string)
-- `direction` - Direction used during encryption
-
-**Returns:** `Uint8Array` - Decrypted data
+**Returns:** `Promise<string>`
 
 ### `client.currentNonce`
 
@@ -103,47 +101,6 @@ Get the cumulative amount authorized across all payment tickets.
 ### `client.close()`
 
 Close the client and release resources.
-
-## Transport Options
-
-### MockTransport (default)
-
-For testing without network access:
-
-```typescript
-import { MockTransport } from '@graphene/sdk';
-
-const client = new Client({
-  // ... keys
-  transport: new MockTransport({ delay: 100 }),
-});
-```
-
-### HttpGatewayTransport
-
-For development through an HTTP gateway:
-
-```typescript
-import { HttpGatewayTransport } from '@graphene/sdk';
-
-const client = new Client({
-  // ... keys
-  transport: new HttpGatewayTransport('https://gateway.graphene.network'),
-});
-```
-
-### IrohTransport
-
-For direct QUIC connectivity to workers (when available):
-
-```typescript
-import { IrohTransport } from '@graphene/sdk';
-
-const client = new Client({
-  // ... keys
-  transport: new IrohTransport(workerNodeId),
-});
-```
 
 ## Error Handling
 
@@ -180,6 +137,20 @@ try {
 - `node:20` - Node.js 20
 - `node:21` - Node.js 21
 - `bun:1.1` - Bun 1.1
+
+## Advanced: Native Functions
+
+For advanced use cases, you can access the native crypto functions directly:
+
+```typescript
+import {
+  deriveChannelKeys,
+  encryptJobBlob,
+  decryptJobBlob,
+  createPaymentTicket,
+  blake3Hash,
+} from '@graphene/sdk';
+```
 
 ## Security
 

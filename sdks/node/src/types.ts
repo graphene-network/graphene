@@ -40,11 +40,9 @@ export {
 export interface ClientConfig {
   /** Ed25519 secret key (32 bytes) */
   secretKey: Uint8Array;
-  /** Worker's Ed25519 public key (32 bytes) */
-  workerPubkey: Uint8Array;
   /** Solana payment channel PDA (32 bytes) */
   channelPda: Uint8Array;
-  /** Worker's P2P node ID (hex string) */
+  /** Worker's node ID - hex-encoded Ed25519 public key (64 hex chars) */
   workerNodeId: string;
   /** Storage path for persistent data (default: '.graphene-sdk') */
   storagePath?: string;
