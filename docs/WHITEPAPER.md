@@ -2165,49 +2165,58 @@ console.log(result.output); // { squared: 1764 }
 
 ### 13.6 SDK Architecture
 
-The SDK uses a two-phase architecture that separates network bootstrap from worker selection:
+The SDK uses **per-run worker selection** — each job is routed to an appropriate worker based on its requirements, not bound to a single worker at client creation.
 
-**Phase 1: Network Bootstrap**
+**Client Creation (One-Time)**
 ```typescript
-import { Network } from '@graphene/sdk';
+import { Client } from '@graphene/sdk';
 
-const network = await Network.create({
+const client = await Client.create({
   secretKey: mySecretKey,
-  discoveryMode: 'gateway',  // or 'p2p' for full decentralization
-});
-```
-
-**Phase 2: Worker Discovery**
-```typescript
-const workers = await network.discoverWorkers({
-  kernel: 'python:3.12',
-  minVcpu: 2,
-  regions: ['us-*'],
-  maxPriceCpuMs: 100,
-});
-```
-
-**Phase 3: Channel Opening**
-```typescript
-const channel = await network.openChannel({
-  worker: workers[0],
   channelPda: myChannelPda,
 });
 ```
 
-**Phase 4: Job Execution**
+**Per-Run Worker Selection**
 ```typescript
-const result = await channel.run({
+// Python job → routed to Python-capable worker
+const result1 = await client.run({
   code: 'print(2 + 2)',
   kernel: 'python:3.12',
 });
+
+// Node.js job → routed to Node-capable worker (may be different)
+const result2 = await client.run({
+  code: 'console.log(2 + 2)',
+  kernel: 'node:20',
+  memoryMb: 1024,
+});
 ```
 
-The simplified `new Client()` API wraps these phases for the common case:
+**Sticky Sessions with Fallback**
+
+The SDK caches workers by capability fingerprint:
+- Same requirements → reuse cached worker (~50ms)
+- Different requirements → discover new worker (~300ms)
 
 ```typescript
-const client = new Client();  // Auto-discovers via gateway
-const result = await client.run({ code: '...' });
+// First Python run: discovers worker (~300ms)
+await client.run({ kernel: 'python:3.12' });
+
+// Second Python run: reuses cached worker (~50ms)
+await client.run({ kernel: 'python:3.12' });
+
+// Node run: discovers Node worker (~300ms)
+await client.run({ kernel: 'node:20' });
+```
+
+**Explicit Worker Selection (Advanced)**
+```typescript
+const workers = await client.discoverWorkers({ kernel: 'python:3.12' });
+const result = await client.run({
+  code: '...',
+  workerNodeId: workers[0].nodeId,  // Pin to specific worker
+});
 ```
 
 **Discovery Modes:**
@@ -2217,7 +2226,7 @@ const result = await client.run({ code: '...' });
 | `gateway` | Queries REST API that aggregates gossip | Browsers, mobile, serverless |
 | `p2p` | Joins gossip network directly | Long-running services, full decentralization |
 
-Channel keys are derived only after worker selection, ensuring proper cryptographic isolation per worker relationship.
+Channel keys are derived per-worker, ensuring proper cryptographic isolation for each worker relationship.
 
 See [ADR-0001](./adr/ADR-0001-sdk-discovery-architecture.md) for detailed architecture decisions.
 

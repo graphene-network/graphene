@@ -31,88 +31,136 @@ The gap exists because:
 
 ## Decision
 
-We will implement a **two-phase architecture** that separates network bootstrap from worker selection:
+We will implement a **per-run worker selection** architecture where worker discovery happens based on each job's requirements, not at client creation time.
 
-### Phase 1: Network Client (Bootstrap)
+### Core Principle: Per-Run Worker Selection
+
+Different jobs have different requirements. A single client should be able to run:
+- Python jobs on workers with Python kernels
+- Node.js jobs on workers with Node kernels
+- GPU jobs on workers with GPUs
+
+Binding a client to a single worker at creation time prevents this flexibility.
+
+### Network Client (Long-Lived)
 
 ```typescript
 interface NetworkConfig {
   secretKey: Uint8Array;           // Client identity
+  channelPda: Uint8Array;          // Payment channel
   storagePath?: string;            // Iroh state persistence
   relays?: string[];               // DERP relay URLs
-  discoveryMode: 'gateway' | 'p2p';
+  discoveryMode?: 'gateway' | 'p2p';
   discoveryUrl?: string;           // Gateway URL (if mode=gateway)
+  stickyWorker?: boolean;          // Reuse workers when possible (default: true)
 }
 
-const network = await Network.create(config);
+const client = await Client.create(config);
 ```
 
-The `Network` client:
-- Initializes Iroh P2P endpoint
-- Connects to relay network for NAT traversal
-- Does NOT derive channel keys (no worker selected yet)
+The `Client`:
+- Initializes Iroh P2P endpoint once
+- Maintains a cache of connected workers
+- Does NOT bind to a single worker
+- Selects workers per-run based on job requirements
 
-### Phase 2: Worker Discovery
+### Per-Run Worker Selection
 
-```typescript
-interface WorkerFilter {
-  minVcpu?: number;
-  minMemoryMb?: number;
-  kernel?: string;
-  regions?: string[];               // e.g., ['us-*', 'eu-west-*']
-  maxPriceCpuMs?: number;           // microtokens
-  minReputation?: number;           // 0.0-1.0 success rate
-}
-
-const workers = await network.discoverWorkers(filter);
-// Returns: WorkerInfo[] with capabilities, pricing, load, reputation
-```
-
-Discovery supports two modes:
-
-**Gateway Mode** (default, lightweight):
-- SDK queries REST endpoint: `GET /workers?kernel=python:3.12&region=us-*`
-- Gateway aggregates gossip announcements
-- Works in browsers, mobile, serverless functions
-
-**P2P Mode** (advanced, fully decentralized):
-- SDK joins `graphene-compute-v1` gossip topic
-- Maintains local worker registry
-- Suitable for long-running services
-
-### Phase 3: Channel Opening (Key Derivation)
+Each `run()` call specifies requirements. The SDK selects an appropriate worker:
 
 ```typescript
-const channel = await network.openChannel({
-  worker: workers[0],        // Selected worker
-  channelPda: myChannelPda,  // Solana payment channel
-});
-
-// Channel keys derived HERE, after worker selection
-```
-
-### Phase 4: Job Execution
-
-```typescript
-const result = await channel.run({
+// Run 1: Python job
+const result1 = await client.run({
   code: 'print(2 + 2)',
   kernel: 'python:3.12',
+  memoryMb: 256,
+});
+// → SDK selects worker supporting python:3.12
+
+// Run 2: Node.js job with more memory
+const result2 = await client.run({
+  code: 'console.log(2 + 2)',
+  kernel: 'node:20',
+  memoryMb: 1024,
+});
+// → SDK selects worker supporting node:20 with 1GB+ memory
+// → May be different worker than run 1
+```
+
+### Sticky Sessions with Capability Fallback
+
+To optimize latency while maintaining flexibility:
+
+```
+run(options) {
+  1. Extract requirements from options (kernel, memory, etc.)
+  2. Check if cached worker supports these requirements
+     → Yes: Reuse existing connection (fast path, ~50ms)
+     → No: Discover new worker (slow path, ~300ms)
+  3. Derive channel keys if new worker
+  4. Submit job
+  5. Cache worker for future runs with similar requirements
+}
+```
+
+**Latency characteristics:**
+
+| Scenario | Latency | Notes |
+|----------|---------|-------|
+| First run | 300-700ms | Discovery + connection + key derivation |
+| Same requirements | 50-100ms | Reuse cached worker |
+| Different requirements (cached) | 50-100ms | Different cached worker |
+| Different requirements (new) | 300-500ms | Discovery for new worker type |
+
+### Worker Cache
+
+The SDK maintains a cache of workers indexed by capability fingerprint:
+
+```typescript
+// Internal cache structure
+Map<CapabilityFingerprint, {
+  worker: WorkerInfo,
+  channel: ChannelKeys,
+  connection: QuicConnection,
+  lastUsed: Date,
+}>
+
+// Fingerprint includes: kernel, minVcpu, minMemory, hasGpu, region
+```
+
+### Explicit Worker Selection (Advanced)
+
+For users who need control, explicit worker selection is still supported:
+
+```typescript
+// Discover workers manually
+const workers = await client.discoverWorkers({
+  kernel: 'python:3.12',
+  minVcpu: 4,
+});
+
+// Pin to specific worker for multiple runs
+const result = await client.run({
+  code: '...',
+  workerNodeId: workers[0].nodeId,  // Explicit worker
 });
 ```
 
-### Simplified API (Implicit Discovery)
+### Simplified API
 
-For the common case, we provide a convenience wrapper:
+For the common case:
 
 ```typescript
-const client = new Client();  // Uses gateway, auto-discovers
-const result = await client.run({ code: '...' });
+const client = await Client.create({
+  secretKey,
+  channelPda,
+});
 
-// Equivalent to:
-// 1. Network.create({ discoveryMode: 'gateway' })
-// 2. discoverWorkers({ kernel: inferred })
-// 3. openChannel({ worker: bestMatch })
-// 4. channel.run({ code })
+// Just run - SDK handles discovery, selection, connection
+const result = await client.run({
+  code: 'print("hello")',
+  kernel: 'python:3.12',
+});
 ```
 
 ## Discovery Gateway Architecture
