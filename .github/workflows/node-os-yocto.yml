@@ -28,6 +28,7 @@ on:
 env:
   YOCTO_RELEASE: "kirkstone"
   SSTATE_BUCKET: "graphene-sstate"
+  BUILD_DIR: "/tmp/yocto-build"
 
 jobs:
   generate-matrix:
@@ -87,24 +88,24 @@ jobs:
         if: ${{ !inputs.skip_cache }}
         run: |
           # Configure read-only sstate mirror from S3
-          mkdir -p build/conf
-          echo 'SSTATE_MIRRORS = "file://.* https://${{ env.SSTATE_BUCKET }}.s3.amazonaws.com/sstate-cache/PATH"' >> build/conf/site.conf
+          mkdir -p ${{ env.BUILD_DIR }}/conf
+          echo 'SSTATE_MIRRORS = "file://.* https://${{ env.SSTATE_BUCKET }}.s3.amazonaws.com/sstate-cache/PATH"' >> ${{ env.BUILD_DIR }}/conf/site.conf
 
       - name: Configure build
         run: |
           cd poky
-          source oe-init-build-env ../build
+          source oe-init-build-env ${{ env.BUILD_DIR }}
 
           # Configure layers
-          cat > conf/bblayers.conf << 'EOF'
+          cat > conf/bblayers.conf << EOF
           POKY_BBLAYERS_CONF_VERSION = "2"
-          BBPATH = "${TOPDIR}"
+          BBPATH = "\${TOPDIR}"
           BBFILES ?= ""
-          BBLAYERS ?= " \
-              ${TOPDIR}/../poky/meta \
-              ${TOPDIR}/../poky/meta-poky \
-              ${TOPDIR}/../poky/meta-yocto-bsp \
-              ${TOPDIR}/../node-os/yocto/meta-graphene \
+          BBLAYERS ?= " \\
+              ${{ github.workspace }}/poky/meta \\
+              ${{ github.workspace }}/poky/meta-poky \\
+              ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
           "
           EOF
 
@@ -115,9 +116,9 @@ jobs:
           MACHINE = "${{ matrix.machine }}"
           BB_NUMBER_THREADS = "8"
           PARALLEL_MAKE = "-j 8"
-          DL_DIR = "\${TOPDIR}/../downloads"
-          SSTATE_DIR = "\${TOPDIR}/../sstate-cache"
-          TMPDIR = "\${TOPDIR}/tmp"
+          DL_DIR = "${{ env.BUILD_DIR }}/downloads"
+          SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
+          TMPDIR = "${{ env.BUILD_DIR }}/tmp"
           PACKAGE_CLASSES = "package_rpm"
           INHERIT += "create-spdx"
           INHERIT += "externalsrc"
@@ -128,12 +129,12 @@ jobs:
       - name: Build image
         run: |
           cd poky
-          source oe-init-build-env ../build
+          source oe-init-build-env ${{ env.BUILD_DIR }}
           bitbake graphene-node-image
 
       - name: Verify shell removal
         run: |
-          cd build
+          cd ${{ env.BUILD_DIR }}
           IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
 
           if [ -z "$IMAGE" ]; then
@@ -163,7 +164,7 @@ jobs:
 
       - name: Check image size
         run: |
-          cd build
+          cd ${{ env.BUILD_DIR }}
           IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
           SIZE=$(stat -c%s "$IMAGE")
           SIZE_MB=$((SIZE / 1024 / 1024))
@@ -177,7 +178,7 @@ jobs:
 
       - name: Generate build metadata
         run: |
-          cd build
+          cd ${{ env.BUILD_DIR }}
           cat > build-info.json << EOF
           {
             "yocto_release": "${{ env.YOCTO_RELEASE }}",
@@ -193,10 +194,10 @@ jobs:
         with:
           name: graphene-node-os-yocto-${{ matrix.machine }}
           path: |
-            build/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.wic.gz
-            build/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.ext4
-            build/tmp/deploy/licenses/graphene-node-image/
-            build/build-info.json
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.wic.gz
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.ext4
+            ${{ env.BUILD_DIR }}/tmp/deploy/licenses/graphene-node-image/
+            ${{ env.BUILD_DIR }}/build-info.json
           retention-days: 30
 
       - name: Upload sstate to S3
@@ -206,7 +207,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           # Sync new sstate entries to S3
-          aws s3 sync sstate-cache/ s3://${{ env.SSTATE_BUCKET }}/sstate-cache/ \
+          aws s3 sync ${{ env.BUILD_DIR }}/sstate-cache/ s3://${{ env.SSTATE_BUCKET }}/sstate-cache/ \
             --exclude "*" --include "sstate:*" \
             --no-progress
 
