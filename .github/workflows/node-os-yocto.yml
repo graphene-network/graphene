@@ -35,7 +35,7 @@ on:
         default: false
 
 env:
-  YOCTO_RELEASE: "kirkstone"
+  YOCTO_RELEASE: "scarthgap"
   SSTATE_BUCKET: "graphene-sstate"
   BUILD_DIR: "/tmp/yocto-build"
 
