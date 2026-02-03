@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'crates/sdk/**'
+      - 'sdks/**'
       - '.github/workflows/sdk-build.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'crates/sdk/**'
+      - 'sdks/**'
       - '.github/workflows/sdk-build.yml'
   workflow_dispatch:
 
@@ -67,7 +67,7 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: crates/sdk/package-lock.json
+          cache-dependency-path: sdks/rust/package-lock.json
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -96,17 +96,17 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            crates/sdk/target
+            sdks/rust/target
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
       - name: Install dependencies
-        working-directory: crates/sdk
+        working-directory: sdks/rust
         run: npm install
 
       - name: Build native addon
-        working-directory: crates/sdk
+        working-directory: sdks/rust
         env:
           # Set linker for cross-compilation
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -116,19 +116,19 @@ jobs:
           npm run build -- --target ${{ matrix.target }}
 
       - name: List built artifacts
-        working-directory: crates/sdk
+        working-directory: sdks/rust
         run: ls -la *.node || echo "No .node files found"
 
       - name: Run tests (native platform only)
         if: ${{ !matrix.cross }}
-        working-directory: crates/sdk
+        working-directory: sdks/rust
         run: npm test
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
-          path: crates/sdk/*.node
+          path: sdks/rust/*.node
           if-no-files-found: error
 
   # Job to run TypeScript SDK tests
@@ -149,22 +149,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: bindings-x86_64-unknown-linux-gnu
-          path: crates/sdk/
+          path: sdks/rust/
 
       - name: Install native SDK dependencies
-        working-directory: crates/sdk
+        working-directory: sdks/rust
         run: npm install
 
       - name: Install TypeScript SDK dependencies
-        working-directory: packages/sdk
+        working-directory: sdks/node
         run: npm install
 
       - name: Build TypeScript SDK
-        working-directory: packages/sdk
+        working-directory: sdks/node
         run: npm run build
 
       - name: Run TypeScript SDK tests
-        working-directory: packages/sdk
+        working-directory: sdks/node
         run: npm test
 
   # Aggregate all bindings for publishing
@@ -197,17 +197,17 @@ jobs:
 
       - name: Collect binaries
         run: |
-          mkdir -p crates/sdk/npm
+          mkdir -p sdks/rust/npm
           for dir in artifacts/bindings-*; do
             target=$(basename "$dir" | sed 's/bindings-//')
             echo "Processing $target..."
-            cp "$dir"/*.node crates/sdk/npm/ || true
+            cp "$dir"/*.node sdks/rust/npm/ || true
           done
-          ls -la crates/sdk/npm/
+          ls -la sdks/rust/npm/
 
       - name: Upload combined artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sdk-native-all-platforms
-          path: crates/sdk/npm/
+          path: sdks/rust/npm/
           retention-days: 30

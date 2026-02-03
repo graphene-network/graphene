@@ -3,7 +3,7 @@
   "packageManager": "bun@1.3.5",
   "workspaces": [
     "packages/*",
-    "crates/sdk"
+    "sdks/*"
   ],
   "scripts": {
     "test": "bun test",
