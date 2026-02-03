@@ -9,3 +9,16 @@ pre-commit:
       glob: "*.rs"
       run: cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features -- -D warnings
       stage_fixed: true
+
+pre-push:
+  parallel: true
+  commands:
+    test:
+      glob: "*.rs"
+      run: cargo test --lib --bins
+    test-doc:
+      glob: "*.rs"
+      run: cargo test --doc
+    clippy:
+      glob: "*.rs"
+      run: cargo clippy --all-targets --all-features -- -D warnings
