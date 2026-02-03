@@ -20,7 +20,7 @@ INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 PACKAGE_EXCLUDE_COMPLEMENTARY = ".*-staticdev"
 
 # Kernel hardening config
-KERNEL_FEATURES:append = " cfg/security.scc"
+# Note: security.cfg is added via SRC_URI in linux-yocto bbappend, not via KERNEL_FEATURES
 
 # Remove unnecessary kernel features
 KERNEL_FEATURES:remove = "features/sound/snd_hda_intel.scc"

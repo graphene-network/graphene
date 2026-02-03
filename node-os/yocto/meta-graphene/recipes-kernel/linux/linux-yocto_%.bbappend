@@ -19,12 +19,8 @@ KBRANCH:graphene-node-aarch64 = "v5.15/standard/base"
 # Add our defconfig and configuration fragments
 SRC_URI:append = " \
     file://defconfig \
-    file://cfg/security.scc \
-    file://cfg/security.cfg \
+    file://security.cfg \
 "
-
-# Apply security configuration as kernel features
-KERNEL_FEATURES:append = " cfg/security.scc"
 
 # Ensure our defconfig is used (merged with kernel metadata config)
 KERNEL_DEFCONFIG:graphene-node-x86_64 = "defconfig"

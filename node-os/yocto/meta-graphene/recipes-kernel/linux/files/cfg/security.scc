@@ -1,9 +1,0 @@
-# Graphene Security Kernel Feature
-# SPDX-License-Identifier: Apache-2.0
-#
-# This SCC file defines kernel security hardening options for Graphene nodes.
-
-define KFEATURE_DESCRIPTION "Graphene security hardening configuration"
-define KFEATURE_COMPATIBILITY board
-
-kconf non-hardware security.cfg
