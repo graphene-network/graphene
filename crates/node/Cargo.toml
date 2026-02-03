@@ -50,11 +50,12 @@ toml = "0.8"
 dirs = "5.0"
 
 # Cryptography for encrypted job I/O
+# NOTE: Versions match iroh 0.96's transitive dependencies to avoid conflicts
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
-ed25519-dalek = { version = "2.0", features = ["hazmat"] }
-curve25519-dalek = { version = "4.1", features = ["digest"] }
+ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }
+curve25519-dalek = { version = "5.0.0-pre" }
 zeroize = { version = "1.7", features = ["derive"] }
 
 # Solana integration

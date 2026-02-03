@@ -216,6 +216,52 @@ pub struct TicketRejected {
     pub timestamp: u64,
 }
 
+// ============================================================================
+// Cache Messages
+// ============================================================================
+
+/// Announcement of a cached build artifact.
+///
+/// Broadcast on the `graphene-cache-v1` gossip topic to advertise
+/// availability of cached unikernel builds.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheAnnouncement {
+    /// The L3 cache key (BLAKE3 hash of kernel + requirements + code).
+    pub cache_key: [u8; 32],
+
+    /// Iroh blob hash of the cached artifact.
+    pub blob_hash: Hash,
+
+    /// Size of the cached artifact in bytes.
+    pub size_bytes: u64,
+
+    /// Kernel specification (e.g., "python:3.12", "node:20").
+    pub kernel_spec: String,
+}
+
+/// Messages broadcast on the `graphene-cache-v1` topic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CacheMessage {
+    /// A node announcing availability of a cached build.
+    Announcement(CacheAnnouncement),
+
+    /// Query for a specific cache key.
+    Query {
+        /// The cache key being queried.
+        cache_key: [u8; 32],
+        /// Unique query ID for correlation.
+        query_id: String,
+    },
+
+    /// Response to a cache query.
+    QueryResponse {
+        /// The query ID this responds to.
+        query_id: String,
+        /// The blob hash if available.
+        blob_hash: Option<Hash>,
+    },
+}
+
 /// Job result metadata for blob-based result delivery.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobResult {

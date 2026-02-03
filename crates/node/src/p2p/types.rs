@@ -126,6 +126,14 @@ impl TopicId {
         Self::from_name("graphene-tickets-v1")
     }
 
+    /// Build cache announcements topic.
+    ///
+    /// Nodes broadcast CacheAnnouncement messages on this topic to
+    /// advertise availability of cached build artifacts.
+    pub fn cache_v1() -> Self {
+        Self::from_name("graphene-cache-v1")
+    }
+
     /// Get the raw bytes of this topic ID.
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0

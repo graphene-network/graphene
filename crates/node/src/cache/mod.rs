@@ -3,10 +3,14 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
-// TODO: iroh module needs updating for iroh 0.96.0 API changes
-// pub mod iroh;
+pub mod build;
+pub mod iroh;
+pub mod keys;
 pub mod local;
 pub mod mock;
+
+pub use build::{BuildCache, CacheLookupResult, LayeredBuildCache, MockBuildCache};
+pub use keys::{full_build_key, hash_bytes, l1_key, l2_key, l3_key};
 
 #[derive(Debug)]
 pub enum CacheError {
@@ -46,8 +50,9 @@ impl From<std::io::Error> for CacheError {
 
 #[async_trait]
 pub trait DependencyCache: Send + Sync {
-    /// 1. Takes the raw dependency list.
-    /// 2. Returns the SHA256 Hash (The "Key").
+    /// Compute a deterministic BLAKE3 hash of the requirements list.
+    ///
+    /// Requirements are sorted before hashing for determinism.
     fn calculate_hash(&self, requirements: &[String]) -> String;
 
     /// 1. Checks if the Key exists in the store.

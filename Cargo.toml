@@ -15,4 +15,3 @@ overflow-checks = true
 # Fix curve25519-dalek 5.0.0-pre.1 for digest 0.11.0-rc.11 compatibility
 # (crypto_common was renamed to common in newer digest versions)
 curve25519-dalek = { git = "https://github.com/marcus-sa/curve25519-dalek", branch = "fix/digest-0.11-compat" }
-
