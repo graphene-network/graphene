@@ -33,6 +33,7 @@ discovery.set_announcement(WorkerAnnouncement {
         available_slots: 4,
         queue_depth: 0,
     },
+    state: GossipWorkerState::Online,
     timestamp: unix_now(),
 }).await;
 
