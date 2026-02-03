@@ -126,8 +126,13 @@ jobs:
 
       - name: Install kraft CLI
         run: |
-          curl -sSfL https://get.kraftkit.sh | sudo sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg lsb-release
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://deb.pkg.kraftkit.sh/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/unikraft.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/unikraft.gpg] https://deb.pkg.kraftkit.sh /" | sudo tee /etc/apt/sources.list.d/unikraft.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y kraftkit
 
       - name: Run E2E Unikraft tests
         run: cargo test -p monad_node --features e2e -- --ignored
