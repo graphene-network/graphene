@@ -1235,12 +1235,65 @@ Graphene v1 guarantees **delivery** but not **correctness**. A malicious worker 
 
 For high-value computations requiring correctness guarantees before TEE support, users should employ redundant execution with majority voting.
 
-### 8.12 Future: Confidential Compute
+### 8.12 Encrypted Job I/O
 
-TEE integration (Intel SGX / AMD SEV) planned as premium tier for:
+Graphene encrypts job inputs and outputs using keys derived from the payment channel relationship, providing "soft confidential computing" without requiring TEE hardware.
+
+**Key Derivation:**
+```
+Channel Key = HKDF(ECDH(user_x25519, worker_x25519), salt=channel_pda)
+Job Key = HKDF(ECDH(ephemeral, worker_x25519) || channel_key, salt=job_id)
+```
+
+**Properties:**
+- **Payment-bound**: Only parties with valid payment channel can decrypt
+- **Forward secrecy**: Per-job ephemeral keys protect past data if channel keys compromised
+- **Automatic rotation**: Job ID in HKDF salt ensures unique key per job
+
+**What Gets Encrypted:**
+
+| Component | Encrypted? | Reason |
+|-----------|------------|--------|
+| Input blob | Yes | User's private data |
+| Code blob | Yes | User's proprietary logic |
+| Result blob | Yes | Computation output |
+| stdout/stderr | Yes | May leak sensitive info |
+| Job ID | No | Needed for routing |
+| Resource requirements | No | Worker needs for allocation |
+| Exit code | No | State machine needs |
+
+**Encryption Scheme:** XChaCha20-Poly1305 with 192-bit random nonces (no nonce tracking required).
+
+**Security Model:** Encrypted I/O requires a hardened node OS (Bottlerocket or equivalent) to achieve full "soft confidential" guarantees. Together they provide:
+- No shell access for memory inspection
+- No debugging tools
+- Ephemeral execution window
+- Economic incentive alignment
+
+### 8.13 Future: TEE Integration
+
+TEE (Intel SGX / AMD SEV) is planned as a premium tier. TEE and encrypted job I/O are **complementary**, not alternatives:
+
+| Protection | Encrypted I/O | TEE | Both |
+|------------|---------------|-----|------|
+| Data in transit | ✅ | ❌ | ✅ |
+| Data at rest (Iroh) | ✅ | ❌ | ✅ |
+| Data during execution | ❌ | ✅ | ✅ |
+| Forward secrecy | ✅ | ❌ | ✅ |
+| Payment-bound keys | ✅ | ❌ | ✅ |
+| Attestation | ❌ | ✅ | ✅ |
+
+**Encrypted I/O remains required even with TEE** because:
+- TEE doesn't encrypt blobs at rest in Iroh
+- TEE doesn't provide forward secrecy
+- TEE doesn't bind decryption to payment channel
+
+When TEE is added, decryption moves inside the enclave, but the encryption layer stays.
+
+**TEE Use Cases:**
 - Proprietary AI model inference
 - Sensitive data processing
-- Cryptographic proof of execution
+- Cryptographic proof of correct execution
 
 ---
 

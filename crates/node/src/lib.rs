@@ -1,6 +1,7 @@
 pub mod api;
 pub mod builder;
 pub mod cache;
+pub mod crypto;
 pub mod discovery;
 pub mod ephemeral;
 pub mod kernel;

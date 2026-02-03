@@ -27,6 +27,7 @@ tokio = { version = "1.49.0", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.100"
+thiserror = "1.0"
 rand = "0.8"
 libc = "0.2"
 prometheus = "0.13"
@@ -46,6 +47,14 @@ dockerfile-parser = "0.9"
 # Kernel library
 toml = "0.8"
 dirs = "5.0"
+
+# Cryptography for encrypted job I/O
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+ed25519-dalek = { version = "2.0", features = ["hazmat"] }
+curve25519-dalek = { version = "4.1", features = ["digest"] }
+zeroize = { version = "1.7", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3.8"
