@@ -2,6 +2,7 @@ pub mod api;
 pub mod attestation;
 pub mod builder;
 pub mod cache;
+pub mod cost;
 pub mod crypto;
 pub mod discovery;
 pub mod ephemeral;

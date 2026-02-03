@@ -385,6 +385,7 @@ mod tests {
             memory_mb_ms_micros: 0.1,
             disk_gb_ms_micros: None,
             gpu_ms_micros: None,
+            egress_mb_micros: None,
         };
         assert!(matches!(
             pricing.validate(),

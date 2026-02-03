@@ -115,6 +115,9 @@ pub enum RejectReason {
     /// Payment channel balance exhausted or nonce replayed.
     ChannelExhausted,
 
+    /// Payment ticket does not authorize enough funds for estimated max cost.
+    InsufficientPayment,
+
     /// Worker is at capacity (no available slots).
     CapacityFull,
 
@@ -145,6 +148,7 @@ impl std::fmt::Display for RejectReason {
         match self {
             RejectReason::TicketInvalid => write!(f, "payment ticket invalid"),
             RejectReason::ChannelExhausted => write!(f, "payment channel exhausted"),
+            RejectReason::InsufficientPayment => write!(f, "insufficient payment for job cost"),
             RejectReason::CapacityFull => write!(f, "worker at capacity"),
             RejectReason::UnsupportedKernel => write!(f, "unsupported kernel"),
             RejectReason::ResourcesExceedLimits => write!(f, "resources exceed limits"),
@@ -196,6 +200,22 @@ pub struct JobMetrics {
     /// Total network bytes transmitted.
     #[serde(default)]
     pub network_tx_bytes: u64,
+
+    /// Total cost charged in microtokens.
+    #[serde(default)]
+    pub total_cost_micros: u64,
+
+    /// CPU cost component in microtokens.
+    #[serde(default)]
+    pub cpu_cost_micros: u64,
+
+    /// Memory cost component in microtokens.
+    #[serde(default)]
+    pub memory_cost_micros: u64,
+
+    /// Egress cost component in microtokens (Phase 2).
+    #[serde(default)]
+    pub egress_cost_micros: u64,
 }
 
 /// Progress update during job execution.
@@ -298,6 +318,7 @@ mod tests {
             kernel: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: Default::default(),
+            estimated_egress_mb: None,
         };
         let encoded = bincode::serialize(&manifest).expect("manifest serialize failed");
         let _decoded: JobManifest =
@@ -315,6 +336,7 @@ mod tests {
                 kernel: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: Default::default(),
+                estimated_egress_mb: None,
             },
             ticket: crate::ticket::PaymentTicket::new(
                 [1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64],

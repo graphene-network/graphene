@@ -2,6 +2,7 @@
 //!
 //! This module defines the request/response types and errors for the job executor.
 
+use crate::cost::types::JobCostEstimate;
 use crate::p2p::messages::{JobManifest, ResultDeliveryMode};
 use crate::p2p::protocol::types::JobAssets;
 use iroh_blobs::Hash;
@@ -65,6 +66,10 @@ pub struct ExecutionRequest {
 
     /// Requested result delivery mode (sync or async).
     pub delivery_mode: ResultDeliveryMode,
+
+    /// Maximum cost estimate for this job (locked before execution).
+    /// Used for cost settlement after completion.
+    pub max_cost: Option<JobCostEstimate>,
 }
 
 impl ExecutionRequest {
@@ -87,6 +92,31 @@ impl ExecutionRequest {
             channel_pda,
             payer_pubkey,
             delivery_mode,
+            max_cost: None,
+        }
+    }
+
+    /// Creates a new execution request with a cost estimate.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_cost(
+        job_id: impl Into<String>,
+        manifest: JobManifest,
+        assets: JobAssets,
+        ephemeral_pubkey: [u8; 32],
+        channel_pda: [u8; 32],
+        payer_pubkey: [u8; 32],
+        delivery_mode: ResultDeliveryMode,
+        max_cost: JobCostEstimate,
+    ) -> Self {
+        Self {
+            job_id: job_id.into(),
+            manifest,
+            assets,
+            ephemeral_pubkey,
+            channel_pda,
+            payer_pubkey,
+            delivery_mode,
+            max_cost: Some(max_cost),
         }
     }
 
@@ -263,6 +293,7 @@ mod tests {
             kernel: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
+            estimated_egress_mb: None,
         }
     }
 
@@ -372,6 +403,7 @@ mod tests {
                 protocol: "tcp".to_string(),
             }],
             env: HashMap::new(),
+            estimated_egress_mb: None,
         };
 
         assert_eq!(manifest.egress_allowlist.len(), 1);
