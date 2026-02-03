@@ -108,15 +108,9 @@ jobs:
           "
           EOF
 
-          # Determine the branch to build from
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            GIT_BRANCH="${{ github.head_ref }}"
-          else
-            GIT_BRANCH="${{ github.ref_name }}"
-          fi
-          echo "Building from branch: $GIT_BRANCH"
-
           # Configure local.conf
+          # Use EXTERNALSRC to build from the already-checked-out repository
+          # This avoids git fetch issues with branch names containing slashes
           cat > conf/local.conf << EOF
           MACHINE = "${{ matrix.machine }}"
           BB_NUMBER_THREADS = "8"
@@ -126,7 +120,9 @@ jobs:
           TMPDIR = "\${TOPDIR}/tmp"
           PACKAGE_CLASSES = "package_rpm"
           INHERIT += "create-spdx"
-          GRAPHENE_GIT_BRANCH = "$GIT_BRANCH"
+          INHERIT += "externalsrc"
+          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
           EOF
 
       - name: Build image
