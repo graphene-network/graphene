@@ -34,3 +34,8 @@ node_modules
 
 # Docker build artifacts
 docker-target
+
+# Unikraft build artifacts
+kernels/**/.unikraft/
+kernels/**/build/
+*.unik

@@ -1,0 +1,13 @@
+# Python 3.12 Unikernel
+# Built with Unikraft for Firecracker
+
+spec: v0.6
+
+runtime: unikraft.org/python:3.12
+
+targets:
+  - platform: fc
+    architecture: x86_64
+
+# Entry point
+cmd: ["/usr/bin/python3", "/app/main.py"]

@@ -1,0 +1,13 @@
+# Node.js 20 LTS Unikernel
+# Built with Unikraft for Firecracker
+
+spec: v0.6
+
+runtime: unikraft.org/node:20
+
+targets:
+  - platform: fc
+    architecture: x86_64
+
+# Entry point
+cmd: ["/usr/bin/node", "/app/index.js"]

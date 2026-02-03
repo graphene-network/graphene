@@ -1,0 +1,172 @@
+name: Build Kernels
+
+on:
+  push:
+    paths:
+      - 'kernels/**'
+      - '.github/workflows/kernel-build.yml'
+  pull_request:
+    paths:
+      - 'kernels/**'
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: 'Specific runtime to build (leave empty for all)'
+        required: false
+        type: string
+      version:
+        description: 'Specific version to build (leave empty for all)'
+        required: false
+        type: string
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate build matrix
+        id: generate
+        run: |
+          bun scripts/generate-build-matrix.ts \
+            --matrix kernels/kernel-matrix.toml \
+            --runtime "${{ inputs.runtime }}" \
+            --version "${{ inputs.version }}" \
+            >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: generate-matrix
+    runs-on: ubicloud-standard-4
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kraft CLI
+        run: |
+          # Install kraftkit from GitHub releases (apt repo is unavailable)
+          KRAFT_VERSION=$(curl -s https://api.github.com/repos/unikraft/kraftkit/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraft_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraft.tar.gz
+          tar -xzf kraft.tar.gz
+          sudo mv kraft /usr/local/bin/kraft
+          kraft version
+
+      - name: Build kernel
+        working-directory: kernels/${{ matrix.runtime }}/${{ matrix.version }}
+        run: |
+          kraft build --plat fc --arch ${{ matrix.arch }} --no-cache
+
+      - name: Export kernel binary
+        working-directory: kernels/${{ matrix.runtime }}/${{ matrix.version }}
+        run: |
+          # Create output directory
+          mkdir -p .unikraft/build
+
+          KERNEL_NAME="${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }}"
+          KERNEL_PATH=".unikraft/build/${KERNEL_NAME}"
+          PACKAGE="unikraft.org/${{ matrix.runtime }}:${{ matrix.version }}"
+
+          echo "=== Pulling package ${PACKAGE} to extract kernel ==="
+          # Use -w flag to specify output directory, kernel lands at <dir>/unikraft/bin/kernel
+          kraft pkg pull -w .unikraft/pkg --plat fc --arch ${{ matrix.arch }} "${PACKAGE}"
+
+          echo "=== Package contents ==="
+          find .unikraft/pkg -type f 2>/dev/null || true
+
+          # Copy kernel to expected location
+          if [ -f ".unikraft/pkg/unikraft/bin/kernel" ]; then
+            cp .unikraft/pkg/unikraft/bin/kernel "${KERNEL_PATH}"
+          else
+            echo "Kernel not found at expected path, searching..."
+            FOUND_KERNEL=$(find .unikraft/pkg -type f -name "kernel" -o -name "*_fc-*" 2>/dev/null | head -1)
+            if [ -n "${FOUND_KERNEL}" ]; then
+              cp "${FOUND_KERNEL}" "${KERNEL_PATH}"
+            fi
+          fi
+
+          # Verify kernel exists
+          if [ ! -f "${KERNEL_PATH}" ]; then
+            echo "Error: Kernel file not found at ${KERNEL_PATH}"
+            exit 1
+          fi
+
+          echo "Kernel exported successfully: ${KERNEL_PATH}"
+          ls -la "${KERNEL_PATH}"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate metadata
+        run: |
+          bun scripts/generate-kernel-metadata.ts \
+            --runtime ${{ matrix.runtime }} \
+            --version ${{ matrix.version }} \
+            --arch ${{ matrix.arch }} \
+            --kernel-path kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }} \
+            --output ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}
+          path: |
+            kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }}
+            ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
+          retention-days: 30
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get Unikraft version
+        id: version
+        run: |
+          VERSION=$(grep 'unikraft_version' kernels/kernel-matrix.toml | cut -d'"' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Kernels v${{ steps.version.outputs.version }}
+          body: |
+            Pre-built unikernels for Graphene Network.
+
+            ## Included Runtimes
+            - Python 3.11, 3.12
+            - Node.js 20, 22
+            - Bun 1.x
+            - Deno 2.x
+
+            Built with Unikraft ${{ steps.version.outputs.version }}
+          files: |
+            artifacts/**/*_fc-*
+            artifacts/**/*.json
+          draft: false
+          prerelease: false

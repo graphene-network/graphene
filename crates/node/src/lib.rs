@@ -3,6 +3,7 @@ pub mod builder;
 pub mod cache;
 pub mod discovery;
 pub mod ephemeral;
+pub mod kernel;
 pub mod metrics;
 pub mod p2p;
 pub mod protocol;

@@ -1,0 +1,13 @@
+# Bun 1.1 Unikernel
+# Built with Unikraft for Firecracker
+
+spec: v0.6
+
+runtime: unikraft.org/bun:1.1
+
+targets:
+  - platform: fc
+    architecture: x86_64
+
+# Entry point
+cmd: ["/usr/bin/bun", "run", "/app/index.ts"]
