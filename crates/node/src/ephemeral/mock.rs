@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::{
-    BuildError, BuildRequest, BuildResult, EphemeralBuilder, NetworkError, NetworkIsolator,
-    TapConfig,
+    BuildError, BuildRequest, BuildResult, EgressEntry, EphemeralBuilder, NetworkError,
+    NetworkIsolator, TapConfig,
 };
 
 /// Configurable behaviors for MockEphemeralBuilder.
@@ -221,7 +221,7 @@ pub struct NetworkSpyState {
     /// VM IDs for which TAPs were created
     pub create_tap_calls: Vec<String>,
     /// (tap_name, allowlist) pairs for apply_allowlist calls
-    pub apply_allowlist_calls: Vec<(String, Vec<String>)>,
+    pub apply_allowlist_calls: Vec<(String, Vec<EgressEntry>)>,
     /// TAP names for which teardown was called
     pub teardown_calls: Vec<String>,
     /// Currently active TAPs
@@ -314,7 +314,7 @@ impl NetworkIsolator for MockNetworkIsolator {
     async fn apply_allowlist(
         &self,
         tap_name: &str,
-        allowlist: &[String],
+        allowlist: &[EgressEntry],
     ) -> Result<(), NetworkError> {
         let behavior = self.behavior.lock().unwrap().clone();
 
@@ -402,7 +402,7 @@ mod tests {
         assert!(isolator.is_tap_active(&config.tap_name));
 
         isolator
-            .apply_allowlist(&config.tap_name, &["pypi.org".into()])
+            .apply_allowlist(&config.tap_name, &[EgressEntry::https("pypi.org")])
             .await
             .unwrap();
 
@@ -426,7 +426,13 @@ mod tests {
 
         let config = isolator.create_tap("vm-123").await.unwrap();
         isolator
-            .apply_allowlist(&config.tap_name, &["pypi.org".into(), "crates.io".into()])
+            .apply_allowlist(
+                &config.tap_name,
+                &[
+                    EgressEntry::https("pypi.org"),
+                    EgressEntry::https("crates.io"),
+                ],
+            )
             .await
             .unwrap();
 
