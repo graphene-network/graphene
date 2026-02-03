@@ -15,6 +15,7 @@ pub mod graphene;
 pub mod messages;
 pub mod mock;
 pub mod types;
+pub mod validation;
 
 pub use graphene::GrapheneNode;
 pub use mock::{MockGrapheneNode, MockNetwork};

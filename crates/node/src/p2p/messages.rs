@@ -2,6 +2,7 @@
 
 use iroh::PublicKey;
 use iroh_blobs::Hash;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A 64-byte signature with proper serde support.
@@ -36,6 +37,102 @@ impl<'de> Deserialize<'de> for Signature64 {
     }
 }
 
+// ============================================================================
+// Disk Capability Types
+// ============================================================================
+
+/// Type of disk storage available on a worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DiskType {
+    /// Solid State Drive
+    Ssd,
+    /// NVMe SSD (faster than standard SSD)
+    Nvme,
+    /// Hard Disk Drive
+    Hdd,
+}
+
+/// Disk storage capability of a worker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct DiskCapability {
+    /// Maximum disk space available in GB.
+    pub max_disk_gb: u32,
+    /// Type of disk storage.
+    pub disk_type: DiskType,
+}
+
+// ============================================================================
+// GPU Capability Types
+// ============================================================================
+
+/// GPU capability of a worker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct GpuCapability {
+    /// GPU model name (e.g., "NVIDIA RTX 4090").
+    pub model: String,
+    /// Video RAM in MB.
+    pub vram_mb: u32,
+    /// CUDA compute capability version (e.g., "8.9").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compute_capability: Option<String>,
+}
+
+// ============================================================================
+// Region Types
+// ============================================================================
+
+/// Geographic region information for a worker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct WorkerRegion {
+    /// ISO 3166-1 alpha-2 country code (e.g., "US", "DE", "JP").
+    pub country: String,
+    /// Cloud provider region identifier (e.g., "us-east-1", "eu-west-2").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cloud_region: Option<String>,
+}
+
+// ============================================================================
+// Reputation Types
+// ============================================================================
+
+/// Reputation metrics for a worker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct WorkerReputation {
+    /// Total number of jobs completed successfully.
+    pub jobs_completed: u64,
+    /// Total number of jobs that failed.
+    pub jobs_failed: u64,
+    /// Success rate as a ratio (0.0 to 1.0).
+    pub success_rate: f64,
+    /// 50th percentile job latency in milliseconds.
+    pub latency_p50_ms: u64,
+    /// 95th percentile job latency in milliseconds.
+    pub latency_p95_ms: u64,
+    /// 99th percentile job latency in milliseconds.
+    pub latency_p99_ms: u64,
+    /// Uptime percentage (0.0 to 100.0).
+    pub uptime_percentage: f64,
+}
+
+impl Default for WorkerReputation {
+    fn default() -> Self {
+        Self {
+            jobs_completed: 0,
+            jobs_failed: 0,
+            success_rate: 1.0,
+            latency_p50_ms: 0,
+            latency_p95_ms: 0,
+            latency_p99_ms: 0,
+            uptime_percentage: 100.0,
+        }
+    }
+}
+
+// ============================================================================
+// Compute Messages
+// ============================================================================
+
 /// Messages broadcast on the `graphene-compute-v1` topic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ComputeMessage {
@@ -53,7 +150,7 @@ pub enum ComputeMessage {
 }
 
 /// Worker hardware and software capabilities.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkerCapabilities {
     /// Maximum vCPUs available.
     pub max_vcpu: u8,
@@ -63,6 +160,12 @@ pub struct WorkerCapabilities {
 
     /// Supported unikernel images (e.g., "node-20-unikraft", "python-3.11-unikraft").
     pub kernels: Vec<String>,
+
+    /// Disk storage capability.
+    pub disk: Option<DiskCapability>,
+
+    /// GPU capabilities (empty if no GPUs available).
+    pub gpus: Vec<GpuCapability>,
 }
 
 impl Default for WorkerCapabilities {
@@ -71,6 +174,8 @@ impl Default for WorkerCapabilities {
             max_vcpu: 1,
             max_memory_mb: 512,
             kernels: Vec::new(),
+            disk: None,
+            gpus: Vec::new(),
         }
     }
 }
@@ -83,6 +188,12 @@ pub struct WorkerPricing {
 
     /// Price per memory-MB-millisecond in microtokens.
     pub memory_mb_ms_micros: f64,
+
+    /// Price per disk-GB-millisecond in microtokens (if disk is offered).
+    pub disk_gb_ms_micros: Option<f64>,
+
+    /// Price per GPU-millisecond in microtokens (if GPU is offered).
+    pub gpu_ms_micros: Option<u64>,
 }
 
 impl Default for WorkerPricing {
@@ -90,6 +201,8 @@ impl Default for WorkerPricing {
         Self {
             cpu_ms_micros: 1,
             memory_mb_ms_micros: 0.1,
+            disk_gb_ms_micros: None,
+            gpu_ms_micros: None,
         }
     }
 }
@@ -177,6 +290,12 @@ pub struct WorkerAnnouncement {
 
     /// Timestamp of this announcement (Unix epoch seconds).
     pub timestamp: u64,
+
+    /// Geographic regions where this worker operates.
+    pub regions: Vec<WorkerRegion>,
+
+    /// Reputation metrics for this worker.
+    pub reputation: WorkerReputation,
 }
 
 /// Periodic heartbeat to indicate worker is still alive.

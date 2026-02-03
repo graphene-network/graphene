@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use tracing::{error, info, warn};
 
 use crate::p2p::messages::{
-    ComputeMessage, GossipWorkerState, WorkerAnnouncement, WorkerHeartbeat,
+    ComputeMessage, GossipWorkerState, WorkerAnnouncement, WorkerHeartbeat, WorkerReputation,
 };
 use crate::p2p::types::TopicId;
 use crate::p2p::{GrapheneNode, P2PNetwork};
@@ -179,6 +179,33 @@ fn create_announcement(
         .unwrap_or_default()
         .as_secs();
 
+    // Build disk capability from config
+    let disk = config.worker.disk.as_ref().map(|d| d.to_capability());
+
+    // Build GPU capabilities from config
+    let gpus = config
+        .worker
+        .gpus
+        .iter()
+        .map(|g| g.to_capability())
+        .collect();
+
+    // Build regions from config
+    let regions = config
+        .worker
+        .regions
+        .iter()
+        .map(|r| r.to_region())
+        .collect();
+
+    // Get disk and GPU pricing from config
+    let disk_gb_ms_micros = config
+        .worker
+        .disk
+        .as_ref()
+        .and_then(|d| d.price_gb_ms_micros);
+    let gpu_ms_micros = config.worker.gpus.first().and_then(|g| g.price_ms_micros);
+
     WorkerAnnouncement {
         node_id: node.node_id(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -186,14 +213,20 @@ fn create_announcement(
             max_vcpu: 4,         // TODO(#44): Detect or configure
             max_memory_mb: 4096, // TODO(#44): Detect or configure
             kernels: config.worker.capabilities.clone(),
+            disk,
+            gpus,
         },
         pricing: WorkerPricing {
             cpu_ms_micros: config.worker.price_per_unit,
             memory_mb_ms_micros: 0.0, // TODO(#44): Add to config
+            disk_gb_ms_micros,
+            gpu_ms_micros,
         },
         load: state_machine.load(),
         state: to_gossip_state(state_machine.state()),
         timestamp,
+        regions,
+        reputation: WorkerReputation::default(),
     }
 }
 

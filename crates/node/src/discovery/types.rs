@@ -1,6 +1,8 @@
 //! Types for the worker discovery service.
 
-use crate::p2p::messages::{WorkerCapabilities, WorkerLoad, WorkerPricing};
+use crate::p2p::messages::{
+    WorkerCapabilities, WorkerLoad, WorkerPricing, WorkerRegion, WorkerReputation,
+};
 use iroh::{EndpointAddr, PublicKey};
 use std::time::{Duration, Instant};
 
@@ -78,6 +80,12 @@ pub struct WorkerInfo {
 
     /// When this worker was last seen.
     pub last_seen: Instant,
+
+    /// Geographic regions where this worker operates.
+    pub regions: Vec<WorkerRegion>,
+
+    /// Reputation metrics for this worker.
+    pub reputation: WorkerReputation,
 }
 
 impl WorkerInfo {
@@ -113,7 +121,31 @@ impl WorkerInfo {
             }
         }
 
+        // Check disk requirements
+        if let Some(required_disk) = requirements.required_disk_gb {
+            match &self.capabilities.disk {
+                Some(disk) if disk.max_disk_gb >= required_disk => {}
+                _ => return false,
+            }
+        }
+
+        // Check GPU requirements
+        if requirements.required_gpu && self.capabilities.gpus.is_empty() {
+            return false;
+        }
+
+        // Note: preferred_regions is a preference, not a hard requirement
+        // It can be used for sorting/ranking but doesn't filter workers out
+
         true
+    }
+
+    /// Check if this worker is in any of the preferred regions.
+    pub fn in_preferred_regions(&self, preferred: &[String]) -> bool {
+        if preferred.is_empty() {
+            return true;
+        }
+        self.regions.iter().any(|r| preferred.contains(&r.country))
     }
 }
 
@@ -131,4 +163,14 @@ pub struct JobRequirements {
 
     /// Maximum acceptable CPU price per ms.
     pub max_price_cpu_ms: Option<u64>,
+
+    /// Required disk space in GB.
+    pub required_disk_gb: Option<u32>,
+
+    /// Whether a GPU is required.
+    pub required_gpu: bool,
+
+    /// Preferred region country codes (ISO 3166-1 alpha-2).
+    /// If specified, workers in these regions are preferred.
+    pub preferred_regions: Option<Vec<String>>,
 }

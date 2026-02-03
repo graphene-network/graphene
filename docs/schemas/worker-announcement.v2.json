@@ -1,0 +1,261 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkerAnnouncement",
+  "description": "Worker availability announcement broadcast on the graphene-compute-v1 gossip topic.",
+  "type": "object",
+  "required": [
+    "node_id",
+    "version",
+    "capabilities",
+    "pricing",
+    "load",
+    "state",
+    "timestamp",
+    "regions",
+    "reputation"
+  ],
+  "properties": {
+    "node_id": {
+      "description": "The worker's Ed25519 public key (Iroh node ID).",
+      "type": "string"
+    },
+    "version": {
+      "description": "Worker software version.",
+      "type": "string"
+    },
+    "capabilities": {
+      "$ref": "#/definitions/WorkerCapabilities"
+    },
+    "pricing": {
+      "$ref": "#/definitions/WorkerPricing"
+    },
+    "load": {
+      "$ref": "#/definitions/WorkerLoad"
+    },
+    "state": {
+      "$ref": "#/definitions/GossipWorkerState"
+    },
+    "timestamp": {
+      "description": "Unix epoch timestamp of this announcement in seconds.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "regions": {
+      "description": "Geographic regions where this worker operates.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/WorkerRegion"
+      }
+    },
+    "reputation": {
+      "$ref": "#/definitions/WorkerReputation"
+    }
+  },
+  "definitions": {
+    "WorkerCapabilities": {
+      "description": "Worker hardware and software capabilities.",
+      "type": "object",
+      "required": ["max_vcpu", "max_memory_mb", "kernels", "gpus"],
+      "properties": {
+        "max_vcpu": {
+          "description": "Maximum vCPUs available.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "max_memory_mb": {
+          "description": "Maximum memory in MB.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "kernels": {
+          "description": "Supported unikernel images (e.g., 'node-20-unikraft', 'python-3.11-unikraft').",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "disk": {
+          "description": "Disk storage capability (optional).",
+          "oneOf": [
+            { "$ref": "#/definitions/DiskCapability" },
+            { "type": "null" }
+          ]
+        },
+        "gpus": {
+          "description": "GPU capabilities (empty array if no GPUs).",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GpuCapability"
+          }
+        }
+      }
+    },
+    "DiskCapability": {
+      "description": "Disk storage capability of a worker.",
+      "type": "object",
+      "required": ["max_disk_gb", "disk_type"],
+      "properties": {
+        "max_disk_gb": {
+          "description": "Maximum disk space available in GB.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "disk_type": {
+          "description": "Type of disk storage.",
+          "type": "string",
+          "enum": ["ssd", "nvme", "hdd"]
+        }
+      }
+    },
+    "GpuCapability": {
+      "description": "GPU capability of a worker.",
+      "type": "object",
+      "required": ["model", "vram_mb"],
+      "properties": {
+        "model": {
+          "description": "GPU model name (e.g., 'NVIDIA RTX 4090').",
+          "type": "string",
+          "minLength": 1
+        },
+        "vram_mb": {
+          "description": "Video RAM in MB.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "compute_capability": {
+          "description": "CUDA compute capability version (e.g., '8.9').",
+          "type": "string"
+        }
+      }
+    },
+    "WorkerPricing": {
+      "description": "Worker pricing information.",
+      "type": "object",
+      "required": ["cpu_ms_micros", "memory_mb_ms_micros"],
+      "properties": {
+        "cpu_ms_micros": {
+          "description": "Price per CPU-millisecond in microtokens.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "memory_mb_ms_micros": {
+          "description": "Price per memory-MB-millisecond in microtokens.",
+          "type": "number",
+          "minimum": 0
+        },
+        "disk_gb_ms_micros": {
+          "description": "Price per disk-GB-millisecond in microtokens (if disk is offered).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gpu_ms_micros": {
+          "description": "Price per GPU-millisecond in microtokens (if GPU is offered).",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "WorkerLoad": {
+      "description": "Current load status of a worker.",
+      "type": "object",
+      "required": ["available_slots", "queue_depth"],
+      "properties": {
+        "available_slots": {
+          "description": "Number of available job slots.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "queue_depth": {
+          "description": "Number of jobs waiting in queue.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "GossipWorkerState": {
+      "description": "Worker lifecycle state.",
+      "type": "string",
+      "enum": [
+        "unregistered",
+        "registered",
+        "online",
+        "busy",
+        "draining",
+        "offline",
+        "unbonding",
+        "exited"
+      ]
+    },
+    "WorkerRegion": {
+      "description": "Geographic region information.",
+      "type": "object",
+      "required": ["country"],
+      "properties": {
+        "country": {
+          "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'DE', 'JP').",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "cloud_region": {
+          "description": "Cloud provider region identifier (e.g., 'us-east-1', 'eu-west-2').",
+          "type": "string"
+        }
+      }
+    },
+    "WorkerReputation": {
+      "description": "Reputation metrics for a worker.",
+      "type": "object",
+      "required": [
+        "jobs_completed",
+        "jobs_failed",
+        "success_rate",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "latency_p99_ms",
+        "uptime_percentage"
+      ],
+      "properties": {
+        "jobs_completed": {
+          "description": "Total number of jobs completed successfully.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "jobs_failed": {
+          "description": "Total number of jobs that failed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "success_rate": {
+          "description": "Success rate as a ratio (0.0 to 1.0).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "latency_p50_ms": {
+          "description": "50th percentile job latency in milliseconds.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "latency_p95_ms": {
+          "description": "95th percentile job latency in milliseconds.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "latency_p99_ms": {
+          "description": "99th percentile job latency in milliseconds.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "uptime_percentage": {
+          "description": "Uptime percentage (0.0 to 100.0).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}
