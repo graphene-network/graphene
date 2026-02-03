@@ -271,13 +271,13 @@ pub trait NetworkIsolator: Send + Sync {
     /// Apply egress allowlist firewall rules.
     ///
     /// After calling this:
-    /// - Traffic to allowlisted hosts is permitted
+    /// - Traffic to allowlisted hosts/ports is permitted
     /// - RFC1918 addresses (10.x, 172.16.x, 192.168.x, 127.x) are blocked
     /// - All other traffic is dropped
     async fn apply_allowlist(
         &self,
         tap_name: &str,
-        allowlist: &[String],
+        allowlist: &[EgressEntry],
     ) -> Result<(), NetworkError>;
 
     /// Tear down network resources for a VM.
@@ -318,13 +318,15 @@ mod tests {
         let request = BuildRequest::new("test-123", "FROM alpine")
             .kraftfile("name: test")
             .code_tarball("/tmp/code.tar.gz")
-            .egress_allowlist(vec!["pypi.org".into()]);
+            .egress_allowlist(vec![EgressEntry::https("pypi.org")]);
 
         assert_eq!(request.build_id, "test-123");
         assert_eq!(request.dockerfile, "FROM alpine");
         assert_eq!(request.kraftfile, Some("name: test".to_string()));
         assert_eq!(request.code_tarball.to_str().unwrap(), "/tmp/code.tar.gz");
-        assert_eq!(request.egress_allowlist, vec!["pypi.org"]);
+        assert_eq!(request.egress_allowlist.len(), 1);
+        assert_eq!(request.egress_allowlist[0].host, "pypi.org");
+        assert_eq!(request.egress_allowlist[0].port, 443);
     }
 
     #[test]

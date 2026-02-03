@@ -1,5 +1,136 @@
+use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
+
+/// Network protocol for egress rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Protocol {
+    /// TCP protocol (default).
+    #[default]
+    Tcp,
+    /// UDP protocol.
+    Udp,
+}
+
+impl Protocol {
+    /// Returns the protocol as a lowercase string for nftables.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Protocol::Tcp => "tcp",
+            Protocol::Udp => "udp",
+        }
+    }
+}
+
+impl fmt::Display for Protocol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<&str> for Protocol {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "udp" => Protocol::Udp,
+            _ => Protocol::Tcp,
+        }
+    }
+}
+
+impl From<String> for Protocol {
+    fn from(s: String) -> Self {
+        Protocol::from(s.as_str())
+    }
+}
+
+/// An allowed egress destination with port/protocol constraints.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EgressEntry {
+    /// Hostname or IP address.
+    pub host: String,
+    /// Port number (default: 443).
+    pub port: u16,
+    /// Protocol (default: TCP).
+    pub protocol: Protocol,
+}
+
+impl EgressEntry {
+    /// Create a new egress entry with specified host, port, and protocol.
+    pub fn new(host: impl Into<String>, port: u16, protocol: Protocol) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            protocol,
+        }
+    }
+
+    /// Create an HTTPS egress entry (TCP port 443).
+    pub fn https(host: impl Into<String>) -> Self {
+        Self {
+            host: host.into(),
+            port: 443,
+            protocol: Protocol::Tcp,
+        }
+    }
+
+    /// Create a TCP egress entry with custom port.
+    pub fn tcp(host: impl Into<String>, port: u16) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            protocol: Protocol::Tcp,
+        }
+    }
+
+    /// Create a UDP egress entry with custom port.
+    pub fn udp(host: impl Into<String>, port: u16) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            protocol: Protocol::Udp,
+        }
+    }
+}
+
+impl From<&str> for EgressEntry {
+    fn from(host: &str) -> Self {
+        Self {
+            host: host.to_string(),
+            port: 443,
+            protocol: Protocol::Tcp,
+        }
+    }
+}
+
+impl From<String> for EgressEntry {
+    fn from(host: String) -> Self {
+        Self {
+            host,
+            port: 443,
+            protocol: Protocol::Tcp,
+        }
+    }
+}
+
+impl From<&crate::p2p::messages::EgressRule> for EgressEntry {
+    fn from(rule: &crate::p2p::messages::EgressRule) -> Self {
+        Self {
+            host: rule.host.clone(),
+            port: rule.port,
+            protocol: Protocol::from(rule.protocol.as_str()),
+        }
+    }
+}
+
+impl From<crate::p2p::messages::EgressRule> for EgressEntry {
+    fn from(rule: crate::p2p::messages::EgressRule) -> Self {
+        Self {
+            host: rule.host,
+            port: rule.port,
+            protocol: Protocol::from(rule.protocol.as_str()),
+        }
+    }
+}
 
 /// Resource limits for ephemeral builder VMs.
 ///
@@ -68,8 +199,8 @@ pub struct BuildRequest {
     pub kraftfile: Option<String>,
     /// Path to tarball containing source code
     pub code_tarball: PathBuf,
-    /// List of allowed egress destinations (hostnames/IPs)
-    pub egress_allowlist: Vec<String>,
+    /// List of allowed egress destinations with port/protocol
+    pub egress_allowlist: Vec<EgressEntry>,
     /// Resource limits for this build
     pub limits: ResourceLimits,
 }
@@ -96,7 +227,7 @@ impl BuildRequest {
         self
     }
 
-    pub fn egress_allowlist(mut self, allowlist: Vec<String>) -> Self {
+    pub fn egress_allowlist(mut self, allowlist: Vec<EgressEntry>) -> Self {
         self.egress_allowlist = allowlist;
         self
     }
@@ -195,8 +326,11 @@ impl EphemeralBuilderConfig {
     }
 }
 
-/// Default package mirrors for the egress allowlist.
-pub const DEFAULT_EGRESS_ALLOWLIST: &[&str] = &[
+/// Default package mirror hostnames for the egress allowlist.
+///
+/// These are the hostnames only - use `default_egress_allowlist()` to get
+/// the full `EgressEntry` list with port/protocol.
+pub const DEFAULT_EGRESS_HOSTS: &[&str] = &[
     // Python
     "pypi.org",
     "files.pythonhosted.org",
@@ -211,6 +345,16 @@ pub const DEFAULT_EGRESS_ALLOWLIST: &[&str] = &[
     "github.com",
     "raw.githubusercontent.com",
 ];
+
+/// Returns the default egress allowlist as `EgressEntry` values.
+///
+/// All entries use TCP port 443 (HTTPS).
+pub fn default_egress_allowlist() -> Vec<EgressEntry> {
+    DEFAULT_EGRESS_HOSTS
+        .iter()
+        .map(|&host| EgressEntry::https(host))
+        .collect()
+}
 
 /// Blocked private IP ranges (RFC1918 + loopback).
 pub const BLOCKED_IP_RANGES: &[&str] = &[

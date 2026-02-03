@@ -8,7 +8,14 @@ use std::net::ToSocketAddrs;
 use std::process::Command;
 use tracing::{debug, error, info, warn};
 
-use super::{NetworkError, NetworkIsolator, TapConfig, BLOCKED_IP_RANGES};
+use super::{EgressEntry, NetworkError, NetworkIsolator, Protocol, TapConfig, BLOCKED_IP_RANGES};
+
+/// A resolved egress entry with IP address instead of hostname.
+struct ResolvedEgress {
+    ip: String,
+    port: u16,
+    protocol: Protocol,
+}
 
 /// Linux-based network isolator using TAP devices and nftables.
 ///
@@ -83,7 +90,11 @@ impl LinuxNetworkIsolator {
     }
 
     /// Create nftables rules for the TAP device.
-    fn setup_nftables(&self, tap_name: &str, allowed_ips: &[String]) -> Result<(), NetworkError> {
+    fn setup_nftables(
+        &self,
+        tap_name: &str,
+        resolved_entries: &[ResolvedEgress],
+    ) -> Result<(), NetworkError> {
         let chain = self.chain_name(tap_name);
 
         // Create table if it doesn't exist (idempotent)
@@ -138,8 +149,9 @@ impl LinuxNetworkIsolator {
             )?;
         }
 
-        // Allow traffic to allowlisted IPs
-        for ip in allowed_ips {
+        // Allow traffic to allowlisted IPs with port/protocol filtering
+        for entry in resolved_entries {
+            let port_str = entry.port.to_string();
             self.run_command(
                 "nft",
                 &[
@@ -152,7 +164,10 @@ impl LinuxNetworkIsolator {
                     tap_name,
                     "ip",
                     "daddr",
-                    ip,
+                    &entry.ip,
+                    entry.protocol.as_str(),
+                    "dport",
+                    &port_str,
                     "accept",
                 ],
             )?;
@@ -279,34 +294,42 @@ impl NetworkIsolator for LinuxNetworkIsolator {
     async fn apply_allowlist(
         &self,
         tap_name: &str,
-        allowlist: &[String],
+        allowlist: &[EgressEntry],
     ) -> Result<(), NetworkError> {
-        // Resolve all hostnames to IPs
-        let mut allowed_ips = Vec::new();
-        for host in allowlist {
-            match self.resolve_hostname(host) {
-                Ok(ips) => allowed_ips.extend(ips),
+        // Resolve all hostnames to IPs, preserving port/protocol
+        let mut resolved_entries = Vec::new();
+        for entry in allowlist {
+            match self.resolve_hostname(&entry.host) {
+                Ok(ips) => {
+                    for ip in ips {
+                        resolved_entries.push(ResolvedEgress {
+                            ip,
+                            port: entry.port,
+                            protocol: entry.protocol,
+                        });
+                    }
+                }
                 Err(e) => {
-                    warn!("Failed to resolve {}: {}", host, e);
+                    warn!("Failed to resolve {}: {}", entry.host, e);
                     // Continue with other hosts rather than failing entirely
                 }
             }
         }
 
-        if allowed_ips.is_empty() && !allowlist.is_empty() {
+        if resolved_entries.is_empty() && !allowlist.is_empty() {
             return Err(NetworkError::DnsResolutionFailed(
                 "Could not resolve any allowlisted hosts".into(),
             ));
         }
 
         // Setup nftables rules
-        self.setup_nftables(tap_name, &allowed_ips)?;
+        self.setup_nftables(tap_name, &resolved_entries)?;
 
         info!(
-            "Applied allowlist for {}: {} hosts -> {} IPs",
+            "Applied allowlist for {}: {} entries -> {} rules",
             tap_name,
             allowlist.len(),
-            allowed_ips.len()
+            resolved_entries.len()
         );
         Ok(())
     }

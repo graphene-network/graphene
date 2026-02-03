@@ -19,8 +19,8 @@ use tracing::{debug, error, info, warn};
 use crate::vmm::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer};
 
 use super::{
-    BuildError, BuildRequest, BuildResult, DriveHelper, EphemeralBuilder, EphemeralBuilderConfig,
-    NetworkIsolator, TapConfig, DEFAULT_EGRESS_ALLOWLIST,
+    default_egress_allowlist, BuildError, BuildRequest, BuildResult, DriveHelper, EphemeralBuilder,
+    EphemeralBuilderConfig, NetworkIsolator, TapConfig,
 };
 
 /// Build state for tracking in-progress builds.
@@ -292,11 +292,8 @@ impl EphemeralBuilder for FirecrackerEphemeralBuilder {
         guard.set_tap(tap_config.clone());
 
         // Apply egress allowlist
-        let allowlist: Vec<String> = if request.egress_allowlist.is_empty() {
-            DEFAULT_EGRESS_ALLOWLIST
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
+        let allowlist = if request.egress_allowlist.is_empty() {
+            default_egress_allowlist()
         } else {
             request.egress_allowlist.clone()
         };
@@ -372,14 +369,26 @@ impl EphemeralBuilder for FirecrackerEphemeralBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ephemeral::{Protocol, DEFAULT_EGRESS_HOSTS};
 
     // Note: Full integration tests require Firecracker binary and root privileges.
     // These are enabled with the `integration-tests` feature.
 
     #[test]
     fn default_egress_allowlist_contains_expected() {
-        assert!(DEFAULT_EGRESS_ALLOWLIST.contains(&"pypi.org"));
-        assert!(DEFAULT_EGRESS_ALLOWLIST.contains(&"crates.io"));
-        assert!(DEFAULT_EGRESS_ALLOWLIST.contains(&"github.com"));
+        assert!(DEFAULT_EGRESS_HOSTS.contains(&"pypi.org"));
+        assert!(DEFAULT_EGRESS_HOSTS.contains(&"crates.io"));
+        assert!(DEFAULT_EGRESS_HOSTS.contains(&"github.com"));
+    }
+
+    #[test]
+    fn default_egress_allowlist_function_returns_entries() {
+        let allowlist = default_egress_allowlist();
+        assert!(!allowlist.is_empty());
+        // All entries should be HTTPS (port 443, TCP)
+        for entry in &allowlist {
+            assert_eq!(entry.port, 443);
+            assert_eq!(entry.protocol, Protocol::Tcp);
+        }
     }
 }
