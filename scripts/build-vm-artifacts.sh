@@ -48,7 +48,7 @@ check_dependencies() {
 download_kernel() {
     log_info "Downloading Firecracker-compatible kernel..."
 
-    local kernel_url="https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.10/x86_64/vmlinux-5.10.225"
+    local kernel_url="https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.11/x86_64/vmlinux-5.10.225"
     local kernel_path="$ASSETS_DIR/vmlinux-builder"
 
     if [ -f "$kernel_path" ]; then

@@ -25,10 +25,7 @@ impl ManagementClient {
     }
 
     /// Send a management request and receive response
-    pub async fn request(
-        &self,
-        request: ManagementRequest,
-    ) -> anyhow::Result<ManagementResponse> {
+    pub async fn request(&self, request: ManagementRequest) -> anyhow::Result<ManagementResponse> {
         // TODO: Implement actual Iroh connection
         // 1. Create Iroh endpoint
         // 2. Connect to node using node_id

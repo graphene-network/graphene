@@ -7,11 +7,12 @@ pub async fn run(_config_path: &str, node: &str, file: &str) -> anyhow::Result<(
     let config_content = std::fs::read_to_string(file)?;
 
     // Parse as NodeConfig
-    let node_config: monad_node::management::NodeConfig =
-        serde_yaml::from_str(&config_content)?;
+    let node_config: monad_node::management::NodeConfig = serde_yaml::from_str(&config_content)?;
 
     // Validate
-    node_config.validate().map_err(|e| anyhow::anyhow!("{}", e))?;
+    node_config
+        .validate()
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     println!("Configuration validated successfully");
 

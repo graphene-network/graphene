@@ -12,7 +12,10 @@ pub async fn run(config_path: &str, action: ConfigAction) -> anyhow::Result<()> 
         } => {
             println!("Adding node '{}' to config at {}", name, config_path);
             println!("  Node ID: {}", node_id);
-            println!("  Capability: {}...", &capability[..20.min(capability.len())]);
+            println!(
+                "  Capability: {}...",
+                &capability[..20.min(capability.len())]
+            );
             if let Some(ep) = endpoint {
                 println!("  Endpoint: {}", ep);
             }

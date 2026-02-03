@@ -237,9 +237,7 @@ async fn main() -> anyhow::Result<()> {
     let config_path = shellexpand::tilde(&cli.config).into_owned();
 
     match cli.command {
-        Commands::Bootstrap { nodes, output } => {
-            commands::bootstrap::run(nodes, output).await
-        }
+        Commands::Bootstrap { nodes, output } => commands::bootstrap::run(nodes, output).await,
         Commands::Apply { file } => {
             let node = require_node(&cli.node)?;
             commands::apply::run(&config_path, &node, &file).await
@@ -296,15 +294,14 @@ async fn main() -> anyhow::Result<()> {
             let node = require_node(&cli.node)?;
             commands::capability::run(&config_path, &node, action).await
         }
-        Commands::Config { action } => {
-            commands::config::run(&config_path, action).await
-        }
+        Commands::Config { action } => commands::config::run(&config_path, action).await,
     }
 }
 
 fn require_node(node: &Option<String>) -> anyhow::Result<String> {
-    node.clone()
-        .ok_or_else(|| anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var"))
+    node.clone().ok_or_else(|| {
+        anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var")
+    })
 }
 
 mod shellexpand {

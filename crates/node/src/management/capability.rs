@@ -42,9 +42,12 @@ impl Role {
             // Admin-only operations
             "generate_capability" | "revoke_capability" | "apply_upgrade" | "reboot" => Role::Admin,
             // Operator operations
-            "apply_config" | "register" | "unregister" | "join" | "drain" | "undrain" | "upgrade" => Role::Operator,
+            "apply_config" | "register" | "unregister" | "join" | "drain" | "undrain"
+            | "upgrade" => Role::Operator,
             // Read-only operations
-            "get_config" | "get_status" | "stream_logs" | "get_metrics" | "list_capabilities" => Role::Reader,
+            "get_config" | "get_status" | "stream_logs" | "get_metrics" | "list_capabilities" => {
+                Role::Reader
+            }
             // Default to admin for unknown
             _ => Role::Admin,
         }

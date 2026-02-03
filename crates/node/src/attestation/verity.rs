@@ -49,8 +49,7 @@ impl VerityVerifier {
     /// Check if dm-verity is configured on this system
     pub fn is_configured(&self) -> bool {
         // Check for dm-verity device mapper target
-        Path::new("/sys/module/dm_verity").exists()
-            || self.find_verity_device().is_ok()
+        Path::new("/sys/module/dm_verity").exists() || self.find_verity_device().is_ok()
     }
 
     /// Read the dm-verity root hash from the system
@@ -82,11 +81,7 @@ impl VerityVerifier {
     /// Format: `root=/dev/dm-0 dm-mod.create="vroot,,ro,0 ... root_hash=<hash>"`
     fn parse_verity_root_from_cmdline(cmdline: &str) -> Option<String> {
         // Look for verity root hash in various formats
-        for pattern in [
-            "root_hash=",
-            "dm-verity.root_hash=",
-            "verity.root_hash=",
-        ] {
+        for pattern in ["root_hash=", "dm-verity.root_hash=", "verity.root_hash="] {
             if let Some(start) = cmdline.find(pattern) {
                 let hash_start = start + pattern.len();
                 let hash_end = cmdline[hash_start..]

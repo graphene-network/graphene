@@ -176,10 +176,7 @@ mod tests {
         assert!(!attestor.is_supported());
 
         let result = attestor.verify_platform().await;
-        assert!(matches!(
-            result,
-            Err(AttestationError::TpmNotAvailable(_))
-        ));
+        assert!(matches!(result, Err(AttestationError::TpmNotAvailable(_))));
     }
 
     #[tokio::test]

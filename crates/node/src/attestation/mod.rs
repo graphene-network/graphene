@@ -40,7 +40,9 @@ pub mod tpm;
 pub mod types;
 pub mod verity;
 
-pub use types::{AttestationError, AttestationQuote, PcrValues, PlatformAttestor, PlatformIdentity};
+pub use types::{
+    AttestationError, AttestationQuote, PcrValues, PlatformAttestor, PlatformIdentity,
+};
 
 #[cfg(target_os = "linux")]
 pub use tpm::TpmAttestor;

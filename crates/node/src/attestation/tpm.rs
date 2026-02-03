@@ -92,7 +92,9 @@ impl TpmAttestor {
             let output = Command::new("tpm2_pcrread")
                 .args(["sha256:{}".replace("{}", &index.to_string())])
                 .output()
-                .map_err(|e| AttestationError::TpmError(format!("Failed to run tpm2_pcrread: {}", e)))?;
+                .map_err(|e| {
+                    AttestationError::TpmError(format!("Failed to run tpm2_pcrread: {}", e))
+                })?;
 
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
@@ -156,7 +158,11 @@ impl TpmAttestor {
     ///
     /// In production, this would use the TPM2 TSS library to generate
     /// a signed quote. For now, we provide a stub implementation.
-    fn generate_tpm_quote(&self, nonce: &[u8], pcr_values: &PcrValues) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), AttestationError> {
+    fn generate_tpm_quote(
+        &self,
+        nonce: &[u8],
+        pcr_values: &PcrValues,
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), AttestationError> {
         // TODO: Implement actual TPM quote generation using tss2-sys crate
         // This requires:
         // 1. Creating or loading an attestation key (AK)

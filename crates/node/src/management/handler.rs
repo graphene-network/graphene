@@ -28,11 +28,7 @@ pub struct ManagementHandler {
 
 impl ManagementHandler {
     /// Create a new management handler
-    pub fn new(
-        config: NodeConfig,
-        secret_key: [u8; 32],
-        node_id: String,
-    ) -> Self {
+    pub fn new(config: NodeConfig, secret_key: [u8; 32], node_id: String) -> Self {
         let start_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -352,8 +348,8 @@ impl ManagementHandler {
             .into_iter()
             .map(|(prefix, revoked_at)| CapabilityInfo {
                 prefix: prefix.to_string(),
-                role: Role::Admin, // Unknown role for revoked
-                created_at: 0,     // Unknown
+                role: Role::Admin,            // Unknown role for revoked
+                created_at: 0,                // Unknown
                 expires_at: Some(revoked_at), // Use revoked_at as marker
             })
             .collect();

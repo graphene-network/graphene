@@ -71,6 +71,13 @@ jobs:
           # Set locale
           sudo locale-gen en_US.UTF-8
 
+      - name: Enable unprivileged user namespaces
+        run: |
+          # Ubuntu 24.04 restricts unprivileged user namespaces by default
+          # BitBake requires this for pseudo/fakeroot operations
+          echo 'kernel.apparmor_restrict_unprivileged_userns = 0' | sudo tee /etc/sysctl.d/99-userns.conf
+          sudo sysctl -p /etc/sysctl.d/99-userns.conf
+
       - name: Clone Poky (Yocto reference)
         run: |
           git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \

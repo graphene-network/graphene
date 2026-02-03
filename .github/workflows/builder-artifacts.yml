@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir -p assets/vm
           curl -fsSL -o assets/vm/vmlinux-builder \
-            https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.10/x86_64/vmlinux-5.10.225
+            https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.11/x86_64/vmlinux-5.10.225
           chmod +x assets/vm/vmlinux-builder
 
       - name: Compute hash
@@ -191,7 +191,7 @@ jobs:
             "kernel": {
               "file": "vmlinux-builder",
               "sha256": "${{ needs.build-kernel.outputs.kernel_hash }}",
-              "source": "firecracker-ci-v1.10-5.10.225"
+              "source": "firecracker-ci-v1.11-5.10.225"
             },
             "rootfs": {
               "file": "rootfs-builder.ext4.zst",

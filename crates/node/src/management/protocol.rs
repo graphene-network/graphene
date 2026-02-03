@@ -20,10 +20,7 @@ pub enum ManagementRequest {
     /// Get node status
     GetStatus,
     /// Stream logs (returns multiple responses)
-    StreamLogs {
-        follow: bool,
-        lines: Option<u32>,
-    },
+    StreamLogs { follow: bool, lines: Option<u32> },
     /// Get metrics snapshot
     GetMetrics,
 
@@ -49,10 +46,7 @@ pub enum ManagementRequest {
 
     // Capability management
     /// Generate new capability token
-    GenerateCapability {
-        role: Role,
-        ttl_days: Option<u32>,
-    },
+    GenerateCapability { role: Role, ttl_days: Option<u32> },
     /// Revoke capability by token prefix
     RevokeCapability { token_prefix: String },
     /// List active capabilities

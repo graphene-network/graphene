@@ -264,7 +264,12 @@ impl NodeConfig {
     /// Validate configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
         // Validate listen address format
-        if self.network.listen_addr.parse::<std::net::SocketAddr>().is_err() {
+        if self
+            .network
+            .listen_addr
+            .parse::<std::net::SocketAddr>()
+            .is_err()
+        {
             return Err(ConfigError::Validation(format!(
                 "Invalid listen address: {}",
                 self.network.listen_addr
