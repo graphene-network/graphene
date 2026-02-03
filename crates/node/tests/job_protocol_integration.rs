@@ -117,6 +117,7 @@ fn create_test_request(channel_id: [u8; 32], ticket: PaymentTicket) -> JobReques
                 .into_iter()
                 .collect(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         },
         ticket,
         assets: JobAssets {

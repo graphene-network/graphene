@@ -161,12 +161,12 @@ impl CostCalculator for MockCostCalculator {
             MockCostBehavior::Simple | MockCostBehavior::Delegate => {
                 // Simple formula: cost = vcpu * actual_duration_ms
                 let cost = metrics.vcpu as u64 * metrics.actual_duration_ms;
-                Ok(ActualJobCost::new(CostBreakdown::new(cost, 0, 0, 0)))
+                Ok(ActualJobCost::new(CostBreakdown::new(cost, 0, 0, 0, 0)))
             }
             MockCostBehavior::FixedEstimate(_) => {
                 // Use simple formula if FixedEstimate is set (it's for estimate, not actual)
                 let cost = metrics.vcpu as u64 * metrics.actual_duration_ms;
-                Ok(ActualJobCost::new(CostBreakdown::new(cost, 0, 0, 0)))
+                Ok(ActualJobCost::new(CostBreakdown::new(cost, 0, 0, 0, 0)))
             }
         }
     }
@@ -227,6 +227,7 @@ mod tests {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         }
     }
 
@@ -262,7 +263,7 @@ mod tests {
         let result = calc.estimate(&make_manifest(), &make_pricing());
         assert!(matches!(result, Err(CostError::Overflow)));
 
-        let metrics = ExecutionMetrics::new(100, 1, 256, 0, 0);
+        let metrics = ExecutionMetrics::new(100, 1, 256, 0, 0, 0);
         let result = calc.actual(&metrics, &make_pricing());
         assert!(matches!(result, Err(CostError::Overflow)));
     }
@@ -288,7 +289,7 @@ mod tests {
     fn test_mock_settle() {
         let calc = MockCostCalculator::new();
         let max = JobCostEstimate::new(1000, 0, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(500, 0, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(500, 0, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 0);
         assert_eq!(settlement.final_charge_micros, 500);

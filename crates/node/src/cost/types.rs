@@ -103,8 +103,12 @@ pub struct CostBreakdown {
     /// Memory cost: memory_mb * duration_ms * memory_mb_ms_micros
     pub memory_cost_micros: u64,
 
-    /// Egress cost (Phase 2): actual_egress_bytes / 1MB * egress_mb_micros
+    /// Egress cost: actual_egress_bytes / 1MB * egress_mb_micros
     pub egress_cost_micros: u64,
+
+    /// Ingress cost: actual_ingress_bytes / 1MB * ingress_mb_micros
+    #[serde(default)]
+    pub ingress_cost_micros: u64,
 
     /// GPU cost (future): gpu_count * duration_ms * gpu_ms_micros
     pub gpu_cost_micros: u64,
@@ -116,12 +120,14 @@ impl CostBreakdown {
         cpu_cost_micros: u64,
         memory_cost_micros: u64,
         egress_cost_micros: u64,
+        ingress_cost_micros: u64,
         gpu_cost_micros: u64,
     ) -> Self {
         Self {
             cpu_cost_micros,
             memory_cost_micros,
             egress_cost_micros,
+            ingress_cost_micros,
             gpu_cost_micros,
         }
     }
@@ -136,6 +142,7 @@ impl CostBreakdown {
         self.cpu_cost_micros
             .saturating_add(self.memory_cost_micros)
             .saturating_add(self.egress_cost_micros)
+            .saturating_add(self.ingress_cost_micros)
             .saturating_add(self.gpu_cost_micros)
     }
 }
@@ -242,19 +249,19 @@ mod tests {
 
     #[test]
     fn test_cost_breakdown_total() {
-        let breakdown = CostBreakdown::new(100, 200, 50, 25);
-        assert_eq!(breakdown.total(), 375);
+        let breakdown = CostBreakdown::new(100, 200, 50, 10, 25);
+        assert_eq!(breakdown.total(), 385);
     }
 
     #[test]
     fn test_cost_breakdown_total_saturates() {
-        let breakdown = CostBreakdown::new(u64::MAX, 1, 0, 0);
+        let breakdown = CostBreakdown::new(u64::MAX, 1, 0, 0, 0);
         assert_eq!(breakdown.total(), u64::MAX);
     }
 
     #[test]
     fn test_actual_job_cost_new() {
-        let breakdown = CostBreakdown::new(100, 200, 0, 0);
+        let breakdown = CostBreakdown::new(100, 200, 0, 0, 0);
         let actual = ActualJobCost::new(breakdown.clone());
         assert_eq!(actual.total_cost_micros, 300);
         assert_eq!(actual.breakdown, breakdown);

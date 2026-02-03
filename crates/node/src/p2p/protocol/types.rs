@@ -193,11 +193,11 @@ pub struct JobMetrics {
     /// Total CPU time in milliseconds.
     pub cpu_time_ms: u64,
 
-    /// Total network bytes received.
+    /// Total network bytes received (ingress: external -> VM).
     #[serde(default)]
     pub network_rx_bytes: u64,
 
-    /// Total network bytes transmitted.
+    /// Total network bytes transmitted (egress: VM -> external).
     #[serde(default)]
     pub network_tx_bytes: u64,
 
@@ -213,9 +213,13 @@ pub struct JobMetrics {
     #[serde(default)]
     pub memory_cost_micros: u64,
 
-    /// Egress cost component in microtokens (Phase 2).
+    /// Egress cost component in microtokens (VM -> external).
     #[serde(default)]
     pub egress_cost_micros: u64,
+
+    /// Ingress cost component in microtokens (external -> VM).
+    #[serde(default)]
+    pub ingress_cost_micros: u64,
 }
 
 /// Progress update during job execution.
@@ -319,6 +323,7 @@ mod tests {
             egress_allowlist: vec![],
             env: Default::default(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         };
         let encoded = bincode::serialize(&manifest).expect("manifest serialize failed");
         let _decoded: JobManifest =
@@ -337,6 +342,7 @@ mod tests {
                 egress_allowlist: vec![],
                 env: Default::default(),
                 estimated_egress_mb: None,
+                estimated_ingress_mb: None,
             },
             ticket: crate::ticket::PaymentTicket::new(
                 [1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64],
