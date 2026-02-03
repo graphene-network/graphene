@@ -2292,7 +2292,9 @@ name = "graphene-sdk-native"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "blake3",
  "ed25519-dalek 3.0.0-pre.1",
+ "iroh",
  "iroh-blobs",
  "monad_node",
  "napi",
@@ -2300,6 +2302,7 @@ dependencies = [
  "napi-derive",
  "openssl",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 

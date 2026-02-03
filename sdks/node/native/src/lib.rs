@@ -532,6 +532,19 @@ pub async fn validate_ticket(
 }
 
 // ============================================================================
+// Hashing Utilities
+// ============================================================================
+
+/// Compute the BLAKE3 hash of the given data.
+///
+/// Returns the 32-byte hash as a Buffer.
+#[napi]
+pub fn blake3_hash(data: Buffer) -> Buffer {
+    let hash = blake3::hash(&data);
+    Buffer::from(hash.as_bytes().to_vec())
+}
+
+// ============================================================================
 // Protocol Bindings (JobRequest/JobResponse serialization)
 // ============================================================================
 
@@ -973,6 +986,618 @@ pub fn decode_wire_message(data: Buffer) -> Result<WireMessage> {
         msg_type: msg_type as u32,
         payload: Buffer::from(payload),
     })
+}
+
+// ============================================================================
+// High-Level Client API
+// ============================================================================
+
+use monad_node::p2p::protocol::wire::{try_read_message, MessageType as WireMessageType};
+use monad_node::p2p::{graphene::GrapheneNode, P2PConfig, P2PNetwork, RelayConfig};
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Configuration for creating a Graphene client.
+#[napi(object)]
+pub struct ClientConfig {
+    /// Storage path for persistent data (identity key, blob cache).
+    pub storage_path: String,
+    /// Your Ed25519 secret key (32 bytes).
+    pub secret_key: Buffer,
+    /// Worker's Ed25519 public key (32 bytes).
+    pub worker_pubkey: Buffer,
+    /// Payment channel PDA (32 bytes).
+    pub channel_pda: Buffer,
+    /// Worker's node ID for P2P connection (hex string).
+    pub worker_node_id: String,
+    /// Whether to use relay servers for NAT traversal.
+    pub use_relay: Option<bool>,
+    /// Optional bind port (0 for random).
+    pub bind_port: Option<u32>,
+}
+
+/// Options for submitting a job.
+#[napi(object)]
+pub struct JobOptions {
+    /// Code to execute (UTF-8 string).
+    pub code: String,
+    /// Optional input data.
+    pub input: Option<Buffer>,
+    /// Number of vCPUs (default: 1).
+    pub vcpu: Option<u32>,
+    /// Memory in MB (default: 256).
+    pub memory_mb: Option<u32>,
+    /// Timeout in milliseconds (default: 30000).
+    pub timeout_ms: Option<BigInt>,
+    /// Kernel/runtime to use (default: "python:3.12").
+    pub kernel: Option<String>,
+    /// Environment variables.
+    pub env: Option<HashMap<String, String>>,
+    /// Egress allowlist.
+    pub egress_allowlist: Option<Vec<EgressRule>>,
+    /// Result delivery mode: "sync" or "async".
+    pub delivery_mode: Option<String>,
+}
+
+/// Result from a completed job.
+#[napi(object)]
+pub struct NativeJobResult {
+    /// Exit code (0 = success).
+    pub exit_code: i32,
+    /// Decrypted output data.
+    pub output: Buffer,
+    /// Execution duration in milliseconds.
+    pub duration_ms: BigInt,
+    /// Resource usage metrics.
+    pub metrics: JobMetrics,
+}
+
+/// A native Graphene network client.
+///
+/// Handles everything internally:
+/// - Channel key derivation
+/// - Job encryption/decryption
+/// - Payment ticket creation
+/// - Blob upload/download
+/// - Protocol serialization
+/// - Network transport
+#[napi]
+pub struct GrapheneClient {
+    node: Arc<RwLock<Option<GrapheneNode>>>,
+    channel_keys: crypto::ChannelKeys,
+    secret_key: [u8; 32],
+    channel_pda: [u8; 32],
+    worker_node_id: String,
+    nonce: AtomicU64,
+    cumulative_amount: AtomicU64,
+}
+
+#[napi]
+impl GrapheneClient {
+    /// Create a new Graphene client.
+    ///
+    /// This initializes:
+    /// - Channel key derivation for end-to-end encryption
+    /// - P2P networking (QUIC endpoint with NAT traversal)
+    /// - Blob storage for code/input/output transfers
+    ///
+    /// # Arguments
+    /// * `config` - Client configuration with keys and worker info
+    #[napi(factory)]
+    pub async fn create(config: ClientConfig) -> Result<GrapheneClient> {
+        // Validate key lengths
+        if config.secret_key.len() != 32 {
+            return Err(napi::Error::from_reason(format!(
+                "secret_key must be 32 bytes, got {}",
+                config.secret_key.len()
+            )));
+        }
+        if config.worker_pubkey.len() != 32 {
+            return Err(napi::Error::from_reason(format!(
+                "worker_pubkey must be 32 bytes, got {}",
+                config.worker_pubkey.len()
+            )));
+        }
+        if config.channel_pda.len() != 32 {
+            return Err(napi::Error::from_reason(format!(
+                "channel_pda must be 32 bytes, got {}",
+                config.channel_pda.len()
+            )));
+        }
+
+        // Convert to fixed arrays
+        let secret_key: [u8; 32] = config.secret_key.as_ref().try_into().unwrap();
+        let worker_pubkey: [u8; 32] = config.worker_pubkey.as_ref().try_into().unwrap();
+        let channel_pda: [u8; 32] = config.channel_pda.as_ref().try_into().unwrap();
+
+        // Derive channel keys
+        let provider = DefaultCryptoProvider;
+        let channel_keys = provider
+            .derive_channel_keys(&secret_key, &worker_pubkey, &channel_pda)
+            .map_err(|e| {
+                napi::Error::from_reason(format!("Failed to derive channel keys: {}", e))
+            })?;
+
+        // Initialize P2P node
+        let p2p_config = P2PConfig {
+            storage_path: config.storage_path.into(),
+            relay_config: if config.use_relay.unwrap_or(true) {
+                RelayConfig::Default
+            } else {
+                RelayConfig::Disabled
+            },
+            bootstrap_peers: Vec::new(),
+            bind_port: config.bind_port.unwrap_or(0) as u16,
+        };
+
+        let node = GrapheneNode::new(p2p_config)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Failed to create P2P node: {}", e)))?;
+
+        Ok(GrapheneClient {
+            node: Arc::new(RwLock::new(Some(node))),
+            channel_keys,
+            secret_key,
+            channel_pda,
+            worker_node_id: config.worker_node_id,
+            nonce: AtomicU64::new(0),
+            cumulative_amount: AtomicU64::new(0),
+        })
+    }
+
+    /// Get this client's node ID (public key) as a hex string.
+    #[napi]
+    pub async fn node_id(&self) -> Result<String> {
+        let guard = self.node.read().await;
+        let node = guard
+            .as_ref()
+            .ok_or_else(|| napi::Error::from_reason("Client has been shut down"))?;
+        Ok(node.node_id().to_string())
+    }
+
+    /// Upload a blob and return its BLAKE3 hash.
+    ///
+    /// # Arguments
+    /// * `data` - The data to upload
+    ///
+    /// # Returns
+    /// The BLAKE3 hash of the uploaded blob (32 bytes)
+    #[napi]
+    pub async fn upload_blob(&self, data: Buffer) -> Result<Buffer> {
+        let guard = self.node.read().await;
+        let node = guard
+            .as_ref()
+            .ok_or_else(|| napi::Error::from_reason("Client has been shut down"))?;
+
+        let hash = node
+            .upload_blob(&data)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Upload failed: {}", e)))?;
+
+        Ok(Buffer::from(hash.as_bytes().to_vec()))
+    }
+
+    /// Download a blob by its BLAKE3 hash.
+    ///
+    /// # Arguments
+    /// * `hash` - The BLAKE3 hash of the blob (32 bytes)
+    /// * `from_node_id` - Optional peer node ID (hex string) to download from
+    ///
+    /// # Returns
+    /// The blob data
+    #[napi]
+    pub async fn download_blob(
+        &self,
+        hash: Buffer,
+        from_node_id: Option<String>,
+    ) -> Result<Buffer> {
+        let guard = self.node.read().await;
+        let node = guard
+            .as_ref()
+            .ok_or_else(|| napi::Error::from_reason("Client has been shut down"))?;
+
+        if hash.len() != 32 {
+            return Err(napi::Error::from_reason("Hash must be 32 bytes"));
+        }
+
+        let hash_arr: [u8; 32] = hash.as_ref().try_into().unwrap();
+        let iroh_hash = iroh_blobs::Hash::from_bytes(hash_arr);
+
+        let from = match from_node_id {
+            Some(node_id_str) => {
+                let pubkey: iroh::PublicKey = node_id_str
+                    .parse()
+                    .map_err(|e| napi::Error::from_reason(format!("Invalid node ID: {}", e)))?;
+                Some(iroh::EndpointAddr::new(pubkey))
+            }
+            None => None,
+        };
+
+        let data = node
+            .download_blob(iroh_hash, from)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Download failed: {}", e)))?;
+
+        Ok(Buffer::from(data))
+    }
+
+    /// Send a job request to a worker and receive the response.
+    ///
+    /// This establishes a QUIC connection to the worker, sends the serialized
+    /// job request, and waits for the response.
+    ///
+    /// # Arguments
+    /// * `worker_node_id` - The worker's node ID (hex string)
+    /// * `request` - Wire-formatted job request bytes
+    ///
+    /// # Returns
+    /// Wire-formatted job response bytes
+    #[napi]
+    pub async fn send_job_request(
+        &self,
+        worker_node_id: String,
+        request: Buffer,
+    ) -> Result<Buffer> {
+        let guard = self.node.read().await;
+        let node = guard
+            .as_ref()
+            .ok_or_else(|| napi::Error::from_reason("Client has been shut down"))?;
+
+        // Parse worker node ID and create address
+        let pubkey: iroh::PublicKey = worker_node_id
+            .parse()
+            .map_err(|e| napi::Error::from_reason(format!("Invalid worker node ID: {}", e)))?;
+        let addr = iroh::EndpointAddr::new(pubkey);
+
+        // Connect to worker using job protocol ALPN
+        let conn = node
+            .connect(addr, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Connection failed: {}", e)))?;
+
+        // Open bidirectional stream
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Failed to open stream: {}", e)))?;
+
+        // Send the request
+        send.write_all(&request)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Write failed: {}", e)))?;
+        send.finish()
+            .map_err(|e| napi::Error::from_reason(format!("Finish failed: {}", e)))?;
+
+        // Read response
+        let mut response_buf = Vec::with_capacity(64 * 1024);
+        loop {
+            let mut chunk = vec![0u8; 16 * 1024];
+            match recv.read(&mut chunk).await {
+                Ok(Some(0)) | Ok(None) => break,
+                Ok(Some(n)) => {
+                    response_buf.extend_from_slice(&chunk[..n]);
+
+                    // Try to parse - if we have a complete message, we're done
+                    if let Some((
+                        WireMessageType::JobAccepted
+                        | WireMessageType::JobResult
+                        | WireMessageType::JobRejected,
+                        _,
+                        consumed,
+                    )) = try_read_message(&response_buf)
+                        .map_err(|e| napi::Error::from_reason(format!("Wire error: {}", e)))?
+                    {
+                        response_buf.truncate(consumed);
+                        break;
+                    }
+                    // Otherwise keep reading for progress messages, etc.
+                }
+                Err(e) => {
+                    return Err(napi::Error::from_reason(format!("Read failed: {}", e)));
+                }
+            }
+        }
+
+        if response_buf.is_empty() {
+            return Err(napi::Error::from_reason("No response received from worker"));
+        }
+
+        Ok(Buffer::from(response_buf))
+    }
+
+    /// Submit a job to the worker.
+    ///
+    /// This handles everything internally:
+    /// 1. Generates unique job ID
+    /// 2. Encrypts code and input
+    /// 3. Creates payment ticket
+    /// 4. Uploads blobs to worker
+    /// 5. Sends job request
+    /// 6. Receives and decrypts response
+    ///
+    /// # Arguments
+    /// * `options` - Job configuration
+    ///
+    /// # Returns
+    /// Job result with decrypted output
+    #[napi]
+    pub async fn submit_job(&self, options: JobOptions) -> Result<NativeJobResult> {
+        use ed25519_dalek::{Signer, SigningKey};
+        use std::sync::atomic::Ordering;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let guard = self.node.read().await;
+        let node = guard
+            .as_ref()
+            .ok_or_else(|| napi::Error::from_reason("Client has been shut down"))?;
+
+        // Generate job ID
+        let job_id = uuid::Uuid::new_v4();
+        let job_id_str = job_id.to_string();
+
+        // Apply defaults
+        let vcpu = options.vcpu.unwrap_or(1) as u8;
+        let memory_mb = options.memory_mb.unwrap_or(256);
+        let timeout_ms = options.timeout_ms.map(|b| b.get_u64().1).unwrap_or(30000);
+        let kernel = options.kernel.unwrap_or_else(|| "python:3.12".to_string());
+        let env = options.env.unwrap_or_default();
+        let egress_allowlist = options.egress_allowlist.unwrap_or_default();
+        let delivery_mode = match options.delivery_mode.as_deref() {
+            Some("async") => RustResultDeliveryMode::Async,
+            _ => RustResultDeliveryMode::Sync,
+        };
+
+        // Encrypt code
+        let provider = DefaultCryptoProvider;
+        let code_bytes = options.code.as_bytes();
+        let encrypted_code = provider
+            .encrypt_job_blob(
+                code_bytes,
+                &self.channel_keys,
+                &job_id_str,
+                RustEncryptionDirection::Input,
+            )
+            .map_err(|e| napi::Error::from_reason(format!("Failed to encrypt code: {}", e)))?;
+        let encrypted_code_bytes = encrypted_code.to_bytes();
+
+        // Encrypt input if provided
+        let encrypted_input_bytes = if let Some(input) = &options.input {
+            let encrypted = provider
+                .encrypt_job_blob(
+                    input,
+                    &self.channel_keys,
+                    &job_id_str,
+                    RustEncryptionDirection::Input,
+                )
+                .map_err(|e| napi::Error::from_reason(format!("Failed to encrypt input: {}", e)))?;
+            Some(encrypted.to_bytes())
+        } else {
+            None
+        };
+
+        // Upload blobs
+        let code_hash = node
+            .upload_blob(&encrypted_code_bytes)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Failed to upload code: {}", e)))?;
+
+        let input_hash = if let Some(ref input_bytes) = encrypted_input_bytes {
+            node.upload_blob(input_bytes)
+                .await
+                .map_err(|e| napi::Error::from_reason(format!("Failed to upload input: {}", e)))?
+        } else {
+            iroh_blobs::Hash::from_bytes([0u8; 32])
+        };
+
+        // Estimate cost and create payment ticket
+        let cost_per_vcpu_ms = 1u64;
+        let cost_per_mb_ms = 1u64;
+        let estimated_cost = (vcpu as u64 * timeout_ms * cost_per_vcpu_ms)
+            + (memory_mb as u64 * timeout_ms * cost_per_mb_ms);
+
+        let new_nonce = self.nonce.fetch_add(1, Ordering::SeqCst) + 1;
+        let new_amount = self
+            .cumulative_amount
+            .fetch_add(estimated_cost, Ordering::SeqCst)
+            + estimated_cost;
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| napi::Error::from_reason("Failed to get system time"))?
+            .as_secs() as i64;
+
+        let payload = TicketPayload {
+            channel_id: self.channel_pda,
+            amount_micros: new_amount,
+            nonce: new_nonce,
+        };
+        let signing_key = SigningKey::from_bytes(&self.secret_key);
+        let signature = signing_key.sign(&payload.to_bytes());
+        let ticket = RustPaymentTicket::new(
+            self.channel_pda,
+            new_amount,
+            new_nonce,
+            timestamp,
+            signature.to_bytes(),
+        );
+
+        // Build egress rules
+        let egress: Vec<RustEgressRule> = egress_allowlist
+            .into_iter()
+            .map(|r| RustEgressRule {
+                host: r.host,
+                port: r.port as u16,
+                protocol: r.protocol,
+            })
+            .collect();
+
+        // Build job request
+        let manifest = RustJobManifest {
+            vcpu,
+            memory_mb,
+            timeout_ms,
+            kernel,
+            egress_allowlist: egress,
+            env,
+            estimated_egress_mb: None,
+            estimated_ingress_mb: None,
+        };
+
+        let assets = RustJobAssets {
+            code_hash,
+            code_url: None,
+            input_hash,
+            input_url: None,
+        };
+
+        let request = RustJobRequest {
+            job_id,
+            manifest,
+            ticket,
+            assets,
+            ephemeral_pubkey: encrypted_code.ephemeral_pubkey,
+            channel_pda: self.channel_pda,
+            delivery_mode,
+        };
+
+        // Serialize and send
+        let request_bytes = wire_encode(MessageType::JobRequest, &request)
+            .map_err(|e| napi::Error::from_reason(format!("Serialization failed: {}", e)))?;
+
+        // Connect to worker
+        let worker_pubkey: iroh::PublicKey = self
+            .worker_node_id
+            .parse()
+            .map_err(|e| napi::Error::from_reason(format!("Invalid worker node ID: {}", e)))?;
+        let addr = iroh::EndpointAddr::new(worker_pubkey);
+
+        let conn = node
+            .connect(addr.clone(), monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Connection failed: {}", e)))?;
+
+        let (mut send_stream, mut recv_stream) = conn
+            .open_bi()
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Failed to open stream: {}", e)))?;
+
+        send_stream
+            .write_all(&request_bytes)
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Write failed: {}", e)))?;
+        send_stream
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("Finish failed: {}", e)))?;
+
+        // Read response
+        let mut response_buf = Vec::with_capacity(64 * 1024);
+        loop {
+            let mut chunk = vec![0u8; 16 * 1024];
+            match recv_stream.read(&mut chunk).await {
+                Ok(Some(0)) | Ok(None) => break,
+                Ok(Some(n)) => {
+                    response_buf.extend_from_slice(&chunk[..n]);
+                    if let Some((
+                        WireMessageType::JobAccepted
+                        | WireMessageType::JobResult
+                        | WireMessageType::JobRejected,
+                        _,
+                        consumed,
+                    )) = try_read_message(&response_buf)
+                        .map_err(|e| napi::Error::from_reason(format!("Wire error: {}", e)))?
+                    {
+                        response_buf.truncate(consumed);
+                        break;
+                    }
+                }
+                Err(e) => return Err(napi::Error::from_reason(format!("Read failed: {}", e))),
+            }
+        }
+
+        if response_buf.is_empty() {
+            return Err(napi::Error::from_reason("No response received from worker"));
+        }
+
+        // Deserialize response
+        let (_, payload) = wire_decode(&response_buf)
+            .map_err(|e| napi::Error::from_reason(format!("Wire decode failed: {}", e)))?;
+        let response: RustJobResponse = bincode::deserialize(payload)
+            .map_err(|e| napi::Error::from_reason(format!("Payload decode failed: {}", e)))?;
+
+        // Check for rejection
+        if let RustJobStatus::Rejected(reason) = &response.status {
+            return Err(napi::Error::from_reason(format!(
+                "Job rejected: {:?}",
+                reason
+            )));
+        }
+
+        let result = response
+            .result
+            .ok_or_else(|| napi::Error::from_reason("No result in response"))?;
+
+        // Download and decrypt output
+        let encrypted_output = node
+            .download_blob(result.result_hash, Some(addr.clone()))
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("Failed to download output: {}", e)))?;
+
+        let encrypted_blob = RustEncryptedBlob::from_bytes(&encrypted_output)
+            .map_err(|e| napi::Error::from_reason(format!("Invalid encrypted output: {}", e)))?;
+
+        let decrypted_output = provider
+            .decrypt_job_blob(
+                &encrypted_blob,
+                &self.channel_keys,
+                &job_id_str,
+                RustEncryptionDirection::Output,
+            )
+            .map_err(|e| napi::Error::from_reason(format!("Failed to decrypt output: {}", e)))?;
+
+        Ok(NativeJobResult {
+            exit_code: result.exit_code,
+            output: Buffer::from(decrypted_output),
+            duration_ms: BigInt::from(result.duration_ms),
+            metrics: JobMetrics {
+                peak_memory_bytes: BigInt::from(result.metrics.peak_memory_bytes),
+                cpu_time_ms: BigInt::from(result.metrics.cpu_time_ms),
+                network_rx_bytes: BigInt::from(result.metrics.network_rx_bytes),
+                network_tx_bytes: BigInt::from(result.metrics.network_tx_bytes),
+                total_cost_micros: BigInt::from(result.metrics.total_cost_micros),
+                cpu_cost_micros: BigInt::from(result.metrics.cpu_cost_micros),
+                memory_cost_micros: BigInt::from(result.metrics.memory_cost_micros),
+                egress_cost_micros: BigInt::from(result.metrics.egress_cost_micros),
+            },
+        })
+    }
+
+    /// Get the current nonce value.
+    #[napi(getter)]
+    pub fn current_nonce(&self) -> BigInt {
+        BigInt::from(self.nonce.load(std::sync::atomic::Ordering::SeqCst))
+    }
+
+    /// Get the cumulative amount authorized.
+    #[napi(getter)]
+    pub fn total_authorized(&self) -> BigInt {
+        BigInt::from(
+            self.cumulative_amount
+                .load(std::sync::atomic::Ordering::SeqCst),
+        )
+    }
+
+    /// Gracefully shut down the client.
+    #[napi]
+    pub async fn shutdown(&self) -> Result<()> {
+        let mut guard = self.node.write().await;
+        if let Some(node) = guard.take() {
+            node.shutdown()
+                .await
+                .map_err(|e| napi::Error::from_reason(format!("Shutdown failed: {}", e)))?;
+        }
+        Ok(())
+    }
 }
 
 // Note: Tests for napi bindings require Node.js runtime.

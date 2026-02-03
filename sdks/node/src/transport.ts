@@ -120,39 +120,68 @@ export class MockTransport implements Transport {
 }
 
 /**
- * Iroh transport for real network communication.
+ * Native Iroh transport for real network communication.
  *
- * Uses Iroh/QUIC protocol to communicate with Graphene workers.
- *
- * @remarks
- * This is a placeholder implementation. Real Iroh transport will be
- * implemented when iroh-js bindings are available.
+ * Uses the native Rust bindings for QUIC-based communication with workers.
  */
 export class IrohTransport implements Transport {
   private workerNodeId: string;
+  private client: import('@graphene/sdk-native').GrapheneClient | null = null;
+  private storagePath: string;
+  private useRelay: boolean;
 
   /**
    * Create an Iroh transport.
    *
-   * @param workerNodeId - The Iroh node ID of the worker to connect to
+   * @param workerNodeId - The node ID (hex string) of the worker to connect to
+   * @param options - Transport options
+   * @param options.storagePath - Path for persistent storage (default: '.graphene-sdk')
+   * @param options.useRelay - Whether to use relay servers for NAT traversal (default: true)
    */
-  constructor(workerNodeId: string) {
+  constructor(
+    workerNodeId: string,
+    options: { storagePath?: string; useRelay?: boolean } = {}
+  ) {
     this.workerNodeId = workerNodeId;
+    this.storagePath = options.storagePath ?? '.graphene-sdk';
+    this.useRelay = options.useRelay ?? true;
   }
 
-  async send(_request: Uint8Array): Promise<Uint8Array> {
-    // TODO(#TBD): Implement using iroh-js when available
-    throw new TransportError(
-      `Iroh transport not yet implemented. Worker: ${this.workerNodeId}`
-    );
+  private async ensureClient(): Promise<import('@graphene/sdk-native').GrapheneClient> {
+    if (!this.client) {
+      const { GrapheneClient } = await import('@graphene/sdk-native');
+      this.client = await GrapheneClient.create({
+        storagePath: this.storagePath,
+        useRelay: this.useRelay,
+      });
+    }
+    return this.client;
+  }
+
+  async send(request: Uint8Array): Promise<Uint8Array> {
+    try {
+      const client = await this.ensureClient();
+      const response = await client.sendJobRequest(
+        this.workerNodeId,
+        Buffer.from(request)
+      );
+      return new Uint8Array(response);
+    } catch (error) {
+      throw new TransportError(
+        `Failed to send job to worker ${this.workerNodeId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   onProgress?(_jobId: string, _callback: (progress: JobProgress) => void): void {
-    // TODO(#TBD): Implement progress streaming over QUIC
+    // Progress streaming will be implemented when we add stream support
   }
 
   async close(): Promise<void> {
-    // Nothing to close yet
+    if (this.client) {
+      await this.client.shutdown();
+      this.client = null;
+    }
   }
 }
 

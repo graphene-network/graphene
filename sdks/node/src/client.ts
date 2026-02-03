@@ -12,6 +12,7 @@ import {
   createPaymentTicket,
   serializeJobRequest,
   deserializeJobResponse,
+  blake3Hash,
   EncryptedBlob,
   type ChannelKeys,
 } from '@graphene/sdk-native';
@@ -251,15 +252,9 @@ export class Client {
     const codeBytes = encryptedCode.toBytes();
     const inputBytes = encryptedInput?.toBytes();
 
-    // Compute BLAKE3 hashes (placeholder - real impl would use blake3)
-    // For now, use first 32 bytes of encrypted data as mock hash
-    const codeHash = Buffer.alloc(32);
-    codeBytes.copy(codeHash, 0, 0, Math.min(32, codeBytes.length));
-
-    const inputHash = Buffer.alloc(32);
-    if (inputBytes) {
-      inputBytes.copy(inputHash, 0, 0, Math.min(32, inputBytes.length));
-    }
+    // Compute BLAKE3 hashes of encrypted blobs
+    const codeHash = blake3Hash(codeBytes);
+    const inputHash = inputBytes ? blake3Hash(inputBytes) : Buffer.alloc(32);
 
     // Build egress allowlist
     const egress = egressAllowlist.map((rule: EgressRuleConfig) => ({
