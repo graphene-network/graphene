@@ -1,0 +1,7 @@
+#!/bin/busybox
+# Graphene Node OS init script runner
+
+# Run all S* scripts in /etc/init.d
+for script in /etc/init.d/S??*; do
+    [ -x "$script" ] && "$script" start
+done

@@ -1,0 +1,8 @@
+config BR2_PACKAGE_FIRECRACKER
+	bool "firecracker"
+	depends on BR2_x86_64 || BR2_aarch64
+	help
+	  Firecracker microVM manager. Runs unikernels in
+	  lightweight virtual machines with KVM.
+
+	  https://firecracker-microvm.github.io/

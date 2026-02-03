@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11994 | 12:49 AM | 🔵 | DependencyCache trait defines hash-based caching for dependency images with Iroh module disabled | ~476 |
+| #12831 | 9:53 AM | 🔵 | LocalDiskCache implements content-addressable dependency caching with SHA256 hashing | ~615 |
+| #12814 | 9:51 AM | 🔵 | Content-addressable dependency caching trait for unikernel images | ~560 |
 </claude-mem-context>

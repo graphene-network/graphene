@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11862 | 12:41 AM | 🔵 | Node crate dependencies reveal Firecracker VMM and Iroh networking stack integration | ~422 |
+| #12845 | 9:55 AM | 🔵 | Node crate dependency stack and feature flags | ~755 |
 </claude-mem-context>

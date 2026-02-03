@@ -7,6 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11891 | 12:43 AM | 🔵 | Client binary demonstrates Iroh connection dialing and job submission pattern | ~416 |
-| #11888 | " | 🔵 | Server binary demonstrates Iroh endpoint initialization and P2P job request handling pattern | ~243 |
+| #12914 | 10:11 AM | 🟣 | Comprehensive gRPC management API specification for shell-less Graphene node operations | ~1080 |
 </claude-mem-context>

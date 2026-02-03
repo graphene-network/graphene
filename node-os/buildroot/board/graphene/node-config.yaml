@@ -1,0 +1,38 @@
+# Graphene Node Configuration
+# This file is applied via graphenectl or embedded at build time
+apiVersion: graphene.network/v1
+kind: NodeConfig
+
+# Network identity (auto-generated on first boot if not set)
+network:
+  # nodeId: ed25519:...  # Auto-generated
+  listenAddr: 0.0.0.0:9000
+  # advertiseAddr: ...  # Set via cloud-init or API
+  regions: []
+
+# Staking configuration
+staking:
+  # walletPath: /etc/graphene/wallet.json
+  autoRegister: false
+  stakeAmount: 100
+
+# Resource limits
+resources:
+  maxVcpu: 4
+  maxMemoryMb: 8192
+  tiers:
+    - standard
+  kernels:
+    - python-3.12
+    - node-21
+
+# Pricing (micros per unit)
+pricing:
+  cpuMsMicros: 1
+  memoryMbMsMicros: 0.1
+  egressMbMicros: 10000
+
+# Logging
+logging:
+  level: info
+  format: json

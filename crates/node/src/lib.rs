@@ -1,4 +1,5 @@
 pub mod api;
+pub mod attestation;
 pub mod builder;
 pub mod cache;
 pub mod crypto;
@@ -6,6 +7,7 @@ pub mod discovery;
 pub mod ephemeral;
 pub mod job;
 pub mod kernel;
+pub mod management;
 pub mod metrics;
 pub mod p2p;
 pub mod protocol;

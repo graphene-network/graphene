@@ -1,0 +1,50 @@
+# Graphene Node OS Version Matrix
+# Defines build system configuration and target versions
+
+[build]
+# Build system selection (buildroot for prototype, yocto for production)
+system = "buildroot"
+buildroot_version = "2024.02.1"
+yocto_version = "kirkstone"
+
+[versions]
+# Component versions
+node_binary = "0.1.0"
+firecracker = "1.11.0"
+linux_kernel = "6.6.70"
+
+[defaults]
+# Security defaults
+dm_verity = false      # Enable in Phase 2
+shell_enabled = false  # Always disabled
+tpm_attestation = false  # Enable in Phase 2
+
+# Image constraints
+max_image_size_mb = 50
+
+[targets.x86_64]
+enabled = true
+machine = "graphene-node-x86_64"
+# Buildroot architecture
+br2_arch = "x86_64"
+# Yocto machine (Phase 1)
+yocto_machine = "qemux86-64"
+
+[targets.aarch64]
+enabled = false  # Enable in Phase 1 with Yocto
+machine = "graphene-node-aarch64"
+br2_arch = "aarch64"
+yocto_machine = "qemuarm64"
+
+[variants.minimal]
+# Minimal variant for production
+description = "Production-ready minimal image"
+packages = ["graphene-node", "firecracker", "kmod"]
+features = []
+
+[variants.debug]
+# Debug variant for development
+description = "Development image with debugging tools"
+packages = ["graphene-node", "firecracker", "kmod", "strace"]
+features = ["debug-kernel"]
+shell_enabled = false  # Still no shell, use serial console only

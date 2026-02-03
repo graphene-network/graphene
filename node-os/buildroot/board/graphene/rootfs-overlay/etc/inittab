@@ -1,0 +1,26 @@
+# Graphene Node OS inittab
+# No interactive login - this is a shell-less system
+
+# System initialization
+::sysinit:/bin/mount -t proc proc /proc
+::sysinit:/bin/mount -o remount,rw /
+::sysinit:/bin/mount -t sysfs sysfs /sys
+::sysinit:/bin/mount -t devtmpfs devtmpfs /dev
+::sysinit:/bin/mkdir -p /dev/pts
+::sysinit:/bin/mount -t devpts devpts /dev/pts
+::sysinit:/bin/mount -t tmpfs tmpfs /tmp
+::sysinit:/bin/mount -t tmpfs tmpfs /run
+
+# Start syslog
+::sysinit:/sbin/syslogd -n &
+::sysinit:/sbin/klogd -n &
+
+# Run init scripts
+::sysinit:/etc/init.d/rcS
+
+# Reboot on ctrl-alt-del
+::ctrlaltdel:/sbin/reboot
+
+# Shutdown hooks
+::shutdown:/etc/init.d/rcK
+::shutdown:/bin/umount -a -r
