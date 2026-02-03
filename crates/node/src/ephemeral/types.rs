@@ -1,5 +1,47 @@
+use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
+
+/// Network protocol for egress rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Protocol {
+    /// TCP protocol (default).
+    #[default]
+    Tcp,
+    /// UDP protocol.
+    Udp,
+}
+
+impl Protocol {
+    /// Returns the protocol as a lowercase string for nftables.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Protocol::Tcp => "tcp",
+            Protocol::Udp => "udp",
+        }
+    }
+}
+
+impl fmt::Display for Protocol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<&str> for Protocol {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "udp" => Protocol::Udp,
+            _ => Protocol::Tcp,
+        }
+    }
+}
+
+impl From<String> for Protocol {
+    fn from(s: String) -> Self {
+        Protocol::from(s.as_str())
+    }
+}
 
 /// An allowed egress destination with port/protocol constraints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,17 +50,17 @@ pub struct EgressEntry {
     pub host: String,
     /// Port number (default: 443).
     pub port: u16,
-    /// Protocol: "tcp" or "udp" (default: "tcp").
-    pub protocol: String,
+    /// Protocol (default: TCP).
+    pub protocol: Protocol,
 }
 
 impl EgressEntry {
     /// Create a new egress entry with specified host, port, and protocol.
-    pub fn new(host: impl Into<String>, port: u16, protocol: impl Into<String>) -> Self {
+    pub fn new(host: impl Into<String>, port: u16, protocol: Protocol) -> Self {
         Self {
             host: host.into(),
             port,
-            protocol: protocol.into(),
+            protocol,
         }
     }
 
@@ -27,7 +69,25 @@ impl EgressEntry {
         Self {
             host: host.into(),
             port: 443,
-            protocol: "tcp".to_string(),
+            protocol: Protocol::Tcp,
+        }
+    }
+
+    /// Create a TCP egress entry with custom port.
+    pub fn tcp(host: impl Into<String>, port: u16) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            protocol: Protocol::Tcp,
+        }
+    }
+
+    /// Create a UDP egress entry with custom port.
+    pub fn udp(host: impl Into<String>, port: u16) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            protocol: Protocol::Udp,
         }
     }
 }
@@ -37,7 +97,7 @@ impl From<&str> for EgressEntry {
         Self {
             host: host.to_string(),
             port: 443,
-            protocol: "tcp".to_string(),
+            protocol: Protocol::Tcp,
         }
     }
 }
@@ -47,7 +107,7 @@ impl From<String> for EgressEntry {
         Self {
             host,
             port: 443,
-            protocol: "tcp".to_string(),
+            protocol: Protocol::Tcp,
         }
     }
 }
@@ -57,7 +117,7 @@ impl From<&crate::p2p::messages::EgressRule> for EgressEntry {
         Self {
             host: rule.host.clone(),
             port: rule.port,
-            protocol: rule.protocol.clone(),
+            protocol: Protocol::from(rule.protocol.as_str()),
         }
     }
 }
@@ -67,7 +127,7 @@ impl From<crate::p2p::messages::EgressRule> for EgressEntry {
         Self {
             host: rule.host,
             port: rule.port,
-            protocol: rule.protocol,
+            protocol: Protocol::from(rule.protocol.as_str()),
         }
     }
 }

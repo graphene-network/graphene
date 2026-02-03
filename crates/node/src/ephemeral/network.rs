@@ -8,13 +8,13 @@ use std::net::ToSocketAddrs;
 use std::process::Command;
 use tracing::{debug, error, info, warn};
 
-use super::{EgressEntry, NetworkError, NetworkIsolator, TapConfig, BLOCKED_IP_RANGES};
+use super::{EgressEntry, NetworkError, NetworkIsolator, Protocol, TapConfig, BLOCKED_IP_RANGES};
 
 /// A resolved egress entry with IP address instead of hostname.
 struct ResolvedEgress {
     ip: String,
     port: u16,
-    protocol: String,
+    protocol: Protocol,
 }
 
 /// Linux-based network isolator using TAP devices and nftables.
@@ -165,7 +165,7 @@ impl LinuxNetworkIsolator {
                     "ip",
                     "daddr",
                     &entry.ip,
-                    &entry.protocol,
+                    entry.protocol.as_str(),
                     "dport",
                     &port_str,
                     "accept",
@@ -305,7 +305,7 @@ impl NetworkIsolator for LinuxNetworkIsolator {
                         resolved_entries.push(ResolvedEgress {
                             ip,
                             port: entry.port,
-                            protocol: entry.protocol.clone(),
+                            protocol: entry.protocol,
                         });
                     }
                 }

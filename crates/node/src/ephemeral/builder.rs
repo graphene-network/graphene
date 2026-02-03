@@ -369,7 +369,7 @@ impl EphemeralBuilder for FirecrackerEphemeralBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ephemeral::DEFAULT_EGRESS_HOSTS;
+    use crate::ephemeral::{Protocol, DEFAULT_EGRESS_HOSTS};
 
     // Note: Full integration tests require Firecracker binary and root privileges.
     // These are enabled with the `integration-tests` feature.
@@ -385,10 +385,10 @@ mod tests {
     fn default_egress_allowlist_function_returns_entries() {
         let allowlist = default_egress_allowlist();
         assert!(!allowlist.is_empty());
-        // All entries should be HTTPS (port 443, tcp)
+        // All entries should be HTTPS (port 443, TCP)
         for entry in &allowlist {
             assert_eq!(entry.port, 443);
-            assert_eq!(entry.protocol, "tcp");
+            assert_eq!(entry.protocol, Protocol::Tcp);
         }
     }
 }

@@ -13,7 +13,7 @@
 #![cfg(all(feature = "integration-tests", target_os = "linux"))]
 
 use monad_node::ephemeral::{
-    default_egress_allowlist, EgressEntry, LinuxNetworkIsolator, NetworkIsolator,
+    default_egress_allowlist, EgressEntry, LinuxNetworkIsolator, NetworkIsolator, Protocol,
 };
 use std::process::Command;
 
@@ -175,7 +175,7 @@ mod test_nftables_rules {
         let tap_config = tap_result.unwrap();
 
         // Use a specific port
-        let allowlist = vec![EgressEntry::new("1.1.1.1", 8080, "tcp")];
+        let allowlist = vec![EgressEntry::tcp("1.1.1.1", 8080)];
         if isolator
             .apply_allowlist(&tap_config.tap_name, &allowlist)
             .await
@@ -268,7 +268,11 @@ mod test_dns_resolution {
         for entry in &allowlist {
             assert!(!entry.host.is_empty(), "Host should not be empty");
             assert_eq!(entry.port, 443, "Default port should be 443");
-            assert_eq!(entry.protocol, "tcp", "Default protocol should be tcp");
+            assert_eq!(
+                entry.protocol,
+                Protocol::Tcp,
+                "Default protocol should be TCP"
+            );
         }
 
         // Verify expected hosts are present
@@ -287,7 +291,7 @@ mod test_egress_entry {
         let entry: EgressEntry = "example.com".into();
         assert_eq!(entry.host, "example.com");
         assert_eq!(entry.port, 443);
-        assert_eq!(entry.protocol, "tcp");
+        assert_eq!(entry.protocol, Protocol::Tcp);
     }
 
     #[test]
@@ -295,23 +299,46 @@ mod test_egress_entry {
         let entry = EgressEntry::https("secure.example.com");
         assert_eq!(entry.host, "secure.example.com");
         assert_eq!(entry.port, 443);
-        assert_eq!(entry.protocol, "tcp");
+        assert_eq!(entry.protocol, Protocol::Tcp);
     }
 
     #[test]
-    fn test_egress_entry_custom() {
-        let entry = EgressEntry::new("api.example.com", 8080, "tcp");
+    fn test_egress_entry_tcp() {
+        let entry = EgressEntry::tcp("api.example.com", 8080);
         assert_eq!(entry.host, "api.example.com");
         assert_eq!(entry.port, 8080);
-        assert_eq!(entry.protocol, "tcp");
+        assert_eq!(entry.protocol, Protocol::Tcp);
     }
 
     #[test]
     fn test_egress_entry_udp() {
-        let entry = EgressEntry::new("dns.example.com", 53, "udp");
+        let entry = EgressEntry::udp("dns.example.com", 53);
         assert_eq!(entry.host, "dns.example.com");
         assert_eq!(entry.port, 53);
-        assert_eq!(entry.protocol, "udp");
+        assert_eq!(entry.protocol, Protocol::Udp);
+    }
+
+    #[test]
+    fn test_egress_entry_new() {
+        let entry = EgressEntry::new("custom.example.com", 9000, Protocol::Tcp);
+        assert_eq!(entry.host, "custom.example.com");
+        assert_eq!(entry.port, 9000);
+        assert_eq!(entry.protocol, Protocol::Tcp);
+    }
+
+    #[test]
+    fn test_protocol_as_str() {
+        assert_eq!(Protocol::Tcp.as_str(), "tcp");
+        assert_eq!(Protocol::Udp.as_str(), "udp");
+    }
+
+    #[test]
+    fn test_protocol_from_str() {
+        assert_eq!(Protocol::from("tcp"), Protocol::Tcp);
+        assert_eq!(Protocol::from("TCP"), Protocol::Tcp);
+        assert_eq!(Protocol::from("udp"), Protocol::Udp);
+        assert_eq!(Protocol::from("UDP"), Protocol::Udp);
+        assert_eq!(Protocol::from("unknown"), Protocol::Tcp); // defaults to TCP
     }
 }
 
@@ -331,7 +358,7 @@ mod test_egress_rule_conversion {
         let entry: EgressEntry = (&rule).into();
         assert_eq!(entry.host, "api.example.com");
         assert_eq!(entry.port, 8443);
-        assert_eq!(entry.protocol, "tcp");
+        assert_eq!(entry.protocol, Protocol::Tcp);
     }
 
     #[test]
@@ -345,6 +372,20 @@ mod test_egress_rule_conversion {
         let entry: EgressEntry = rule.into();
         assert_eq!(entry.host, "api.example.com");
         assert_eq!(entry.port, 443);
-        assert_eq!(entry.protocol, "tcp");
+        assert_eq!(entry.protocol, Protocol::Tcp);
+    }
+
+    #[test]
+    fn test_from_egress_rule_udp() {
+        let rule = EgressRule {
+            host: "dns.example.com".to_string(),
+            port: 53,
+            protocol: "udp".to_string(),
+        };
+
+        let entry: EgressEntry = rule.into();
+        assert_eq!(entry.host, "dns.example.com");
+        assert_eq!(entry.port, 53);
+        assert_eq!(entry.protocol, Protocol::Udp);
     }
 }
