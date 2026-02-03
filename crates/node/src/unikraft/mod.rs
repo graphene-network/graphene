@@ -3,7 +3,7 @@ pub mod kraft;
 pub mod mock;
 pub mod types;
 
-pub use dockerfile::{DockerfileParser, DockerfileValidator};
+pub use dockerfile::DockerfileValidator;
 pub use kraft::{KraftBuilder, KraftConfig};
 pub use mock::{MockBuildBehavior, MockKraftBuilder};
 pub use types::{

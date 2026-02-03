@@ -23,7 +23,7 @@ The build pipeline takes a Dockerfile + source code bundle and produces a sealed
 |------|---------|
 | `mod.rs` | `UnikernelBuilder` trait + `UnikraftError` enum |
 | `types.rs` | Core types: `BuildJob`, `UnikernelImage`, `Kraftfile`, `Runtime` |
-| `dockerfile.rs` | `DockerfileParser` + `DockerfileValidator` |
+| `dockerfile.rs` | `DockerfileValidator` (uses `dockerfile-parser` crate) |
 | `kraft.rs` | `KraftBuilder` - real implementation using kraft CLI |
 | `mock.rs` | `MockKraftBuilder` - test double with spy state |
 
