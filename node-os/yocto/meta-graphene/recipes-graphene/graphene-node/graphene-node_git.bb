@@ -4,7 +4,7 @@
 SUMMARY = "Graphene Network Node - Worker daemon for executing unikernel jobs"
 HOMEPAGE = "https://graphene.network"
 LICENSE = "AGPL-3.0-only"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=FIXME_ADD_CHECKSUM"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=eb1e647870add0502f8f010b19de32af"
 
 # Fetch from git - uses the monad repository
 # Branch can be overridden via GRAPHENE_GIT_BRANCH (e.g., for CI on PR branches)
