@@ -74,10 +74,6 @@ tempfile = "3.8"
 rand = "0.8"
 
 
-[[bin]]
-name = "graphene-worker"
-path = "bin/worker.rs"
-
 # TODO: Binaries need updating for iroh 0.96.0 API changes
 # [[bin]]
 # name = "monad-server"

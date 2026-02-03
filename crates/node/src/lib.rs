@@ -13,4 +13,3 @@ pub mod p2p;
 pub mod protocol;
 pub mod unikraft;
 pub mod vmm;
-pub mod worker;
