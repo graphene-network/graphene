@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Node configuration applied via management API
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NodeConfig {
     /// Network configuration
     #[serde(default)]
@@ -29,7 +28,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub logging: LoggingConfig,
 }
-
 
 /// Network configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
