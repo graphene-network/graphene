@@ -158,16 +158,16 @@ mod tests {
         let (user_keys, worker_keys) = test_keys();
 
         let encrypted = mock
-            .encrypt_job_blob(
-                b"test",
-                &user_keys,
-                "job-1",
-                EncryptionDirection::Input,
-            )
+            .encrypt_job_blob(b"test", &user_keys, "job-1", EncryptionDirection::Input)
             .unwrap();
 
         let decrypted = mock
-            .decrypt_job_blob(&encrypted, &worker_keys, "job-1", EncryptionDirection::Input)
+            .decrypt_job_blob(
+                &encrypted,
+                &worker_keys,
+                "job-1",
+                EncryptionDirection::Input,
+            )
             .unwrap();
 
         assert_eq!(decrypted, b"test");
@@ -179,12 +179,8 @@ mod tests {
         let mock = MockCryptoProvider::failing("test error");
         let (user_keys, _) = test_keys();
 
-        let result = mock.encrypt_job_blob(
-            b"test",
-            &user_keys,
-            "job-1",
-            EncryptionDirection::Input,
-        );
+        let result =
+            mock.encrypt_job_blob(b"test", &user_keys, "job-1", EncryptionDirection::Input);
 
         assert!(result.is_err());
     }
@@ -214,17 +210,16 @@ mod tests {
         let (user_keys, worker_keys) = test_keys();
 
         let encrypted = mock
-            .encrypt_job_blob(
-                b"test",
-                &user_keys,
-                "job-1",
-                EncryptionDirection::Input,
-            )
+            .encrypt_job_blob(b"test", &user_keys, "job-1", EncryptionDirection::Input)
             .unwrap();
 
         // Decryption should fail due to corrupted ciphertext
-        let result =
-            mock.decrypt_job_blob(&encrypted, &worker_keys, "job-1", EncryptionDirection::Input);
+        let result = mock.decrypt_job_blob(
+            &encrypted,
+            &worker_keys,
+            "job-1",
+            EncryptionDirection::Input,
+        );
 
         assert!(result.is_err());
     }

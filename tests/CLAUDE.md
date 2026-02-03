@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #11862 | 12:41 AM | 🔵 | Node crate dependencies reveal Firecracker VMM and Iroh networking stack integration | ~422 |
+| #12008 | 12:50 AM | 🔵 | TypeScript tests demonstrate worker registration PDA derivation and transaction construction | ~443 |
 </claude-mem-context>

@@ -18,12 +18,19 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use graphene_node::ephemeral::{EphemeralBuilder, BuildRequest};
+//! ```text
+//! use monad_node::ephemeral::{
+//!     BuildRequest, EphemeralBuilder, EphemeralBuilderConfig,
+//!     FirecrackerEphemeralBuilder, MockNetworkIsolator,
+//! };
+//! use std::sync::Arc;
 //!
-//! let builder = FirecrackerEphemeralBuilder::new(config)?;
-//! let request = BuildRequest::new("build-123", dockerfile)
-//!     .code_tarball(code_path)
+//! let config = EphemeralBuilderConfig::default();
+//! let network = Arc::new(MockNetworkIsolator::new());
+//! let builder = FirecrackerEphemeralBuilder::new(config, network)?;
+//!
+//! let request = BuildRequest::new("build-123", "FROM python:3.12")
+//!     .code_tarball("/tmp/code.tar.gz")
 //!     .egress_allowlist(vec!["pypi.org".into()]);
 //!
 //! let result = builder.build(request).await?;

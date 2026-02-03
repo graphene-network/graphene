@@ -46,8 +46,9 @@ impl MetricsConfig {
 /// Start the Prometheus metrics HTTP server
 ///
 /// This should be spawned as a separate tokio task:
-/// ```ignore
-/// tokio::spawn(metrics::start_metrics_server(MetricsConfig::default()));
+/// ```no_run
+/// use monad_node::metrics::{start_metrics_server, MetricsConfig};
+/// tokio::spawn(start_metrics_server(MetricsConfig::default()));
 /// ```
 pub async fn start_metrics_server(config: MetricsConfig) -> Result<(), std::io::Error> {
     if !config.enabled {

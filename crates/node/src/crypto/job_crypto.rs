@@ -65,9 +65,7 @@ impl EncryptedBlob {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, JobCryptoError> {
         // Minimum size: version(1) + pubkey(32) + nonce(24) + tag(16)
         if bytes.len() < 1 + 32 + 24 + 16 {
-            return Err(JobCryptoError::InvalidFormat(
-                "Blob too short".to_string(),
-            ));
+            return Err(JobCryptoError::InvalidFormat("Blob too short".to_string()));
         }
 
         let version = bytes[0];
@@ -259,8 +257,13 @@ mod tests {
     fn test_blob_serialization() {
         let (user_keys, _) = test_channel_keys();
 
-        let encrypted =
-            encrypt_blob(b"test data", &user_keys, "job-1", EncryptionDirection::Input).unwrap();
+        let encrypted = encrypt_blob(
+            b"test data",
+            &user_keys,
+            "job-1",
+            EncryptionDirection::Input,
+        )
+        .unwrap();
 
         let bytes = encrypted.to_bytes();
         let deserialized = EncryptedBlob::from_bytes(&bytes).unwrap();
@@ -296,9 +299,13 @@ mod tests {
         let encrypted_input =
             encrypt_blob(input, &user_keys, job_id, EncryptionDirection::Input).unwrap();
 
-        let decrypted_input =
-            decrypt_blob(&encrypted_input, &worker_keys, job_id, EncryptionDirection::Input)
-                .unwrap();
+        let decrypted_input = decrypt_blob(
+            &encrypted_input,
+            &worker_keys,
+            job_id,
+            EncryptionDirection::Input,
+        )
+        .unwrap();
         assert_eq!(decrypted_input, input);
 
         // Worker encrypts output for user
@@ -306,9 +313,13 @@ mod tests {
         let encrypted_output =
             encrypt_blob(output, &worker_keys, job_id, EncryptionDirection::Output).unwrap();
 
-        let decrypted_output =
-            decrypt_blob(&encrypted_output, &user_keys, job_id, EncryptionDirection::Output)
-                .unwrap();
+        let decrypted_output = decrypt_blob(
+            &encrypted_output,
+            &user_keys,
+            job_id,
+            EncryptionDirection::Output,
+        )
+        .unwrap();
         assert_eq!(decrypted_output, output);
     }
 

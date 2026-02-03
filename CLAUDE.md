@@ -403,3 +403,33 @@ Related to #789
 3. Reference ALL issues that the PR addresses (even partially)
 4. Use "Closes" only when the issue is fully resolved
 5. Update issue status with `gh issue close N --comment "..."` if auto-close doesn't work
+
+### Creating GitHub Issues
+
+**Always add relevant labels** when creating GitHub issues to improve discoverability and triage.
+
+**IMPORTANT: Fetch existing labels first** to avoid creating duplicates or using non-existent labels:
+
+```bash
+# FIRST: Check what labels exist in the repository
+gh label list
+
+# THEN: Create issue with labels that actually exist
+gh issue create --title "..." --body "..." --label "bug" --label "area/networking"
+
+# Add labels to existing issue
+gh issue edit <issue-number> --add-label "priority/high"
+```
+
+**Common labels:**
+- **Type**: `bug`, `feature`, `enhancement`, `documentation`, `refactor`
+- **Area**: `area/networking`, `area/vmm`, `area/builder`, `area/p2p`
+- **Priority**: `priority/critical`, `priority/high`, `priority/medium`, `priority/low`
+- **Status**: `blocked`, `needs-review`, `good-first-issue`
+
+**Best Practices:**
+1. **Always run `gh label list` first** — use only labels that exist in the repo
+2. Use at least one type label and one area label
+3. Add priority labels for bugs and time-sensitive work
+4. Use `good-first-issue` for newcomer-friendly tasks
+5. If a needed label doesn't exist, create it with `gh label create "name" --description "..." --color "hex"`
