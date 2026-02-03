@@ -344,7 +344,10 @@ mod tests {
         let key = [0u8; 32];
         let hash = Hash::from_bytes([1u8; 32]);
 
-        cache.announce(&key, hash, 1024, "python:3.12").await.unwrap();
+        cache
+            .announce(&key, hash, 1024, "python:3.12")
+            .await
+            .unwrap();
 
         assert_eq!(cache.announcement_count(), 1);
     }

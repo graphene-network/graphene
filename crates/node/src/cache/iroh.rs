@@ -66,7 +66,10 @@ impl<N: P2PNetwork> IrohCache<N> {
     }
 
     /// Create a new cache and load the existing index.
-    pub async fn with_loaded_index(network: Arc<N>, storage_path: PathBuf) -> Result<Self, CacheError> {
+    pub async fn with_loaded_index(
+        network: Arc<N>,
+        storage_path: PathBuf,
+    ) -> Result<Self, CacheError> {
         let cache = Self::new(network, storage_path);
         cache.load_index().await?;
         Ok(cache)
@@ -120,13 +123,18 @@ impl<N: P2PNetwork> IrohCache<N> {
     /// Look up a blob hash by cache key.
     pub async fn lookup_blob_hash(&self, cache_key: &str) -> Option<Hash> {
         let index = self.index.read().await;
-        index.get(cache_key).and_then(|entry| {
-            Self::parse_hash(&entry.blob_hash).ok()
-        })
+        index
+            .get(cache_key)
+            .and_then(|entry| Self::parse_hash(&entry.blob_hash).ok())
     }
 
     /// Store a mapping from cache key to blob hash.
-    async fn store_mapping(&self, cache_key: &str, blob_hash: Hash, size: u64) -> Result<(), CacheError> {
+    async fn store_mapping(
+        &self,
+        cache_key: &str,
+        blob_hash: Hash,
+        size: u64,
+    ) -> Result<(), CacheError> {
         let entry = IndexEntry {
             blob_hash: hex::encode(blob_hash.as_bytes()),
             size,
@@ -209,8 +217,7 @@ impl<N: P2PNetwork + 'static> DependencyCache for IrohCache<N> {
             std::fs::create_dir_all(&self.storage_path)
                 .map_err(|e| CacheError::IoError(e.to_string()))?;
 
-            std::fs::write(&export_path, &data)
-                .map_err(|e| CacheError::IoError(e.to_string()))?;
+            std::fs::write(&export_path, &data).map_err(|e| CacheError::IoError(e.to_string()))?;
 
             record_cache_hit(CacheLevel::Iroh);
             tracing::debug!(key = &cache_key[..8], "Cache hit (local blob)");
@@ -241,8 +248,8 @@ impl<N: P2PNetwork + 'static> DependencyCache for IrohCache<N> {
 
     async fn put(&self, cache_key: &str, source_path: PathBuf) -> Result<PathBuf, CacheError> {
         // Get file size before upload
-        let metadata = std::fs::metadata(&source_path)
-            .map_err(|e| CacheError::IoError(e.to_string()))?;
+        let metadata =
+            std::fs::metadata(&source_path).map_err(|e| CacheError::IoError(e.to_string()))?;
         let size = metadata.len();
 
         // Upload the file to the P2P network
