@@ -1,0 +1,2 @@
+# This directory contains VM artifacts (not committed to git)
+# Run scripts/build-vm-artifacts.sh to generate them

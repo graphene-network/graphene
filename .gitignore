@@ -39,3 +39,8 @@ docker-target
 kernels/**/.unikraft/
 kernels/**/build/
 *.unik
+
+# VM artifacts (built locally or downloaded from CI)
+assets/vm/vmlinux-*
+assets/vm/rootfs-*.ext4
+assets/vm/*.zst
