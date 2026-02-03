@@ -14,7 +14,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```text
 //! use monad_node::ticket::{
 //!     ChannelSyncService, DefaultChannelStateManager, MockSolanaChannelClient,
 //!     ChannelConfig,

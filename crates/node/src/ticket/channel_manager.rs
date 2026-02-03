@@ -6,7 +6,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```text
 //! use monad_node::ticket::{
 //!     DefaultChannelStateManager, ChannelConfig, ChannelLocalState,
 //!     ChannelStateManager, OnChainChannelState,
