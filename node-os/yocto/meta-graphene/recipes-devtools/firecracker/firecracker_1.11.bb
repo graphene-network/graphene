@@ -40,8 +40,6 @@ do_install() {
         install -m 0755 ${S}/release-v${PV}-aarch64/jailer-v${PV}-aarch64 ${D}${bindir}/jailer
     fi
 
-    # Create systemd service directory
-    install -d ${D}${systemd_system_unitdir}
 }
 
 # Skip QA checks for pre-built binaries

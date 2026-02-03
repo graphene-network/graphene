@@ -12,9 +12,9 @@ COMPATIBLE_MACHINE:graphene-node-aarch64 = "graphene-node-aarch64"
 KMACHINE:graphene-node-x86_64 = "intel-corei7-64"
 KMACHINE:graphene-node-aarch64 = "qemuarm64"
 
-# Use standard kernel branch
-KBRANCH:graphene-node-x86_64 = "v5.15/standard/intel"
-KBRANCH:graphene-node-aarch64 = "v5.15/standard/arm-versatile-926ejs"
+# Use standard kernel branch (base branch is most stable)
+KBRANCH:graphene-node-x86_64 = "v5.15/standard/base"
+KBRANCH:graphene-node-aarch64 = "v5.15/standard/base"
 
 # Add our defconfig and configuration fragments
 SRC_URI:append = " \
