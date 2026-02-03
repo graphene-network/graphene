@@ -124,6 +124,9 @@ jobs:
           INHERIT += "externalsrc"
           EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
           EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          # Override SRCREV to prevent BitBake from querying the git remote
+          # (AUTOREV triggers git ls-remote which fails without credentials)
+          SRCREV:pn-graphene-node = "${{ github.sha }}"
           EOF
 
       - name: Build image
