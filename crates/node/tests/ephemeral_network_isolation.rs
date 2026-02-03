@@ -253,7 +253,7 @@ mod test_dns_resolution {
     #[test]
     fn test_ip_address_passes_through() {
         // This doesn't need root - just testing the resolution logic
-        let isolator = LinuxNetworkIsolator::new();
+        let _isolator = LinuxNetworkIsolator::new();
 
         // IP addresses should pass through unchanged (tested via the public API indirectly)
         // The resolve_hostname method is private, so we test behavior through apply_allowlist
