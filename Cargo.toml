@@ -4,5 +4,9 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+license = "AGPL-3.0-only"
+repository = "https://github.com/graphene-network/graphene"
+
 [profile.release]
 overflow-checks = true
