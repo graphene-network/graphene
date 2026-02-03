@@ -67,6 +67,49 @@ jobs:
         run: |
           kraft build --plat fc --arch ${{ matrix.arch }} --no-cache
 
+      - name: Export kernel binary
+        working-directory: kernels/${{ matrix.runtime }}/${{ matrix.version }}
+        run: |
+          # Create output directory
+          mkdir -p .unikraft/build
+
+          # Debug: show what kraft created
+          echo "=== .unikraft directory contents ==="
+          find .unikraft -type f 2>/dev/null || echo "No .unikraft directory"
+
+          # Try to find the kernel binary
+          # kraft build with runtime directive may store output in different locations
+          KERNEL_NAME="${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }}"
+          KERNEL_PATH=".unikraft/build/${KERNEL_NAME}"
+
+          # Check if kernel was already created by kraft build
+          if [ -f ".unikraft/build/"*"_fc-"* ]; then
+            echo "Found kernel from kraft build"
+            # Copy/rename to expected name
+            cp .unikraft/build/*_fc-* "${KERNEL_PATH}" 2>/dev/null || true
+          fi
+
+          # If no kernel found, try kraft pkg export
+          if [ ! -f "${KERNEL_PATH}" ]; then
+            echo "Attempting kraft pkg export..."
+            kraft pkg export --output "${KERNEL_PATH}" . || true
+          fi
+
+          # List exported files for debugging
+          echo "=== Final .unikraft/build contents ==="
+          ls -la .unikraft/build/
+
+          # Verify kernel exists
+          if [ ! -f "${KERNEL_PATH}" ]; then
+            echo "Error: Kernel file not found at ${KERNEL_PATH}"
+            echo "Searching for any potential kernel files..."
+            find . -name "*_fc-*" -o -name "*.fc" -o -name "*kernel*" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Kernel exported successfully: ${KERNEL_PATH}"
+          ls -la "${KERNEL_PATH}"
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
         with:
@@ -81,7 +124,7 @@ jobs:
             --runtime ${{ matrix.runtime }} \
             --version ${{ matrix.version }} \
             --arch ${{ matrix.arch }} \
-            --kernel-path kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/*.fc \
+            --kernel-path kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }} \
             --output ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
 
       - name: Upload kernel artifact
@@ -89,7 +132,7 @@ jobs:
         with:
           name: ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}
           path: |
-            kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/*.fc
+            kernels/${{ matrix.runtime }}/${{ matrix.version }}/.unikraft/build/${{ matrix.runtime }}-${{ matrix.version }}_fc-${{ matrix.arch }}
             ${{ matrix.runtime }}-${{ matrix.version }}-${{ matrix.arch }}.json
           retention-days: 30
 
@@ -129,7 +172,7 @@ jobs:
 
             Built with Unikraft ${{ steps.version.outputs.version }}
           files: |
-            artifacts/**/*.fc
+            artifacts/**/*_fc-*
             artifacts/**/*.json
           draft: false
           prerelease: false
