@@ -17,23 +17,22 @@
         "typescript": "^5.7.3",
       },
     },
-    "crates/sdk": {
-      "name": "@graphene/sdk-native",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@napi-rs/cli": "^2.18.0",
-      },
-    },
-    "packages/sdk": {
+    "sdks/node": {
       "name": "@graphene/sdk",
       "version": "0.1.0",
       "dependencies": {
-        "@graphene/sdk-native": "workspace:*",
+        "@graphene/sdk-native": "workspace:native",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",
         "typescript": "^5.3.0",
         "vitest": "^1.0.0",
+      },
+    },
+    "sdks/node/native": {
+      "name": "@graphene/sdk-native",
+      "devDependencies": {
+        "@napi-rs/cli": "^2.18.0",
       },
     },
   },
@@ -92,9 +91,9 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.21.5", "", { "os": "win32", "cpu": "x64" }, "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw=="],
 
-    "@graphene/sdk": ["@graphene/sdk@workspace:packages/sdk"],
+    "@graphene/sdk": ["@graphene/sdk@workspace:sdks/node"],
 
-    "@graphene/sdk-native": ["@graphene/sdk-native@workspace:crates/sdk"],
+    "@graphene/sdk-native": ["@graphene/sdk-native@workspace:sdks/node/native"],
 
     "@jest/schemas": ["@jest/schemas@29.6.3", "", { "dependencies": { "@sinclair/typebox": "^0.27.8" } }, "sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA=="],
 

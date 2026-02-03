@@ -96,17 +96,17 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            sdks/rust/target
+            sdks/node/native/target
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
       - name: Install dependencies
-        working-directory: sdks/rust
+        working-directory: sdks/node/native
         run: bun install
 
       - name: Build native addon
-        working-directory: sdks/rust
+        working-directory: sdks/node/native
         env:
           # Set linker for cross-compilation
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -120,19 +120,19 @@ jobs:
           bun run build -- --target ${{ matrix.target }}
 
       - name: List built artifacts
-        working-directory: sdks/rust
+        working-directory: sdks/node/native
         run: ls -la *.node || echo "No .node files found"
 
       - name: Run tests (native platform only)
         if: ${{ !matrix.cross }}
-        working-directory: sdks/rust
+        working-directory: sdks/node/native
         run: bun test
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
-          path: sdks/rust/*.node
+          path: sdks/node/native/*.node
           if-no-files-found: error
 
   # Job to run TypeScript SDK tests
@@ -153,10 +153,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: bindings-x86_64-unknown-linux-gnu
-          path: sdks/rust/
+          path: sdks/node/native/
 
       - name: Install native SDK dependencies
-        working-directory: sdks/rust
+        working-directory: sdks/node/native
         run: bun install
 
       - name: Install TypeScript SDK dependencies
@@ -201,17 +201,17 @@ jobs:
 
       - name: Collect binaries
         run: |
-          mkdir -p sdks/rust/npm
+          mkdir -p sdks/node/native/npm
           for dir in artifacts/bindings-*; do
             target=$(basename "$dir" | sed 's/bindings-//')
             echo "Processing $target..."
-            cp "$dir"/*.node sdks/rust/npm/ || true
+            cp "$dir"/*.node sdks/node/native/npm/ || true
           done
-          ls -la sdks/rust/npm/
+          ls -la sdks/node/native/npm/
 
       - name: Upload combined artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sdk-native-all-platforms
-          path: sdks/rust/npm/
+          path: sdks/node/native/npm/
           retention-days: 30

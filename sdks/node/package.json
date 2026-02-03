@@ -18,7 +18,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@graphene/sdk-native": "workspace:*"
+    "@graphene/sdk-native": "workspace:native"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
