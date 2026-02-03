@@ -6,6 +6,10 @@ license.workspace = true
 repository.workspace = true
 description = "Remote management CLI for Graphene nodes"
 
+[lib]
+name = "graphenectl"
+path = "src/lib.rs"
+
 [[bin]]
 name = "graphenectl"
 path = "src/main.rs"
@@ -33,3 +37,8 @@ hex = "0.4"
 dirs = "5.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.14"

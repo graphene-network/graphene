@@ -22,11 +22,10 @@
 //! graphenectl drain
 //! ```
 
-mod client;
-mod commands;
-mod config;
-
 use clap::{Parser, Subcommand};
+use graphenectl::{
+    commands, parse_output_format, require_node, shellexpand, CapAction, ConfigAction, OutputFormat,
+};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
@@ -164,59 +163,6 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand)]
-enum CapAction {
-    /// Generate new capability token
-    Generate {
-        /// Role (admin, operator, reader)
-        #[arg(long, default_value = "reader")]
-        role: String,
-
-        /// TTL in days (0 for no expiry)
-        #[arg(long)]
-        ttl: Option<u32>,
-    },
-
-    /// List capabilities
-    List,
-
-    /// Revoke capability by prefix
-    Revoke {
-        /// Token prefix to revoke
-        prefix: String,
-    },
-}
-
-#[derive(Subcommand)]
-enum ConfigAction {
-    /// Add a node to config
-    Add {
-        /// Node name
-        name: String,
-
-        /// Node ID (ed25519 public key)
-        #[arg(long)]
-        node_id: String,
-
-        /// Capability token
-        #[arg(long)]
-        capability: String,
-
-        /// Direct endpoint (optional)
-        #[arg(long)]
-        endpoint: Option<String>,
-    },
-
-    /// Remove a node from config
-    Remove {
-        /// Node name
-        name: String,
-    },
-
-    /// List configured nodes
-    List,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -244,7 +190,12 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Get { resource, output } => {
             let node = require_node(&cli.node)?;
-            commands::get::run(&config_path, &node, &resource, output.as_deref()).await
+            let format = match output.as_deref() {
+                Some("json") => OutputFormat::Json,
+                Some("yaml") => OutputFormat::Yaml,
+                _ => OutputFormat::Text,
+            };
+            commands::get::run(&config_path, &node, &resource, format).await
         }
         Commands::Edit { resource } => {
             let node = require_node(&cli.node)?;
@@ -252,7 +203,8 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Status { watch } => {
             let node = require_node(&cli.node)?;
-            commands::status::run(&config_path, &node, watch).await
+            let format = parse_output_format(&cli.output);
+            commands::status::run(&config_path, &node, watch, format).await
         }
         Commands::Logs { follow, lines } => {
             let node = require_node(&cli.node)?;
@@ -260,7 +212,8 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Metrics => {
             let node = require_node(&cli.node)?;
-            commands::metrics::run(&config_path, &node).await
+            let format = parse_output_format(&cli.output);
+            commands::metrics::run(&config_path, &node, format).await
         }
         Commands::Register { stake } => {
             let node = require_node(&cli.node)?;
@@ -295,23 +248,5 @@ async fn main() -> anyhow::Result<()> {
             commands::capability::run(&config_path, &node, action).await
         }
         Commands::Config { action } => commands::config::run(&config_path, action).await,
-    }
-}
-
-fn require_node(node: &Option<String>) -> anyhow::Result<String> {
-    node.clone().ok_or_else(|| {
-        anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var")
-    })
-}
-
-mod shellexpand {
-    /// Expand ~ to home directory
-    pub fn tilde(path: &str) -> std::borrow::Cow<'_, str> {
-        if path.starts_with("~/") {
-            if let Some(home) = dirs::home_dir() {
-                return std::borrow::Cow::Owned(format!("{}{}", home.display(), &path[1..]));
-            }
-        }
-        std::borrow::Cow::Borrowed(path)
     }
 }
