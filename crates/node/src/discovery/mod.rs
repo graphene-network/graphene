@@ -89,7 +89,7 @@ pub trait WorkerDiscovery: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::p2p::messages::{WorkerCapabilities, WorkerPricing};
+    use crate::p2p::messages::{WorkerCapabilities, WorkerPricing, WorkerReputation};
     use iroh::SecretKey;
     use rand::RngCore;
     use std::time::Instant;
@@ -112,10 +112,14 @@ mod tests {
                 max_vcpu: vcpu,
                 max_memory_mb: memory_mb,
                 kernels,
+                disk: None,
+                gpus: Vec::new(),
             },
             pricing: WorkerPricing {
                 cpu_ms_micros: 1,
                 memory_mb_ms_micros: 0.1,
+                disk_gb_ms_micros: None,
+                gpu_ms_micros: None,
             },
             load: WorkerLoad {
                 available_slots: slots,
@@ -123,6 +127,8 @@ mod tests {
             },
             status,
             last_seen: Instant::now(),
+            regions: Vec::new(),
+            reputation: WorkerReputation::default(),
         }
     }
 
@@ -141,6 +147,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(worker.meets_requirements(&requirements));
@@ -161,6 +168,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -181,6 +189,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -201,6 +210,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -221,6 +231,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -241,6 +252,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -262,6 +274,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: Some(50),
+            ..Default::default()
         };
 
         assert!(!worker.meets_requirements(&requirements));
@@ -283,6 +296,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: Some(100),
+            ..Default::default()
         };
 
         assert!(worker.meets_requirements(&requirements));

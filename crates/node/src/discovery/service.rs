@@ -188,6 +188,8 @@ impl<N: P2PNetwork + 'static> IrohWorkerDiscovery<N> {
             load: ann.load,
             status: WorkerStatus::Online,
             last_seen: Instant::now(),
+            regions: ann.regions,
+            reputation: ann.reputation,
         };
 
         known_workers.write().await.insert(ann.node_id, info);
@@ -324,7 +326,7 @@ impl<N: P2PNetwork + 'static> WorkerDiscovery for IrohWorkerDiscovery<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::p2p::messages::{WorkerCapabilities, WorkerPricing};
+    use crate::p2p::messages::{WorkerCapabilities, WorkerPricing, WorkerReputation};
     use crate::p2p::MockGrapheneNode;
     use rand::RngCore;
     use std::time::Duration;
@@ -343,6 +345,8 @@ mod tests {
                 max_vcpu: 8,
                 max_memory_mb: 16384,
                 kernels: vec!["node-20-unikraft".to_string()],
+                disk: None,
+                gpus: Vec::new(),
             },
             pricing: WorkerPricing::default(),
             load: WorkerLoad {
@@ -351,6 +355,8 @@ mod tests {
             },
             state: GossipWorkerState::Online,
             timestamp: IrohWorkerDiscovery::<MockGrapheneNode>::now_unix(),
+            regions: Vec::new(),
+            reputation: WorkerReputation::default(),
         }
     }
 
@@ -456,6 +462,8 @@ mod tests {
                 max_vcpu: 8,
                 max_memory_mb: 16384,
                 kernels: vec!["node-20-unikraft".to_string()],
+                disk: None,
+                gpus: Vec::new(),
             },
             pricing: WorkerPricing::default(),
             load: WorkerLoad {
@@ -464,6 +472,8 @@ mod tests {
             },
             status: WorkerStatus::Online,
             last_seen: Instant::now(),
+            regions: Vec::new(),
+            reputation: WorkerReputation::default(),
         };
 
         discovery.inject_worker_for_test(test_worker).await;
@@ -473,6 +483,7 @@ mod tests {
             memory_mb: 8192,
             kernel: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
+            ..Default::default()
         };
 
         let found = discovery.find_workers(&requirements).await;
@@ -499,6 +510,8 @@ mod tests {
             load: WorkerLoad::default(),
             status: WorkerStatus::Online,
             last_seen: Instant::now(),
+            regions: Vec::new(),
+            reputation: WorkerReputation::default(),
         };
 
         discovery.inject_worker_for_test(test_worker).await;

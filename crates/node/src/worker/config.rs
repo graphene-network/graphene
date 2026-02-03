@@ -1,5 +1,6 @@
 //! Configuration types for the worker binary.
 
+use crate::p2p::messages::{DiskCapability, DiskType, GpuCapability, WorkerRegion};
 use crate::p2p::types::P2PConfig;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -48,6 +49,102 @@ pub struct WorkerIdentity {
     /// Maximum concurrent job slots
     #[serde(default = "default_job_slots")]
     pub job_slots: u32,
+
+    /// Disk storage configuration
+    #[serde(default)]
+    pub disk: Option<DiskConfig>,
+
+    /// GPU configurations
+    #[serde(default)]
+    pub gpus: Vec<GpuConfig>,
+
+    /// Geographic regions where this worker operates
+    #[serde(default)]
+    pub regions: Vec<RegionConfig>,
+}
+
+/// Disk storage configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskConfig {
+    /// Maximum disk space in GB.
+    pub max_disk_gb: u32,
+
+    /// Type of disk storage (ssd, nvme, hdd).
+    #[serde(default = "default_disk_type")]
+    pub disk_type: String,
+
+    /// Price per disk-GB-millisecond in microtokens.
+    #[serde(default)]
+    pub price_gb_ms_micros: Option<f64>,
+}
+
+fn default_disk_type() -> String {
+    "ssd".to_string()
+}
+
+impl DiskConfig {
+    /// Convert to the P2P message DiskCapability type.
+    pub fn to_capability(&self) -> DiskCapability {
+        let disk_type = match self.disk_type.to_lowercase().as_str() {
+            "nvme" => DiskType::Nvme,
+            "hdd" => DiskType::Hdd,
+            _ => DiskType::Ssd,
+        };
+        DiskCapability {
+            max_disk_gb: self.max_disk_gb,
+            disk_type,
+        }
+    }
+}
+
+/// GPU configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuConfig {
+    /// GPU model name (e.g., "NVIDIA RTX 4090").
+    pub model: String,
+
+    /// Video RAM in MB.
+    pub vram_mb: u32,
+
+    /// CUDA compute capability version (e.g., "8.9").
+    #[serde(default)]
+    pub compute_capability: Option<String>,
+
+    /// Price per GPU-millisecond in microtokens.
+    #[serde(default)]
+    pub price_ms_micros: Option<u64>,
+}
+
+impl GpuConfig {
+    /// Convert to the P2P message GpuCapability type.
+    pub fn to_capability(&self) -> GpuCapability {
+        GpuCapability {
+            model: self.model.clone(),
+            vram_mb: self.vram_mb,
+            compute_capability: self.compute_capability.clone(),
+        }
+    }
+}
+
+/// Geographic region configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionConfig {
+    /// ISO 3166-1 alpha-2 country code (e.g., "US", "DE").
+    pub country: String,
+
+    /// Optional cloud provider region (e.g., "us-east-1").
+    #[serde(default)]
+    pub cloud_region: Option<String>,
+}
+
+impl RegionConfig {
+    /// Convert to the P2P message WorkerRegion type.
+    pub fn to_region(&self) -> WorkerRegion {
+        WorkerRegion {
+            country: self.country.clone(),
+            cloud_region: self.cloud_region.clone(),
+        }
+    }
 }
 
 fn default_price() -> u64 {
