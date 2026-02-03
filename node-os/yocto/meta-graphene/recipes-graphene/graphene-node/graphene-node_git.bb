@@ -44,8 +44,8 @@ do_install() {
 
     # Install default configuration
     install -d ${D}${sysconfdir}/graphene
-    install -m 0644 ${S}/node-os/buildroot/board/graphene/node-config.yaml \
-        ${D}${sysconfdir}/graphene/node-config.yaml
+    install -m 0644 ${S}/node-os/buildroot/board/graphene/node-config.toml \
+        ${D}${sysconfdir}/graphene/node-config.toml
 
     # Install systemd service
     install -d ${D}${systemd_system_unitdir}
@@ -57,7 +57,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/graphene-node --config /etc/graphene/node-config.yaml
+ExecStart=/usr/bin/graphene-node --config /etc/graphene/node-config.toml
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -78,7 +78,7 @@ EOF
 RDEPENDS:${PN} = "firecracker kernel-module-kvm"
 
 # Configuration files
-CONFFILES:${PN} = "${sysconfdir}/graphene/node-config.yaml"
+CONFFILES:${PN} = "${sysconfdir}/graphene/node-config.toml"
 
 # Enable systemd service
 inherit systemd

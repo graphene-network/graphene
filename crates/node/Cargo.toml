@@ -61,8 +61,7 @@ ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }
 curve25519-dalek = { version = "5.0.0-pre" }
 zeroize = { version = "1.7", features = ["derive"] }
 
-# Configuration and system info
-serde_yaml = "0.9"
+# System info
 num_cpus = "1.16"
 
 # Solana integration

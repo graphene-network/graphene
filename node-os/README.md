@@ -95,7 +95,7 @@ Since there's no shell, nodes are managed via the Iroh-based management API:
 ```bash
 # Remote management
 graphenectl --node prod-1 status
-graphenectl --node prod-1 apply -f node-config.yaml
+graphenectl --node prod-1 apply -f node-config.toml
 graphenectl --node prod-1 drain
 ```
 

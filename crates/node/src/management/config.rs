@@ -7,16 +7,8 @@ use std::path::PathBuf;
 
 /// Node configuration applied via management API
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct NodeConfig {
-    /// API version
-    #[serde(default = "default_api_version")]
-    pub api_version: String,
-
-    /// Configuration kind
-    #[serde(default = "default_kind")]
-    pub kind: String,
-
     /// Network configuration
     #[serde(default)]
     pub network: NetworkConfig,
@@ -38,31 +30,9 @@ pub struct NodeConfig {
     pub logging: LoggingConfig,
 }
 
-fn default_api_version() -> String {
-    "graphene.network/v1".to_string()
-}
-
-fn default_kind() -> String {
-    "NodeConfig".to_string()
-}
-
-impl Default for NodeConfig {
-    fn default() -> Self {
-        Self {
-            api_version: default_api_version(),
-            kind: default_kind(),
-            network: NetworkConfig::default(),
-            staking: StakingConfig::default(),
-            resources: ResourceConfig::default(),
-            pricing: PricingConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
 
 /// Network configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NetworkConfig {
     /// Node ID (ed25519 public key, auto-generated if not set)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,7 +68,6 @@ impl Default for NetworkConfig {
 
 /// Staking configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StakingConfig {
     /// Path to wallet file
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,7 +98,6 @@ impl Default for StakingConfig {
 
 /// Resource configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResourceConfig {
     /// Maximum vCPUs to allocate to jobs
     #[serde(default = "default_max_vcpu")]
@@ -177,7 +145,6 @@ impl Default for ResourceConfig {
 
 /// Pricing configuration (in micros = $0.000001)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PricingConfig {
     /// Price per CPU-millisecond in micros
     #[serde(default = "default_cpu_ms_micros")]
@@ -216,7 +183,6 @@ impl Default for PricingConfig {
 
 /// Logging configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoggingConfig {
     /// Log level
     #[serde(default = "default_log_level")]
@@ -245,20 +211,20 @@ impl Default for LoggingConfig {
 }
 
 impl NodeConfig {
-    /// Load configuration from YAML file
-    pub fn from_yaml_file(path: &std::path::Path) -> Result<Self, ConfigError> {
+    /// Load configuration from TOML file
+    pub fn from_file(path: &std::path::Path) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(path).map_err(ConfigError::Io)?;
-        Self::from_yaml(&content)
+        Self::from_toml(&content)
     }
 
-    /// Parse configuration from YAML string
-    pub fn from_yaml(yaml: &str) -> Result<Self, ConfigError> {
-        serde_yaml::from_str(yaml).map_err(ConfigError::Yaml)
+    /// Parse configuration from TOML string
+    pub fn from_toml(toml_str: &str) -> Result<Self, ConfigError> {
+        toml::from_str(toml_str).map_err(ConfigError::Toml)
     }
 
-    /// Serialize to YAML string
-    pub fn to_yaml(&self) -> Result<String, ConfigError> {
-        serde_yaml::to_string(self).map_err(ConfigError::Yaml)
+    /// Serialize to TOML string
+    pub fn to_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string_pretty(self).map_err(ConfigError::TomlSer)
     }
 
     /// Validate configuration
@@ -304,7 +270,8 @@ impl NodeConfig {
 #[derive(Debug)]
 pub enum ConfigError {
     Io(std::io::Error),
-    Yaml(serde_yaml::Error),
+    Toml(toml::de::Error),
+    TomlSer(toml::ser::Error),
     Validation(String),
 }
 
@@ -314,9 +281,16 @@ impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConfigError::Io(e) => write!(f, "IO error: {}", e),
-            ConfigError::Yaml(e) => write!(f, "YAML parse error: {}", e),
+            ConfigError::Toml(e) => write!(f, "TOML parse error: {}", e),
+            ConfigError::TomlSer(e) => write!(f, "TOML serialization error: {}", e),
             ConfigError::Validation(msg) => write!(f, "Validation error: {}", msg),
         }
+    }
+}
+
+impl From<toml::ser::Error> for ConfigError {
+    fn from(e: toml::ser::Error) -> Self {
+        ConfigError::TomlSer(e)
     }
 }
 
@@ -327,17 +301,15 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = NodeConfig::default();
-        assert_eq!(config.api_version, "graphene.network/v1");
-        assert_eq!(config.kind, "NodeConfig");
         assert_eq!(config.network.listen_addr, "0.0.0.0:9000");
     }
 
     #[test]
-    fn test_yaml_roundtrip() {
+    fn test_toml_roundtrip() {
         let config = NodeConfig::default();
-        let yaml = config.to_yaml().unwrap();
-        let parsed = NodeConfig::from_yaml(&yaml).unwrap();
-        assert_eq!(config.api_version, parsed.api_version);
+        let toml_str = config.to_toml().unwrap();
+        let parsed = NodeConfig::from_toml(&toml_str).unwrap();
+        assert_eq!(config.network.listen_addr, parsed.network.listen_addr);
     }
 
     #[test]
@@ -354,19 +326,17 @@ mod tests {
     }
 
     #[test]
-    fn test_yaml_parsing() {
-        let yaml = r#"
-apiVersion: graphene.network/v1
-kind: NodeConfig
-network:
-  listenAddr: "0.0.0.0:9000"
-  regions:
-    - us-west-2
-resources:
-  maxVcpu: 8
-  maxMemoryMb: 16384
+    fn test_toml_parsing() {
+        let toml_str = r#"
+[network]
+listen_addr = "0.0.0.0:9000"
+regions = ["us-west-2"]
+
+[resources]
+max_vcpu = 8
+max_memory_mb = 16384
 "#;
-        let config = NodeConfig::from_yaml(yaml).unwrap();
+        let config = NodeConfig::from_toml(toml_str).unwrap();
         assert_eq!(config.resources.max_vcpu, 8);
         assert_eq!(config.resources.max_memory_mb, 16384);
         assert_eq!(config.network.regions, vec!["us-west-2"]);

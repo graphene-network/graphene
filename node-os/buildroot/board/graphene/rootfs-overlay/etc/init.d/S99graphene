@@ -4,7 +4,7 @@
 
 NAME="graphene-node"
 DAEMON="/usr/bin/graphene-node"
-CONFIG="/etc/graphene/node-config.yaml"
+CONFIG="/etc/graphene/node-config.toml"
 LOGFILE="/var/log/graphene/node.log"
 
 start() {

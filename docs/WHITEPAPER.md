@@ -2317,193 +2317,157 @@ if __name__ == "__main__":
 
 ## Appendix F: Node Configuration Schema
 
-Complete YAML schema for Graphene node configuration, managed via `graphenectl apply`.
+Complete TOML schema for Graphene node configuration, managed via `graphenectl apply`.
 
-```yaml
-# node-config.yaml
+```toml
+# node-config.toml
 # Graphene Node Configuration Schema v1.0
 
 # Schema version (required)
-version: "1.0"
+version = "1.0"
 
 # Node identity
-node:
-  # Human-readable name (optional, for operator reference)
-  name: "worker-us-west-01"
-
-  # Geographic region for routing
-  region: "us-west-2"
-
-  # Coordinates for latency estimation [lat, lon]
-  coordinates: [45.52, -122.67]
+[node]
+# Human-readable name (optional, for operator reference)
+name = "worker-us-west-01"
+# Geographic region for routing
+region = "us-west-2"
+# Coordinates for latency estimation [lat, lon]
+coordinates = [45.52, -122.67]
 
 # Resource allocation
-resources:
-  # Maximum vCPUs available for jobs
-  max_vcpu: 16
-
-  # Maximum memory in MB
-  max_memory_mb: 65536
-
-  # Maximum concurrent jobs
-  max_concurrent_jobs: 8
-
-  # Supported job tiers
-  tiers:
-    - standard
-    - compute
+[resources]
+# Maximum vCPUs available for jobs
+max_vcpu = 16
+# Maximum memory in MB
+max_memory_mb = 65536
+# Maximum concurrent jobs
+max_concurrent_jobs = 8
+# Supported job tiers
+tiers = ["standard", "compute"]
 
 # Staking configuration
-staking:
-  # Solana wallet address (base58)
-  wallet: "GrPhN3..."
-
-  # Minimum stake to maintain (in $GRAPHENE)
-  min_stake: 1000
-
-  # Auto-compound rewards
-  auto_compound: true
+[staking]
+# Solana wallet address (base58)
+wallet = "GrPhN3..."
+# Minimum stake to maintain (in $GRAPHENE)
+min_stake = 1000
+# Auto-compound rewards
+auto_compound = true
 
 # Pricing (in micro-USDC)
-pricing:
-  # Per vCPU-millisecond
-  cpu_ms: 1
-
-  # Per MB-millisecond of memory
-  memory_mb_ms: 0.1
-
-  # Per MB of egress
-  egress_mb: 10000
+[pricing]
+# Per vCPU-millisecond
+cpu_ms = 1
+# Per MB-millisecond of memory
+memory_mb_ms = 0.1
+# Per MB of egress
+egress_mb = 10000
 
 # Network configuration
-network:
-  # Iroh relay servers (optional, uses defaults if empty)
-  relay_servers: []
+[network]
+# Iroh relay servers (optional, uses defaults if empty)
+relay_servers = []
+# Gossip topic (do not change unless instructed)
+gossip_topic = "graphene-compute-v1"
 
-  # Gossip topic (do not change unless instructed)
-  gossip_topic: "graphene-compute-v1"
-
-  # Listen addresses
-  listen:
-    # Management API port
-    management: 9090
-
-    # Prometheus metrics port
-    metrics: 9091
-
-    # P2P port (Iroh)
-    p2p: 4433
+# Listen addresses
+[network.listen]
+# Management API port
+management = 9090
+# Prometheus metrics port
+metrics = 9091
+# P2P port (Iroh)
+p2p = 4433
 
 # Firecracker MicroVM configuration
-vmm:
-  # Path to kernel binary
-  kernel_path: "/var/lib/graphene/vmlinux"
-
-  # Default rootfs for unikernels
-  rootfs_path: "/var/lib/graphene/rootfs.ext4"
-
-  # VM boot timeout in milliseconds
-  boot_timeout_ms: 5000
-
-  # Enable jailer for additional isolation
-  jailer_enabled: true
-
-  # Jailer UID/GID range start
-  jailer_uid_start: 10000
+[vmm]
+# Path to kernel binary
+kernel_path = "/var/lib/graphene/vmlinux"
+# Default rootfs for unikernels
+rootfs_path = "/var/lib/graphene/rootfs.ext4"
+# VM boot timeout in milliseconds
+boot_timeout_ms = 5000
+# Enable jailer for additional isolation
+jailer_enabled = true
+# Jailer UID/GID range start
+jailer_uid_start = 10000
 
 # Builder VM configuration
-builder:
-  # Enable ephemeral builder VMs
-  enabled: true
-
-  # Builder timeout in seconds
-  timeout_seconds: 300
-
-  # Maximum builder memory in MB
-  max_memory_mb: 4096
-
-  # Maximum builder disk in MB
-  max_disk_mb: 10240
+[builder]
+# Enable ephemeral builder VMs
+enabled = true
+# Builder timeout in seconds
+timeout_seconds = 300
+# Maximum builder memory in MB
+max_memory_mb = 4096
+# Maximum builder disk in MB
+max_disk_mb = 10240
 
 # Cache configuration
-cache:
-  # Local cache directory
-  path: "/var/cache/graphene"
-
-  # Maximum cache size in GB
-  max_size_gb: 100
-
-  # Enable P2P cache sharing via Iroh
-  p2p_enabled: true
-
-  # Cache TTL in hours (0 = infinite)
-  ttl_hours: 168  # 7 days
+[cache]
+# Local cache directory
+path = "/var/cache/graphene"
+# Maximum cache size in GB
+max_size_gb = 100
+# Enable P2P cache sharing via Iroh
+p2p_enabled = true
+# Cache TTL in hours (0 = infinite)
+ttl_hours = 168  # 7 days
 
 # Logging configuration
-logging:
-  # Log level: trace, debug, info, warn, error
-  level: "info"
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+# Log format: json, pretty
+format = "json"
+# Log output: stdout, file, both
+output = "both"
+# Log file path (if output includes file)
+file_path = "/var/log/graphene/worker.log"
 
-  # Log format: json, pretty
-  format: "json"
-
-  # Log output: stdout, file, both
-  output: "both"
-
-  # Log file path (if output includes file)
-  file_path: "/var/log/graphene/worker.log"
-
-  # Log rotation
-  rotation:
-    max_size_mb: 100
-    max_files: 10
+# Log rotation
+[logging.rotation]
+max_size_mb = 100
+max_files = 10
 
 # Security configuration
-security:
-  # Require TLS for management API
-  tls_required: true
+[security]
+# Require TLS for management API
+tls_required = true
+# TLS certificate path (auto-generated if not specified)
+tls_cert_path = "/etc/graphene/tls/cert.pem"
+tls_key_path = "/etc/graphene/tls/key.pem"
 
-  # TLS certificate path (auto-generated if not specified)
-  tls_cert_path: "/etc/graphene/tls/cert.pem"
-  tls_key_path: "/etc/graphene/tls/key.pem"
-
-  # Capability token settings
-  capability:
-    # Token expiry in hours (0 = no expiry)
-    expiry_hours: 720  # 30 days
-
-    # Allowed roles
-    allowed_roles:
-      - admin
-      - operator
-      - reader
+# Capability token settings
+[security.capability]
+# Token expiry in hours (0 = no expiry)
+expiry_hours = 720  # 30 days
+# Allowed roles
+allowed_roles = ["admin", "operator", "reader"]
 
 # Attestation configuration (for hardened nodes)
-attestation:
-  # Enable TPM-based attestation
-  tpm_enabled: true
-
-  # TPM device path
-  tpm_device: "/dev/tpmrm0"
-
-  # Enable dm-verity verification
-  verity_enabled: true
-
-  # Expected dm-verity root hash (set during build)
-  # verity_root_hash: "sha256:..."
+[attestation]
+# Enable TPM-based attestation
+tpm_enabled = true
+# TPM device path
+tpm_device = "/dev/tpmrm0"
+# Enable dm-verity verification
+verity_enabled = true
+# Expected dm-verity root hash (set during build)
+# verity_root_hash = "sha256:..."
 
 # Maintenance windows
-maintenance:
-  # Automatic updates enabled
-  auto_update: false
+[maintenance]
+# Automatic updates enabled
+auto_update = false
+# Drain timeout before forced shutdown (seconds)
+drain_timeout = 300
 
-  # Preferred update window (UTC)
-  update_window:
-    start: "04:00"
-    end: "06:00"
-
-  # Drain timeout before forced shutdown (seconds)
-  drain_timeout: 300
+# Preferred update window (UTC)
+[maintenance.update_window]
+start = "04:00"
+end = "06:00"
 ```
 
 **Configuration Validation Rules:**
@@ -2523,23 +2487,23 @@ maintenance:
 
 **Example: Minimal Configuration**
 
-```yaml
-version: "1.0"
+```toml
+version = "1.0"
 
-node:
-  region: "us-west-2"
+[node]
+region = "us-west-2"
 
-resources:
-  max_vcpu: 8
-  max_memory_mb: 32768
+[resources]
+max_vcpu = 8
+max_memory_mb = 32768
 
-staking:
-  wallet: "GrPhN3exampleWallet..."
+[staking]
+wallet = "GrPhN3exampleWallet..."
 
-pricing:
-  cpu_ms: 1
-  memory_mb_ms: 0.1
-  egress_mb: 10000
+[pricing]
+cpu_ms = 1
+memory_mb_ms = 0.1
+egress_mb = 10000
 ```
 
 All other fields use secure defaults when not specified.

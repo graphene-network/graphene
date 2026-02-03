@@ -33,9 +33,9 @@ define GRAPHENE_NODE_INSTALL_TARGET_CMDS
 		$(TARGET_DIR)/usr/bin/graphene-node
 
 	# Install default config if not exists
-	if [ ! -f $(TARGET_DIR)/etc/graphene/node-config.yaml ]; then \
-		$(INSTALL) -D -m 0644 $(BR2_EXTERNAL_GRAPHENE_PATH)/board/graphene/node-config.yaml \
-			$(TARGET_DIR)/etc/graphene/node-config.yaml; \
+	if [ ! -f $(TARGET_DIR)/etc/graphene/node-config.toml ]; then \
+		$(INSTALL) -D -m 0644 $(BR2_EXTERNAL_GRAPHENE_PATH)/board/graphene/node-config.toml \
+			$(TARGET_DIR)/etc/graphene/node-config.toml; \
 	fi
 endef
 

@@ -9,7 +9,7 @@
 //! graphenectl bootstrap --nodes 192.168.1.100
 //!
 //! # Configuration management
-//! graphenectl apply -f node-config.yaml
+//! graphenectl apply -f node-config.toml
 //! graphenectl get config
 //!
 //! # Status and monitoring
