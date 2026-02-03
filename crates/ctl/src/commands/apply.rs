@@ -1,27 +1,39 @@
 //! Apply configuration command
 
-pub async fn run(_config_path: &str, node: &str, file: &str) -> anyhow::Result<()> {
-    println!("Applying configuration from {} to node {}", file, node);
+use crate::client::{ClientOptions, ManagementClient};
+use crate::config::ClientConfig;
+use monad_node::management::{ManagementRequest, ManagementResponse};
+use std::path::Path;
 
-    // Load the config file
+pub async fn run(config_path: &str, node: &str, file: &str) -> anyhow::Result<()> {
+    // Load and validate the node config file
     let config_content = std::fs::read_to_string(file)?;
-
-    // Parse as NodeConfig
     let node_config: monad_node::management::NodeConfig = serde_yaml::from_str(&config_content)?;
-
-    // Validate
     node_config
         .validate()
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     println!("Configuration validated successfully");
 
-    // TODO: Connect to node and apply config
-    // 1. Load client config from config_path
-    // 2. Connect to node via Iroh
-    // 3. Send ApplyConfig request
-    // 4. Wait for response
+    // Load client config and connect
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
 
-    println!("Configuration applied successfully");
+    // Apply the config
+    let response = client
+        .request(ManagementRequest::ApplyConfig {
+            config: Box::new(node_config),
+        })
+        .await?;
+
+    match response {
+        ManagementResponse::Ok => println!("Configuration applied successfully"),
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
+
     Ok(())
 }

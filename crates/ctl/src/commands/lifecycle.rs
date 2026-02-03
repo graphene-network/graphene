@@ -1,31 +1,102 @@
 //! Worker lifecycle commands
 
-pub async fn register(_config_path: &str, node: &str, stake: u64) -> anyhow::Result<()> {
-    println!("Registering node {} with stake {}", node, stake);
-    // TODO: Send Register request
+use crate::client::{ClientOptions, ManagementClient};
+use crate::config::ClientConfig;
+use monad_node::management::{ManagementRequest, ManagementResponse};
+use std::path::Path;
+
+pub async fn register(config_path: &str, node: &str, stake: u64) -> anyhow::Result<()> {
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
+
+    let response = client
+        .request(ManagementRequest::Register {
+            stake_amount: stake,
+        })
+        .await?;
+
+    match response {
+        ManagementResponse::Ok => {
+            println!("Node {} registered with {} GRAPHENE stake", node, stake)
+        }
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
     Ok(())
 }
 
-pub async fn unregister(_config_path: &str, node: &str) -> anyhow::Result<()> {
-    println!("Unregistering node {} (begins 14-day unbonding)", node);
-    // TODO: Send Unregister request
+pub async fn unregister(config_path: &str, node: &str) -> anyhow::Result<()> {
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
+
+    let response = client.request(ManagementRequest::Unregister).await?;
+
+    match response {
+        ManagementResponse::Ok => {
+            println!(
+                "Node {} unregistering (14-day unbonding period started)",
+                node
+            )
+        }
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
     Ok(())
 }
 
-pub async fn join(_config_path: &str, node: &str) -> anyhow::Result<()> {
-    println!("Node {} joining network", node);
-    // TODO: Send Join request
+pub async fn join(config_path: &str, node: &str) -> anyhow::Result<()> {
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
+
+    let response = client.request(ManagementRequest::Join).await?;
+
+    match response {
+        ManagementResponse::Ok => println!("Node {} joined network", node),
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
     Ok(())
 }
 
-pub async fn drain(_config_path: &str, node: &str) -> anyhow::Result<()> {
-    println!("Node {} entering drain mode", node);
-    // TODO: Send Drain request
+pub async fn drain(config_path: &str, node: &str) -> anyhow::Result<()> {
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
+
+    let response = client.request(ManagementRequest::Drain).await?;
+
+    match response {
+        ManagementResponse::Ok => println!("Node {} entering drain mode", node),
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
     Ok(())
 }
 
-pub async fn undrain(_config_path: &str, node: &str) -> anyhow::Result<()> {
-    println!("Node {} exiting drain mode", node);
-    // TODO: Send Undrain request
+pub async fn undrain(config_path: &str, node: &str) -> anyhow::Result<()> {
+    let config = ClientConfig::load(Path::new(config_path))?;
+    let entry = config
+        .get_node(node)
+        .ok_or_else(|| anyhow::anyhow!("Node not found: {}", node))?;
+    let client = ManagementClient::from_config(entry, ClientOptions::default())?;
+
+    let response = client.request(ManagementRequest::Undrain).await?;
+
+    match response {
+        ManagementResponse::Ok => println!("Node {} exiting drain mode", node),
+        ManagementResponse::Error { code, message } => anyhow::bail!("{}: {}", code, message),
+        _ => anyhow::bail!("Unexpected response type"),
+    }
     Ok(())
 }

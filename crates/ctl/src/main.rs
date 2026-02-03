@@ -25,8 +25,10 @@
 mod client;
 mod commands;
 mod config;
+mod output;
 
 use clap::{Parser, Subcommand};
+use output::OutputFormat;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
@@ -244,7 +246,12 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Get { resource, output } => {
             let node = require_node(&cli.node)?;
-            commands::get::run(&config_path, &node, &resource, output.as_deref()).await
+            let format = match output.as_deref() {
+                Some("json") => OutputFormat::Json,
+                Some("yaml") => OutputFormat::Yaml,
+                _ => OutputFormat::Text,
+            };
+            commands::get::run(&config_path, &node, &resource, format).await
         }
         Commands::Edit { resource } => {
             let node = require_node(&cli.node)?;
@@ -252,7 +259,8 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Status { watch } => {
             let node = require_node(&cli.node)?;
-            commands::status::run(&config_path, &node, watch).await
+            let format = parse_output_format(&cli.output);
+            commands::status::run(&config_path, &node, watch, format).await
         }
         Commands::Logs { follow, lines } => {
             let node = require_node(&cli.node)?;
@@ -260,7 +268,8 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Metrics => {
             let node = require_node(&cli.node)?;
-            commands::metrics::run(&config_path, &node).await
+            let format = parse_output_format(&cli.output);
+            commands::metrics::run(&config_path, &node, format).await
         }
         Commands::Register { stake } => {
             let node = require_node(&cli.node)?;
@@ -302,6 +311,14 @@ fn require_node(node: &Option<String>) -> anyhow::Result<String> {
     node.clone().ok_or_else(|| {
         anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var")
     })
+}
+
+fn parse_output_format(s: &str) -> OutputFormat {
+    match s.to_lowercase().as_str() {
+        "json" => OutputFormat::Json,
+        "yaml" => OutputFormat::Yaml,
+        _ => OutputFormat::Text,
+    }
 }
 
 mod shellexpand {
