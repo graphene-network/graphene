@@ -263,6 +263,188 @@ Single authoritative worker registry.
 - P2P mode available for advanced users
 - Deprecation period for old API
 
+## Serverless Latency Considerations
+
+The dynamic discovery approach introduces latency overhead that conflicts with our "sub-second" cold start promise, especially in serverless environments where each invocation is a cold start.
+
+### Latency Budget Analysis
+
+| Step | Latency | Notes |
+|------|---------|-------|
+| Iroh endpoint bootstrap | 50-100ms | UDP bind + relay connect |
+| Discovery query (gateway) | 50-200ms | HTTP RTT to gateway |
+| QUIC connection to worker | 100-300ms | Via relay, worse with NAT |
+| Key derivation | <1ms | ECDH + HKDF |
+| Blob upload (code) | 20-100ms | Depends on payload size |
+| **Total cold start overhead** | **220-700ms** | Before job execution begins |
+
+In serverless (AWS Lambda, Cloudflare Workers, Vercel):
+- Every invocation = potential cold start
+- No persistent connections between invocations
+- Discovery overhead on every call without optimization
+
+### Optimization Strategies
+
+#### Tier 1: Direct Worker Mode (Zero Discovery Latency)
+
+For latency-critical serverless, skip discovery entirely:
+
+```typescript
+// Worker ID configured at deploy time
+const client = await Client.create({
+  workerNodeId: process.env.GRAPHENE_WORKER_ID,
+  channelPda,
+  secretKey,
+});
+
+// No discovery overhead - direct connection
+const result = await client.run({ code: '...' });
+```
+
+**Latency**: ~150-400ms (connection + upload only)
+**Tradeoff**: User manages worker selection out-of-band
+
+#### Tier 2: Session Tokens (Amortized Discovery)
+
+Gateway issues short-lived session tokens encoding worker assignment:
+
+```typescript
+// Session creation (once per ~15 minutes, or at deploy)
+POST /session
+{
+  "filter": { "kernel": "python:3.12", "region": "us-*" },
+  "ttl": 900
+}
+
+Response:
+{
+  "token": "eyJ...",
+  "workerNodeId": "abc123...",
+  "expiresAt": "2026-02-04T12:30:00Z"
+}
+```
+
+```typescript
+// Fast path in serverless function
+const client = await Client.create({
+  sessionToken: process.env.GRAPHENE_SESSION_TOKEN,
+});
+
+// Session token encodes: workerNodeId + pre-negotiated parameters
+// Latency: ~150-400ms (skips discovery)
+```
+
+**Latency**: First call ~500ms, subsequent ~200ms
+**Tradeoff**: Requires session refresh mechanism
+
+#### Tier 3: Edge-Cached Discovery
+
+Deploy discovery gateway at edge locations:
+
+```
+User (us-east-1) → Edge (us-east-1) → Cache hit  → 10-30ms
+                                    → Cache miss → Origin → 100-200ms
+```
+
+Implementation options:
+- Cloudflare Workers with KV cache
+- Lambda@Edge with DynamoDB Global Tables
+- Fastly Compute@Edge
+
+**Latency**: 10-30ms for cached discovery
+**Tradeoff**: Infrastructure complexity
+
+#### Tier 4: Connection Pool Sidecar (Enterprise)
+
+For high-volume serverless, maintain warm connections via sidecar:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Customer Infrastructure                          │
+│                                                               │
+│  ┌─────────────┐         ┌────────────────────────────────┐ │
+│  │   Lambda    │────────▶│     Connection Pool Service    │ │
+│  │  Function   │  gRPC   │     (ECS/Fargate/EC2)          │ │
+│  └─────────────┘         │                                │ │
+│                          │  • Warm QUIC connections       │ │
+│                          │  • Pre-derived channel keys    │ │
+│                          │  • Worker health monitoring    │ │
+│                          └───────────────┬────────────────┘ │
+└──────────────────────────────────────────┼───────────────────┘
+                                           │ Persistent QUIC
+                                           ▼
+                                    ┌──────────────┐
+                                    │   Workers    │
+                                    └──────────────┘
+```
+
+**Latency**: <50ms (warm path via pool)
+**Tradeoff**: Additional infrastructure, cost
+
+### Recommended Approach by Use Case
+
+| Use Case | Recommended Tier | Expected Latency |
+|----------|------------------|------------------|
+| Interactive/real-time | Tier 1 (Direct) | 150-400ms |
+| Serverless functions | Tier 2 (Sessions) | 200-500ms |
+| High-volume API | Tier 4 (Pool) | <100ms |
+| Browser/mobile | Tier 3 (Edge) | 200-400ms |
+| Long-running service | Standard (P2P) | 300-700ms first, <100ms subsequent |
+
+### SDK Configuration for Serverless
+
+```typescript
+interface ClientConfig {
+  // ... existing fields ...
+
+  // Serverless optimizations
+  sessionToken?: string;           // Pre-negotiated session (Tier 2)
+  workerNodeId?: string;           // Direct worker (Tier 1)
+  connectionPoolUrl?: string;      // Pool sidecar (Tier 4)
+
+  // Caching hints
+  cacheDiscovery?: boolean;        // Cache worker list in memory
+  discoveryTtl?: number;           // Cache TTL in seconds
+}
+```
+
+### Gateway Session API
+
+```
+POST /session
+Content-Type: application/json
+
+{
+  "filter": {
+    "kernel": "python:3.12",
+    "minVcpu": 1,
+    "regions": ["us-*"]
+  },
+  "ttl": 900,
+  "sticky": true  // Prefer same worker for session duration
+}
+
+Response:
+{
+  "token": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiSldUIn0...",
+  "workerNodeId": "abc123def456...",
+  "workerEndpoint": {
+    "nodeId": "abc123def456...",
+    "relayUrl": "https://relay-us-east.graphene.network"
+  },
+  "expiresAt": "2026-02-04T12:30:00Z",
+  "refreshBefore": "2026-02-04T12:25:00Z"
+}
+```
+
+Session tokens are signed JWTs that encode:
+- Selected worker node ID
+- Filter criteria used for selection
+- Expiration time
+- Replay protection nonce
+
+Workers validate session tokens to ensure they were legitimately issued by the gateway.
+
 ## References
 
 - Whitepaper Section 5.2: Job Execution Flow
