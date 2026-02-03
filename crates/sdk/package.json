@@ -1,0 +1,68 @@
+{
+  "name": "@graphene/sdk-native",
+  "version": "0.1.0",
+  "description": "Native bindings for Graphene Network SDK - cryptographic primitives, payment tickets, and protocol serialization",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "sdk-native",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-musl"
+      ]
+    }
+  },
+  "license": "AGPL-3.0-only",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node --test tests/*.test.mjs",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/graphene-network/graphene",
+    "directory": "crates/sdk"
+  },
+  "homepage": "https://github.com/graphene-network/graphene#readme",
+  "bugs": {
+    "url": "https://github.com/graphene-network/graphene/issues"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "graphene",
+    "unikernel",
+    "compute",
+    "serverless",
+    "cryptography",
+    "ed25519",
+    "x25519",
+    "xchacha20",
+    "napi",
+    "native"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

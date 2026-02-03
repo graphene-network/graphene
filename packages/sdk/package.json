@@ -1,0 +1,46 @@
+{
+  "name": "@graphene/sdk",
+  "version": "0.1.0",
+  "description": "High-level TypeScript client for Graphene Network",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@graphene/sdk-native": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/graphene-network/graphene"
+  },
+  "license": "AGPL-3.0-only",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "graphene",
+    "unikernel",
+    "compute",
+    "serverless"
+  ]
+}

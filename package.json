@@ -1,6 +1,10 @@
 {
   "name": "monad",
   "packageManager": "bun@1.3.5",
+  "workspaces": [
+    "packages/*",
+    "crates/sdk"
+  ],
   "scripts": {
     "test": "bun test",
     "postinstall": "lefthook install"
