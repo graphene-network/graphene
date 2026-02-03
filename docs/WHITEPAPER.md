@@ -484,6 +484,10 @@ Workers store result hashes on-chain during settlement. If a user disputes non-d
 
 ### 5.7 Job State Machine
 
+The job state machine supports **dual-mode result delivery**:
+- **Sync mode** (default): Results stream directly to the user over QUIC, transitioning immediately to DELIVERED (~10ms latency)
+- **Async mode**: Results upload to Iroh blob storage for later retrieval via the DELIVERING state (24h TTL)
+
 ```
                     ┌───────────────┐
                     │               │
@@ -533,23 +537,27 @@ Workers store result hashes on-chain during settlement. If a user disputes non-d
           │                 │                 │
           └─────────────────┴─────────────────┘
                             │
-                            ▼
-                    ┌───────────────┐
-                    │               │
-                    │  DELIVERING   │
-                    │ (result blob) │
-                    │               │
-                    └───────┬───────┘
-                            │
               ┌─────────────┴─────────────┐
+              │                           │
+           [Sync]                      [Async]
               │                           │
               ▼                           ▼
       ┌───────────────┐           ┌───────────────┐
       │               │           │               │
-      │   DELIVERED   │           │   EXPIRED     │
-      │ (user pulled) │           │ (TTL passed)  │
+      │   DELIVERED   │           │  DELIVERING   │
+      │ (QUIC stream) │           │ (Iroh blob)   │
       │               │           │               │
-      └───────────────┘           └───────────────┘
+      └───────────────┘           └───────┬───────┘
+                                          │
+                            ┌─────────────┴─────────────┐
+                            │                           │
+                            ▼                           ▼
+                    ┌───────────────┐           ┌───────────────┐
+                    │               │           │               │
+                    │   DELIVERED   │           │   EXPIRED     │
+                    │ (user pulled) │           │ (TTL passed)  │
+                    │               │           │               │
+                    └───────────────┘           └───────────────┘
 ```
 
 **Job States:**
@@ -561,12 +569,25 @@ Workers store result hashes on-chain during settlement. If a user disputes non-d
 | BUILDING | 1-60s | RUNNING |
 | CACHED | <1ms | RUNNING |
 | RUNNING | user-defined max | SUCCEEDED, FAILED, TIMEOUT |
-| SUCCEEDED | instant | DELIVERING |
-| FAILED | instant | DELIVERING |
-| TIMEOUT | instant | DELIVERING |
+| SUCCEEDED | instant | DELIVERED (sync), DELIVERING (async) |
+| FAILED | instant | DELIVERED (sync), DELIVERING (async) |
+| TIMEOUT | instant | DELIVERED (sync), DELIVERING (async) |
 | DELIVERING | <24h | DELIVERED, EXPIRED |
 | DELIVERED | terminal | - |
 | EXPIRED | terminal | - |
+
+**Delivery Mode Selection:**
+
+Sync mode is the default for lowest latency. The delivery mode can be specified in the job request:
+
+```json
+{
+  "manifest": { ... },
+  "delivery_mode": "sync"  // or "async"
+}
+```
+
+If sync delivery fails (user offline, connection error), the worker automatically falls back to async mode, uploading results to Iroh for later retrieval.
 
 ### 5.8 Workflow State Machine
 
@@ -1448,10 +1469,52 @@ High-reputation workers receive priority in job matching.
 
 ### 10.2 Result Delivery
 
-Results are stored as Iroh blobs with 24-hour TTL:
-- User offline? Fetch later by hash
-- Large results? Chunked streaming
-- Need webhook? Optional URL in manifest
+Graphene supports **dual-mode result delivery** to optimize for different use cases:
+
+**Sync Mode (Default)**
+- Results stream directly to user over QUIC connection
+- ~10ms latency for immediate feedback
+- Skips DELIVERING state, transitions directly to DELIVERED
+- Ideal for interactive workloads and real-time applications
+- Automatic fallback to async if user disconnects
+
+**Async Mode (Opt-in/Fallback)**
+- Results uploaded as encrypted Iroh blobs
+- 24-hour TTL for offline retrieval
+- Uses DELIVERING state with eventual consistency
+- Ideal for batch processing and offline users
+- Supports chunked streaming for large results
+
+**Result Payload Structure:**
+
+```json
+{
+  "job_id": "...",
+  "payload": {
+    "type": "inline",  // sync: data included directly
+    "encrypted_result": "<base64>",
+    "encrypted_stdout": "<base64>",
+    "encrypted_stderr": "<base64>"
+  }
+  // OR for async:
+  "payload": {
+    "type": "blob",  // async: fetch by hash
+    "encrypted_result_hash": "blake3:abc...",
+    "encrypted_stdout_hash": "blake3:def...",
+    "encrypted_stderr_hash": "blake3:ghi..."
+  },
+  "exit_code": 0,
+  "execution_ms": 4523,
+  "worker_signature": "ed25519:..."
+}
+```
+
+**Fallback Behavior:**
+When sync delivery fails (connection refused, timeout, user offline), the worker automatically:
+1. Uploads encrypted results to Iroh blob store
+2. Transitions job to DELIVERING state
+3. Broadcasts result availability on gossip network
+4. User can fetch by hash within 24-hour TTL
 
 ### 10.3 Logging and Observability
 

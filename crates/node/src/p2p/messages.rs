@@ -451,6 +451,93 @@ pub struct JobResult {
 // Encrypted Job Messages (Soft Confidential Computing)
 // ============================================================================
 
+/// Result delivery mode - determines how job results are returned to the user.
+///
+/// Sync mode (default) streams results directly over QUIC for lowest latency.
+/// Async mode uploads to Iroh blob storage for offline retrieval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResultDeliveryMode {
+    /// Stream result directly over QUIC connection (~10ms latency).
+    /// Skips DELIVERING state, transitions directly to DELIVERED.
+    #[default]
+    Sync,
+    /// Upload to Iroh blob store for async retrieval (24h TTL).
+    /// Uses DELIVERING state with eventual consistency.
+    Async,
+}
+
+impl std::fmt::Display for ResultDeliveryMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResultDeliveryMode::Sync => write!(f, "sync"),
+            ResultDeliveryMode::Async => write!(f, "async"),
+        }
+    }
+}
+
+/// Payload containing job result data - either inline or as blob references.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum ResultPayload {
+    /// Inline encrypted result data (for sync delivery).
+    Inline {
+        /// Encrypted result/return value.
+        encrypted_result: Vec<u8>,
+        /// Encrypted stdout output.
+        encrypted_stdout: Vec<u8>,
+        /// Encrypted stderr output.
+        encrypted_stderr: Vec<u8>,
+    },
+    /// Blob hashes for async delivery via Iroh.
+    Blob {
+        /// Hash of the encrypted result blob in Iroh.
+        encrypted_result_hash: Hash,
+        /// Hash of the encrypted stdout blob in Iroh.
+        encrypted_stdout_hash: Hash,
+        /// Hash of the encrypted stderr blob in Iroh.
+        encrypted_stderr_hash: Hash,
+    },
+}
+
+impl ResultPayload {
+    /// Creates an inline payload from encrypted data.
+    pub fn inline(
+        encrypted_result: Vec<u8>,
+        encrypted_stdout: Vec<u8>,
+        encrypted_stderr: Vec<u8>,
+    ) -> Self {
+        Self::Inline {
+            encrypted_result,
+            encrypted_stdout,
+            encrypted_stderr,
+        }
+    }
+
+    /// Creates a blob payload from Iroh hashes.
+    pub fn blob(
+        encrypted_result_hash: Hash,
+        encrypted_stdout_hash: Hash,
+        encrypted_stderr_hash: Hash,
+    ) -> Self {
+        Self::Blob {
+            encrypted_result_hash,
+            encrypted_stdout_hash,
+            encrypted_stderr_hash,
+        }
+    }
+
+    /// Returns true if this is an inline payload.
+    pub fn is_inline(&self) -> bool {
+        matches!(self, Self::Inline { .. })
+    }
+
+    /// Returns true if this is a blob payload.
+    pub fn is_blob(&self) -> bool {
+        matches!(self, Self::Blob { .. })
+    }
+}
+
 /// Resource requirements for a job (plaintext - worker needs for allocation).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JobManifest {
@@ -510,6 +597,10 @@ pub struct EncryptedJobRequest {
 
     /// Solana PDA of the payment channel (for key derivation).
     pub channel_pda: [u8; 32],
+
+    /// Requested result delivery mode (defaults to Sync).
+    #[serde(default)]
+    pub delivery_mode: ResultDeliveryMode,
 }
 
 /// Payment ticket for job authorization.
@@ -536,19 +627,14 @@ pub struct PaymentTicket {
 /// Encrypted job result from worker to user.
 ///
 /// Exit code and execution time remain plaintext for state machine handling.
+/// The payload can be either inline (sync delivery) or blob references (async).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedJobResult {
     /// The job this result is for.
     pub job_id: String,
 
-    /// Hash of the encrypted result blob in Iroh.
-    pub encrypted_result_hash: Hash,
-
-    /// Hash of the encrypted stdout blob in Iroh.
-    pub encrypted_stdout_hash: Hash,
-
-    /// Hash of the encrypted stderr blob in Iroh.
-    pub encrypted_stderr_hash: Hash,
+    /// Result payload - inline data or Iroh blob hashes.
+    pub payload: ResultPayload,
 
     /// Exit code of the job (0 = success).
     pub exit_code: i32,
