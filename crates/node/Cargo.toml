@@ -9,6 +9,7 @@ repository.workspace = true
 default = []
 integration-tests = []
 e2e = []
+tpm2-tools = []  # Enable TPM2 command-line tool fallback for attestation
 
 [dependencies]
 # The official AWS Firecracker SDK.
@@ -55,9 +56,13 @@ dirs = "5.0"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
+hmac = "0.12"
 ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }
 curve25519-dalek = { version = "5.0.0-pre" }
 zeroize = { version = "1.7", features = ["derive"] }
+
+# System info
+num_cpus = "1.16"
 
 # Solana integration
 solana-sdk = "2.1"
@@ -67,10 +72,6 @@ solana-client = "2.1"
 tempfile = "3.8"
 rand = "0.8"
 
-
-[[bin]]
-name = "graphene-worker"
-path = "bin/worker.rs"
 
 # TODO: Binaries need updating for iroh 0.96.0 API changes
 # [[bin]]

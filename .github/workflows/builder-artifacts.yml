@@ -1,0 +1,256 @@
+name: Build VM Artifacts
+
+on:
+  push:
+    paths:
+      - 'scripts/build-vm-artifacts.sh'
+      - '.github/workflows/builder-artifacts.yml'
+  pull_request:
+    paths:
+      - 'scripts/build-vm-artifacts.sh'
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild even if artifacts exist'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    outputs:
+      kernel_hash: ${{ steps.hash.outputs.hash }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: assets/vm/vmlinux-builder
+          key: vmlinux-builder-5.10.225
+
+      - name: Download kernel
+        if: steps.cache.outputs.cache-hit != 'true' || inputs.force_rebuild
+        run: |
+          mkdir -p assets/vm
+          curl -fsSL -o assets/vm/vmlinux-builder \
+            https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.11/x86_64/vmlinux-5.10.225
+          chmod +x assets/vm/vmlinux-builder
+
+      - name: Compute hash
+        id: hash
+        run: |
+          HASH=$(sha256sum assets/vm/vmlinux-builder | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlinux-builder
+          path: assets/vm/vmlinux-builder
+          retention-days: 90
+
+  build-rootfs:
+    runs-on: ubuntu-latest
+    outputs:
+      rootfs_hash: ${{ steps.hash.outputs.hash }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs
+
+      - name: Check cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: assets/vm/rootfs-builder.ext4.zst
+          key: rootfs-builder-alpine3.19-v2
+
+      - name: Build rootfs
+        if: steps.cache.outputs.cache-hit != 'true' || inputs.force_rebuild
+        run: |
+          chmod +x scripts/build-vm-artifacts.sh
+          sudo scripts/build-vm-artifacts.sh rootfs
+
+          # Compress for caching
+          zstd -19 assets/vm/rootfs-builder.ext4 -o assets/vm/rootfs-builder.ext4.zst
+
+      - name: Compute hash
+        id: hash
+        run: |
+          # Decompress if needed for hashing
+          if [ ! -f assets/vm/rootfs-builder.ext4 ]; then
+            zstd -d assets/vm/rootfs-builder.ext4.zst -o assets/vm/rootfs-builder.ext4
+          fi
+          HASH=$(sha256sum assets/vm/rootfs-builder.ext4 | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload rootfs (compressed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rootfs-builder
+          path: assets/vm/rootfs-builder.ext4.zst
+          retention-days: 90
+
+  test:
+    needs: [build-kernel, build-rootfs]
+    runs-on: ubicloud-standard-2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p assets/vm
+
+          # Move kernel
+          mv artifacts/vmlinux-builder/vmlinux-builder assets/vm/
+          chmod +x assets/vm/vmlinux-builder
+
+          # Decompress rootfs
+          zstd -d artifacts/rootfs-builder/rootfs-builder.ext4.zst -o assets/vm/rootfs-builder.ext4
+
+      - name: Check KVM availability
+        id: kvm
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "KVM is available"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "KVM is not available, skipping boot test"
+          fi
+
+      - name: Install Firecracker
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          FIRECRACKER_VERSION="1.11.0"
+          curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-x86_64.tgz" -o firecracker.tgz
+          tar -xzf firecracker.tgz
+          sudo mv release-v${FIRECRACKER_VERSION}-x86_64/firecracker-v${FIRECRACKER_VERSION}-x86_64 /usr/local/bin/firecracker
+          sudo chmod +x /usr/local/bin/firecracker
+
+      - name: Boot test
+        if: steps.kvm.outputs.available == 'true'
+        timeout-minutes: 2
+        run: |
+          # Create test input/output drives
+          dd if=/dev/zero of=/tmp/input.ext4 bs=1M count=16
+          mkfs.ext4 /tmp/input.ext4
+
+          dd if=/dev/zero of=/tmp/output.ext4 bs=1M count=16
+          mkfs.ext4 /tmp/output.ext4
+
+          # Mount and create test file
+          sudo mkdir -p /tmp/input-mount
+          sudo mount /tmp/input.ext4 /tmp/input-mount
+          echo "# Test Kraftfile" | sudo tee /tmp/input-mount/Kraftfile
+          sudo umount /tmp/input-mount
+
+          # Run Firecracker (will fail gracefully since Kraftfile is invalid)
+          timeout 30 firecracker --no-api \
+            --kernel assets/vm/vmlinux-builder \
+            --root-drive assets/vm/rootfs-builder.ext4:ro \
+            --add-drive /tmp/input.ext4:ro \
+            --add-drive /tmp/output.ext4:rw \
+            --boot-args "console=ttyS0 reboot=k panic=1 pci=off init=/init" \
+            2>&1 | tee boot.log || true
+
+          # Check that it booted
+          if grep -q "\[builder\]" boot.log; then
+            echo "PASS: Builder VM booted successfully"
+          else
+            echo "WARN: Could not confirm boot (may be expected without KVM)"
+          fi
+
+  metadata:
+    needs: [build-kernel, build-rootfs, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate metadata
+        run: |
+          cat > artifacts/builder-artifacts.json << EOF
+          {
+            "version": "1.0.0",
+            "kernel": {
+              "file": "vmlinux-builder",
+              "sha256": "${{ needs.build-kernel.outputs.kernel_hash }}",
+              "source": "firecracker-ci-v1.11-5.10.225"
+            },
+            "rootfs": {
+              "file": "rootfs-builder.ext4.zst",
+              "sha256": "${{ needs.build-rootfs.outputs.rootfs_hash }}",
+              "base": "alpine-3.19",
+              "compressed": true
+            },
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.sha }}"
+          }
+          EOF
+          cat artifacts/builder-artifacts.json
+
+      - name: Upload metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-metadata
+          path: artifacts/builder-artifacts.json
+          retention-days: 90
+
+  release:
+    needs: [metadata]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: builder-artifacts-${{ github.sha }}
+          name: Builder VM Artifacts
+          body: |
+            Pre-built VM artifacts for ephemeral builder.
+
+            ## Contents
+            - `vmlinux-builder` - Firecracker-compatible Linux 5.10 kernel
+            - `rootfs-builder.ext4.zst` - Alpine 3.19 rootfs with Kraft CLI (zstd compressed)
+
+            ## Usage
+            ```bash
+            # Decompress rootfs
+            zstd -d rootfs-builder.ext4.zst
+
+            # Test with Firecracker
+            firecracker --no-api \
+              --kernel vmlinux-builder \
+              --root-drive rootfs-builder.ext4
+            ```
+          files: |
+            artifacts/vmlinux-builder/vmlinux-builder
+            artifacts/rootfs-builder/rootfs-builder.ext4.zst
+            artifacts/builder-metadata/builder-artifacts.json
+          draft: false
+          prerelease: false

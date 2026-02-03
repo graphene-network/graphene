@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/node",
+    "crates/ctl",
 ]
 resolver = "2"
 

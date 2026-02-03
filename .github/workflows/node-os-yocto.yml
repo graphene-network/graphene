@@ -1,0 +1,387 @@
+name: Build Node OS (Yocto)
+
+on:
+  # PRs: validation only (fast parse check)
+  pull_request:
+    paths:
+      - 'node-os/yocto/**'
+      - '.github/workflows/node-os-yocto.yml'
+
+  # Release tags: full build
+  push:
+    tags:
+      - 'node-os-v*'
+
+  # Weekly drift check (Sundays at 2am UTC)
+  schedule:
+    - cron: '0 2 * * 0'
+
+  # Manual trigger for full builds
+  workflow_dispatch:
+    inputs:
+      machine:
+        description: 'Machine to build (or "all")'
+        required: false
+        default: 'graphene-node-x86_64'
+        type: choice
+        options:
+          - graphene-node-x86_64
+          - graphene-node-aarch64
+          - all
+      skip_cache:
+        description: 'Skip sstate cache'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  YOCTO_RELEASE: "kirkstone"
+  SSTATE_BUCKET: "graphene-sstate"
+  BUILD_DIR: "/tmp/yocto-build"
+
+jobs:
+  # Fast validation for PRs - parse recipes without building
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubicloud-standard-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Yocto dependencies
+        timeout-minutes: 10
+        run: |
+          set -eo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+            python3-subunit zstd liblz4-tool file locales libacl1
+
+          sudo locale-gen en_US.UTF-8
+
+      - name: Enable unprivileged user namespaces
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          # Ubuntu 24.04 restricts unprivileged user namespaces by default
+          # BitBake requires this for pseudo/fakeroot operations
+          echo 'kernel.apparmor_restrict_unprivileged_userns = 0' | sudo tee /etc/sysctl.d/99-userns.conf
+          sudo sysctl -p /etc/sysctl.d/99-userns.conf
+
+      - name: Clone Poky (Yocto reference)
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://git.yoctoproject.org/poky poky
+
+      - name: Configure build environment
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+
+          cat > conf/bblayers.conf << EOF
+          POKY_BBLAYERS_CONF_VERSION = "2"
+          BBPATH = "\${TOPDIR}"
+          BBFILES ?= ""
+          BBLAYERS ?= " \\
+              ${{ github.workspace }}/poky/meta \\
+              ${{ github.workspace }}/poky/meta-poky \\
+              ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
+          "
+          EOF
+
+          cat > conf/local.conf << EOF
+          MACHINE = "graphene-node-x86_64"
+          BB_NUMBER_THREADS = "4"
+          PARALLEL_MAKE = "-j 4"
+          DL_DIR = "${{ env.BUILD_DIR }}/downloads"
+          SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
+          TMPDIR = "${{ env.BUILD_DIR }}/tmp"
+          INHERIT += "externalsrc"
+          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          SRCREV:pn-graphene-node = "${{ github.sha }}"
+          EOF
+
+      - name: Parse recipes (validation)
+        timeout-minutes: 10
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+
+          echo "::group::Parsing all recipes"
+          # -p = parse only, validates recipe syntax and dependencies
+          bitbake -p 2>&1 | tee parse.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Recipe parsing failed"
+            tail -50 parse.log
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Checking graphene-node-image recipe"
+          # Verify our image recipe is valid
+          bitbake -e graphene-node-image > /dev/null 2>&1
+          echo "✓ graphene-node-image recipe is valid"
+          echo "::endgroup::"
+
+  # Full build for releases, scheduled runs, and manual dispatch
+  generate-matrix:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate build matrix
+        id: generate
+        run: |
+          if [ "${{ inputs.machine }}" = "all" ] || [ -z "${{ inputs.machine }}" ]; then
+            MATRIX='{"machine":["graphene-node-x86_64"]}'
+            # aarch64 requires cross-compilation setup, disabled for now
+            # MATRIX='{"machine":["graphene-node-x86_64","graphene-node-aarch64"]}'
+          else
+            MATRIX='{"machine":["${{ inputs.machine }}"]}'
+          fi
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: generate-matrix
+    if: github.event_name != 'pull_request'
+    runs-on: ubicloud-standard-16
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Yocto dependencies
+        timeout-minutes: 10
+        run: |
+          set -eo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+            python3-subunit zstd liblz4-tool file locales libacl1 \
+            qemu-system-x86
+
+          # Set locale
+          sudo locale-gen en_US.UTF-8
+
+      - name: Enable unprivileged user namespaces
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          # Ubuntu 24.04 restricts unprivileged user namespaces by default
+          # BitBake requires this for pseudo/fakeroot operations
+          echo 'kernel.apparmor_restrict_unprivileged_userns = 0' | sudo tee /etc/sysctl.d/99-userns.conf
+          sudo sysctl -p /etc/sysctl.d/99-userns.conf
+
+      - name: Clone Poky (Yocto reference)
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://git.yoctoproject.org/poky poky
+
+      - name: Configure S3 sstate cache
+        if: ${{ !inputs.skip_cache }}
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          # Configure read-only sstate mirror from S3
+          mkdir -p ${{ env.BUILD_DIR }}/conf
+          echo 'SSTATE_MIRRORS = "file://.* https://${{ env.SSTATE_BUCKET }}.s3.amazonaws.com/sstate-cache/PATH"' >> ${{ env.BUILD_DIR }}/conf/site.conf
+
+      - name: Configure build
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+
+          # Configure layers
+          cat > conf/bblayers.conf << EOF
+          POKY_BBLAYERS_CONF_VERSION = "2"
+          BBPATH = "\${TOPDIR}"
+          BBFILES ?= ""
+          BBLAYERS ?= " \\
+              ${{ github.workspace }}/poky/meta \\
+              ${{ github.workspace }}/poky/meta-poky \\
+              ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
+          "
+          EOF
+
+          # Configure local.conf
+          # Use EXTERNALSRC to build from the already-checked-out repository
+          # This avoids git fetch issues with branch names containing slashes
+          cat > conf/local.conf << EOF
+          MACHINE = "${{ matrix.machine }}"
+          BB_NUMBER_THREADS = "16"
+          PARALLEL_MAKE = "-j 16"
+          DL_DIR = "${{ env.BUILD_DIR }}/downloads"
+          SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
+          TMPDIR = "${{ env.BUILD_DIR }}/tmp"
+          PACKAGE_CLASSES = "package_rpm"
+          INHERIT += "create-spdx"
+          INHERIT += "externalsrc"
+          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          # Override SRCREV to prevent BitBake from querying the git remote
+          # (AUTOREV triggers git ls-remote which fails without credentials)
+          SRCREV:pn-graphene-node = "${{ github.sha }}"
+          EOF
+
+      - name: Build image
+        timeout-minutes: 90
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+          # Run bitbake with explicit error handling
+          # 2>&1: merge stderr to stdout for proper logging
+          bitbake graphene-node-image 2>&1 | tee bitbake.log
+          # Check exit status
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::BitBake build failed"
+            tail -100 bitbake.log
+            exit 1
+          fi
+
+      - name: Verify shell removal
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          cd ${{ env.BUILD_DIR }}
+          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: No image found"
+            exit 1
+          fi
+
+          echo "Checking image: $IMAGE"
+          mkdir -p /tmp/rootfs
+          sudo mount -o loop,ro "$IMAGE" /tmp/rootfs
+
+          SHELLS_FOUND=0
+          for shell in sh bash ash dash zsh; do
+            if [ -f "/tmp/rootfs/bin/${shell}" ] || [ -f "/tmp/rootfs/usr/bin/${shell}" ]; then
+              echo "ERROR: Shell found: ${shell}"
+              SHELLS_FOUND=1
+            fi
+          done
+
+          sudo umount /tmp/rootfs
+
+          if [ $SHELLS_FOUND -eq 1 ]; then
+            echo "FAIL: Shell binaries found in rootfs"
+            exit 1
+          fi
+          echo "PASS: No shell binaries in rootfs"
+
+      - name: Check image size
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          cd ${{ env.BUILD_DIR }}
+          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+          SIZE=$(stat -c%s "$IMAGE")
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Image size: ${SIZE_MB}MB"
+
+          if [ $SIZE_MB -gt 50 ]; then
+            echo "WARNING: Image size exceeds 50MB target"
+          else
+            echo "PASS: Image size under 50MB target"
+          fi
+
+      - name: Generate build metadata
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          cd ${{ env.BUILD_DIR }}
+          cat > build-info.json << EOF
+          {
+            "yocto_release": "${{ env.YOCTO_RELEASE }}",
+            "machine": "${{ matrix.machine }}",
+            "image_size_bytes": $(stat -c%s "$(find tmp/deploy/images -name 'graphene-node-image-*.ext4' | head -1)"),
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Upload artifacts
+        timeout-minutes: 15
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphene-node-os-yocto-${{ matrix.machine }}
+          path: |
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.wic.gz
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.ext4
+            ${{ env.BUILD_DIR }}/tmp/deploy/licenses/graphene-node-image/
+            ${{ env.BUILD_DIR }}/build-info.json
+          retention-days: 30
+
+      - name: Upload sstate to S3
+        if: startsWith(github.ref, 'refs/tags/node-os-v')
+        timeout-minutes: 30
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -eo pipefail
+          # Sync new sstate entries to S3
+          aws s3 sync ${{ env.BUILD_DIR }}/sstate-cache/ s3://${{ env.SSTATE_BUCKET }}/sstate-cache/ \
+            --exclude "*" --include "sstate:*" \
+            --no-progress
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/node-os-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Node OS (Yocto) - ${{ github.ref_name }}
+          body: |
+            Graphene Node OS built with Yocto (${{ env.YOCTO_RELEASE }}).
+
+            ## Features
+            - Minimal Linux host OS for Firecracker
+            - Shell-less (no /bin/sh, /bin/bash)
+            - Security hardened (RELRO, stack protector, fortify)
+            - SPDX SBOM included
+
+            ## Architectures
+            - x86_64
+
+            ## Image Details
+            - Target size: <50MB
+            - Init system: systemd
+            - dm-verity: Planned (Phase 2)
+          files: |
+            artifacts/**/*.wic.gz
+            artifacts/**/*.json
+          draft: false
+          prerelease: true

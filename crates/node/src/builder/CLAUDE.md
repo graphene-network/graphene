@@ -7,6 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #12012 | 12:50 AM | 🔵 | MockBuilder provides spy state tracking for testing drive creation without filesystem operations | ~410 |
-| #11930 | 12:46 AM | 🔵 | DriveBuilder trait defines interface for creating ext4 filesystem images for VM code and dependencies | ~434 |
+| #12843 | 9:54 AM | 🔵 | DriveBuilder trait defines async interface for ext4 image creation | ~546 |
+| #12822 | 9:52 AM | 🔵 | LinuxBuilder implements ext4 drive creation for job isolation | ~534 |
 </claude-mem-context>
