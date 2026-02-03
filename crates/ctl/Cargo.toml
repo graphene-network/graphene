@@ -6,6 +6,10 @@ license.workspace = true
 repository.workspace = true
 description = "Remote management CLI for Graphene nodes"
 
+[lib]
+name = "graphenectl"
+path = "src/lib.rs"
+
 [[bin]]
 name = "graphenectl"
 path = "src/main.rs"

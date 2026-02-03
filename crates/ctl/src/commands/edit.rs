@@ -6,10 +6,33 @@ use monad_node::management::{ManagementRequest, ManagementResponse, NodeConfig};
 use std::path::Path;
 use std::process::Command;
 
-pub async fn run(config_path: &str, node: &str, resource: &str) -> anyhow::Result<()> {
+/// Supported resource types for the edit command
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditResource {
+    Config,
+}
+
+/// Parse a resource string into an EditResource enum.
+pub fn parse_edit_resource(resource: &str) -> Result<EditResource, String> {
     match resource {
-        "config" => edit_config(config_path, node).await,
-        _ => anyhow::bail!("Unknown resource: {}. Use 'config'", resource),
+        "config" => Ok(EditResource::Config),
+        _ => Err(format!("Unknown resource: {}. Use 'config'", resource)),
+    }
+}
+
+/// Get the editor command from environment or use default.
+pub fn get_editor() -> String {
+    std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string())
+}
+
+/// Generate a temp file path for editing a node's config.
+pub fn temp_config_path(node: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("graphene-config-{}.yaml", node))
+}
+
+pub async fn run(config_path: &str, node: &str, resource: &str) -> anyhow::Result<()> {
+    match parse_edit_resource(resource).map_err(|e| anyhow::anyhow!("{}", e))? {
+        EditResource::Config => edit_config(config_path, node).await,
     }
 }
 
@@ -29,12 +52,11 @@ async fn edit_config(config_path: &str, node: &str) -> anyhow::Result<()> {
     };
 
     // 2. Write to temp file
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(format!("graphene-config-{}.yaml", node));
+    let temp_path = temp_config_path(node);
     std::fs::write(&temp_path, serde_yaml::to_string(&current_config)?)?;
 
     // 3. Open in $EDITOR
-    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+    let editor = get_editor();
     let status = Command::new(&editor).arg(&temp_path).status()?;
 
     if !status.success() {
@@ -68,4 +90,50 @@ async fn edit_config(config_path: &str, node: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_edit_resource_config() {
+        assert_eq!(parse_edit_resource("config"), Ok(EditResource::Config));
+    }
+
+    #[test]
+    fn test_parse_edit_resource_invalid() {
+        assert!(parse_edit_resource("status").is_err());
+        assert!(parse_edit_resource("").is_err());
+        assert!(parse_edit_resource("Config").is_err()); // Case sensitive
+    }
+
+    #[test]
+    fn test_parse_edit_resource_error_message() {
+        let err = parse_edit_resource("invalid").unwrap_err();
+        assert!(err.contains("Unknown resource"));
+        assert!(err.contains("config"));
+    }
+
+    #[test]
+    fn test_get_editor_default() {
+        // When EDITOR is not set, should return "vi"
+        std::env::remove_var("EDITOR");
+        assert_eq!(get_editor(), "vi");
+    }
+
+    #[test]
+    fn test_temp_config_path() {
+        let path = temp_config_path("my-node");
+        assert!(path
+            .to_string_lossy()
+            .contains("graphene-config-my-node.yaml"));
+    }
+
+    #[test]
+    fn test_temp_config_path_special_chars() {
+        // Node names with special characters should be included as-is
+        let path = temp_config_path("node-123");
+        assert!(path.to_string_lossy().contains("node-123"));
+    }
 }

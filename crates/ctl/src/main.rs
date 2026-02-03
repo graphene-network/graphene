@@ -22,13 +22,10 @@
 //! graphenectl drain
 //! ```
 
-mod client;
-mod commands;
-mod config;
-mod output;
-
 use clap::{Parser, Subcommand};
-use output::OutputFormat;
+use graphenectl::{
+    commands, parse_output_format, require_node, shellexpand, CapAction, ConfigAction, OutputFormat,
+};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
@@ -166,59 +163,6 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand)]
-enum CapAction {
-    /// Generate new capability token
-    Generate {
-        /// Role (admin, operator, reader)
-        #[arg(long, default_value = "reader")]
-        role: String,
-
-        /// TTL in days (0 for no expiry)
-        #[arg(long)]
-        ttl: Option<u32>,
-    },
-
-    /// List capabilities
-    List,
-
-    /// Revoke capability by prefix
-    Revoke {
-        /// Token prefix to revoke
-        prefix: String,
-    },
-}
-
-#[derive(Subcommand)]
-enum ConfigAction {
-    /// Add a node to config
-    Add {
-        /// Node name
-        name: String,
-
-        /// Node ID (ed25519 public key)
-        #[arg(long)]
-        node_id: String,
-
-        /// Capability token
-        #[arg(long)]
-        capability: String,
-
-        /// Direct endpoint (optional)
-        #[arg(long)]
-        endpoint: Option<String>,
-    },
-
-    /// Remove a node from config
-    Remove {
-        /// Node name
-        name: String,
-    },
-
-    /// List configured nodes
-    List,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -304,31 +248,5 @@ async fn main() -> anyhow::Result<()> {
             commands::capability::run(&config_path, &node, action).await
         }
         Commands::Config { action } => commands::config::run(&config_path, action).await,
-    }
-}
-
-fn require_node(node: &Option<String>) -> anyhow::Result<String> {
-    node.clone().ok_or_else(|| {
-        anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var")
-    })
-}
-
-fn parse_output_format(s: &str) -> OutputFormat {
-    match s.to_lowercase().as_str() {
-        "json" => OutputFormat::Json,
-        "yaml" => OutputFormat::Yaml,
-        _ => OutputFormat::Text,
-    }
-}
-
-mod shellexpand {
-    /// Expand ~ to home directory
-    pub fn tilde(path: &str) -> std::borrow::Cow<'_, str> {
-        if path.starts_with("~/") {
-            if let Some(home) = dirs::home_dir() {
-                return std::borrow::Cow::Owned(format!("{}{}", home.display(), &path[1..]));
-            }
-        }
-        std::borrow::Cow::Borrowed(path)
     }
 }

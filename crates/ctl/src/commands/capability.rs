@@ -7,6 +7,21 @@ use crate::CapAction;
 use monad_node::management::{ManagementRequest, ManagementResponse, Role};
 use std::path::Path;
 
+/// Parse a role string into a Role enum.
+///
+/// Accepts case-insensitive strings: "admin", "operator", "reader".
+pub fn parse_role(role: &str) -> Result<Role, String> {
+    match role.to_lowercase().as_str() {
+        "admin" => Ok(Role::Admin),
+        "operator" => Ok(Role::Operator),
+        "reader" => Ok(Role::Reader),
+        _ => Err(format!(
+            "Invalid role: {}. Use admin, operator, or reader",
+            role
+        )),
+    }
+}
+
 pub async fn run(config_path: &str, node: &str, action: CapAction) -> anyhow::Result<()> {
     let config = ClientConfig::load(Path::new(config_path))?;
     let entry = config
@@ -16,12 +31,7 @@ pub async fn run(config_path: &str, node: &str, action: CapAction) -> anyhow::Re
 
     match action {
         CapAction::Generate { role, ttl } => {
-            let role = match role.to_lowercase().as_str() {
-                "admin" => Role::Admin,
-                "operator" => Role::Operator,
-                "reader" => Role::Reader,
-                _ => anyhow::bail!("Invalid role: {}. Use admin, operator, or reader", role),
-            };
+            let role = parse_role(&role).map_err(|e| anyhow::anyhow!("{}", e))?;
 
             let response = client
                 .request(ManagementRequest::GenerateCapability {
@@ -70,4 +80,51 @@ pub async fn run(config_path: &str, node: &str, action: CapAction) -> anyhow::Re
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_role_admin() {
+        assert!(matches!(parse_role("admin"), Ok(Role::Admin)));
+    }
+
+    #[test]
+    fn test_parse_role_operator() {
+        assert!(matches!(parse_role("operator"), Ok(Role::Operator)));
+    }
+
+    #[test]
+    fn test_parse_role_reader() {
+        assert!(matches!(parse_role("reader"), Ok(Role::Reader)));
+    }
+
+    #[test]
+    fn test_parse_role_case_insensitive() {
+        assert!(matches!(parse_role("ADMIN"), Ok(Role::Admin)));
+        assert!(matches!(parse_role("Admin"), Ok(Role::Admin)));
+        assert!(matches!(parse_role("OPERATOR"), Ok(Role::Operator)));
+        assert!(matches!(parse_role("Operator"), Ok(Role::Operator)));
+        assert!(matches!(parse_role("READER"), Ok(Role::Reader)));
+        assert!(matches!(parse_role("Reader"), Ok(Role::Reader)));
+    }
+
+    #[test]
+    fn test_parse_role_invalid() {
+        assert!(parse_role("superuser").is_err());
+        assert!(parse_role("root").is_err());
+        assert!(parse_role("").is_err());
+        assert!(parse_role("adminn").is_err()); // Typo
+    }
+
+    #[test]
+    fn test_parse_role_error_message() {
+        let err = parse_role("invalid").unwrap_err();
+        assert!(err.contains("Invalid role"));
+        assert!(err.contains("admin"));
+        assert!(err.contains("operator"));
+        assert!(err.contains("reader"));
+    }
 }
