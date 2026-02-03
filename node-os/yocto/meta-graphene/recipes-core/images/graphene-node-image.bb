@@ -36,11 +36,12 @@ IMAGE_FEATURES:remove = "debug-tweaks ssh-server-openssh"
 # No package management (immutable OS)
 IMAGE_FEATURES:remove = "package-management"
 
-# Post-process: Remove shells and harden
-ROOTFS_POSTPROCESS_COMMAND:append = " graphene_remove_shells; graphene_harden_rootfs;"
+# Post-process: Strip shells and harden
+# Note: Function names avoid underscores that BitBake might interpret as old override syntax
+ROOTFS_POSTPROCESS_COMMAND:append = " graphene_stripshells; graphene_hardenrootfs;"
 
 # Remove all shell binaries
-graphene_remove_shells() {
+graphene_stripshells() {
     # Remove shell binaries
     rm -f ${IMAGE_ROOTFS}/bin/sh \
           ${IMAGE_ROOTFS}/bin/bash \
@@ -68,7 +69,7 @@ graphene_remove_shells() {
 }
 
 # Additional security hardening
-graphene_harden_rootfs() {
+graphene_hardenrootfs() {
     # Create Graphene directories
     install -d ${IMAGE_ROOTFS}/etc/graphene
     install -d ${IMAGE_ROOTFS}/var/lib/graphene

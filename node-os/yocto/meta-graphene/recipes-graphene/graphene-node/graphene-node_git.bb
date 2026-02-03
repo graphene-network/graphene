@@ -6,8 +6,8 @@ HOMEPAGE = "https://graphene.network"
 LICENSE = "AGPL-3.0-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=FIXME_ADD_CHECKSUM"
 
-# Fetch from git
-SRC_URI = "git://github.com/graphene-network/graphene.git;protocol=https;branch=main"
+# Fetch from git - uses the monad repository
+SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=main"
 SRCREV = "${AUTOREV}"
 PV = "0.1.0+git${SRCPV}"
 
