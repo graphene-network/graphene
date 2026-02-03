@@ -22,7 +22,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```rust,ignore
 //! use monad_node::ticket::{
 //!     DefaultTicketSigner, DefaultTicketValidator, TicketSigner, TicketValidator,
 //!     ChannelState,
