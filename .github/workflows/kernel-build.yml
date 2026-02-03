@@ -77,18 +77,27 @@ jobs:
           KERNEL_PATH=".unikraft/build/${KERNEL_NAME}"
           PACKAGE="unikraft.org/${{ matrix.runtime }}:${{ matrix.version }}"
 
-          echo "=== Pulling package ${PACKAGE} ==="
-          kraft pkg pull --plat fc --arch ${{ matrix.arch }} "${PACKAGE}"
+          echo "=== Pulling package ${PACKAGE} to extract kernel ==="
+          # Use -w flag to specify output directory, kernel lands at <dir>/unikraft/bin/kernel
+          kraft pkg pull -w .unikraft/pkg --plat fc --arch ${{ matrix.arch }} "${PACKAGE}"
 
-          echo "=== Exporting kernel from ${PACKAGE} ==="
-          kraft pkg export --plat fc --arch ${{ matrix.arch }} --output "${KERNEL_PATH}" "${PACKAGE}"
+          echo "=== Package contents ==="
+          find .unikraft/pkg -type f 2>/dev/null || true
+
+          # Copy kernel to expected location
+          if [ -f ".unikraft/pkg/unikraft/bin/kernel" ]; then
+            cp .unikraft/pkg/unikraft/bin/kernel "${KERNEL_PATH}"
+          else
+            echo "Kernel not found at expected path, searching..."
+            FOUND_KERNEL=$(find .unikraft/pkg -type f -name "kernel" -o -name "*_fc-*" 2>/dev/null | head -1)
+            if [ -n "${FOUND_KERNEL}" ]; then
+              cp "${FOUND_KERNEL}" "${KERNEL_PATH}"
+            fi
+          fi
 
           # Verify kernel exists
           if [ ! -f "${KERNEL_PATH}" ]; then
             echo "Error: Kernel file not found at ${KERNEL_PATH}"
-            echo "=== Checking kraft cache ==="
-            find ~/.local/share/kraftkit -type f -name "*kernel*" 2>/dev/null | head -20 || true
-            find ~/.cache/kraftkit -type f 2>/dev/null | head -20 || true
             exit 1
           fi
 
