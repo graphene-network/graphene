@@ -14,6 +14,7 @@ use std::path::Path;
 pub mod graphene;
 pub mod messages;
 pub mod mock;
+pub mod protocol;
 pub mod types;
 pub mod validation;
 

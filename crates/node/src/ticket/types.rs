@@ -35,7 +35,8 @@ impl From<Signature64> for [u8; 64] {
 
 impl Serialize for Signature64 {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_bytes(&self.0)
+        // Use slice serialization for bincode compatibility (not serialize_bytes)
+        self.0.as_slice().serialize(serializer)
     }
 }
 
