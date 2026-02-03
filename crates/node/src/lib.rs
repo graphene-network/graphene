@@ -9,6 +9,7 @@ pub mod kernel;
 pub mod metrics;
 pub mod p2p;
 pub mod protocol;
+pub mod result;
 pub mod unikraft;
 pub mod vmm;
 pub mod worker;

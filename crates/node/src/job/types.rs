@@ -2,6 +2,7 @@
 
 use super::state::{JobState, UserJobState};
 use super::JobError;
+use crate::p2p::messages::ResultDeliveryMode;
 use iroh_blobs::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -143,6 +144,9 @@ pub struct Job {
     pub result_hash: Option<Hash>,
     /// ID of the worker processing this job
     pub worker_id: Option<String>,
+    /// Requested result delivery mode
+    #[serde(default)]
+    pub delivery_mode: ResultDeliveryMode,
 }
 
 impl Job {
@@ -157,7 +161,15 @@ impl Job {
             exit_code: None,
             result_hash: None,
             worker_id: None,
+            delivery_mode: ResultDeliveryMode::default(),
         }
+    }
+
+    /// Creates a new job with a specific delivery mode.
+    pub fn with_delivery_mode(id: impl Into<String>, delivery_mode: ResultDeliveryMode) -> Self {
+        let mut job = Self::new(id);
+        job.delivery_mode = delivery_mode;
+        job
     }
 
     /// Transitions the job to a new state.
@@ -215,12 +227,37 @@ impl Job {
 
     /// Transitions the job to the Delivering state with a result hash.
     ///
+    /// Use this for async delivery mode where results are uploaded to Iroh blob store.
+    ///
     /// # Errors
     ///
     /// Returns `JobError::InvalidTransition` if the current state cannot transition to Delivering.
     pub fn transition_to_delivering(&mut self, result_hash: Hash) -> Result<(), JobError> {
         self.result_hash = Some(result_hash);
         self.transition(JobState::Delivering)
+    }
+
+    /// Transitions the job directly to the Delivered state (sync delivery).
+    ///
+    /// Use this for sync delivery mode where results are streamed directly over QUIC.
+    /// This skips the Delivering state for lowest latency.
+    ///
+    /// # Errors
+    ///
+    /// Returns `JobError::InvalidTransition` if the current state cannot transition to Delivered.
+    /// Only valid from Succeeded, Failed, or Timeout states.
+    pub fn transition_to_delivered_sync(&mut self) -> Result<(), JobError> {
+        // Verify we're in an execution-complete state
+        if !matches!(
+            self.state,
+            JobState::Succeeded | JobState::Failed | JobState::Timeout
+        ) {
+            return Err(JobError::InvalidTransition {
+                from: self.state,
+                to: JobState::Delivered,
+            });
+        }
+        self.transition(JobState::Delivered)
     }
 
     /// Returns true if the job is in a terminal state.
@@ -549,6 +586,7 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
+            delivery_mode: ResultDeliveryMode::default(),
         };
 
         // Simulate state transitions with specific timestamps
@@ -582,6 +620,7 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
+            delivery_mode: ResultDeliveryMode::default(),
         };
 
         // Simulate cache hit path
@@ -619,6 +658,7 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
+            delivery_mode: ResultDeliveryMode::default(),
         };
 
         let metrics = job.compute_metrics();
@@ -662,5 +702,80 @@ mod tests {
         assert_eq!(parsed.state, job.state);
         assert_eq!(parsed.worker_id, job.worker_id);
         assert_eq!(parsed.state_history.len(), job.state_history.len());
+    }
+
+    #[test]
+    fn test_sync_delivery_path() {
+        // Test the sync delivery path: SUCCEEDED → DELIVERED (skipping DELIVERING)
+        let mut job = make_test_job();
+
+        job.transition(JobState::Accepted).unwrap();
+        job.transition(JobState::Cached).unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition_with_exit_code(JobState::Succeeded, exit_code::SUCCESS)
+            .unwrap();
+
+        // Direct transition to Delivered (sync mode)
+        assert!(job.transition_to_delivered_sync().is_ok());
+        assert_eq!(job.state, JobState::Delivered);
+        assert!(job.is_terminal());
+
+        // Result hash is not set for sync delivery (data sent inline)
+        assert!(job.result_hash.is_none());
+
+        // History should have 6 transitions (no DELIVERING state)
+        assert_eq!(job.state_history.len(), 6);
+    }
+
+    #[test]
+    fn test_sync_delivery_from_failed() {
+        let mut job = make_test_job();
+
+        job.transition(JobState::Accepted).unwrap();
+        job.transition(JobState::Building).unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition_with_exit_code(JobState::Failed, exit_code::WORKER_CRASH)
+            .unwrap();
+
+        // Can sync deliver even on failure
+        assert!(job.transition_to_delivered_sync().is_ok());
+        assert_eq!(job.state, JobState::Delivered);
+    }
+
+    #[test]
+    fn test_sync_delivery_from_timeout() {
+        let mut job = make_test_job();
+
+        job.transition(JobState::Accepted).unwrap();
+        job.transition(JobState::Cached).unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition_with_exit_code(JobState::Timeout, exit_code::USER_TIMEOUT)
+            .unwrap();
+
+        // Can sync deliver on timeout
+        assert!(job.transition_to_delivered_sync().is_ok());
+        assert_eq!(job.state, JobState::Delivered);
+    }
+
+    #[test]
+    fn test_sync_delivery_invalid_from_running() {
+        let mut job = make_test_job();
+
+        job.transition(JobState::Accepted).unwrap();
+        job.transition(JobState::Cached).unwrap();
+        job.transition(JobState::Running).unwrap();
+
+        // Cannot sync deliver directly from Running
+        let err = job.transition_to_delivered_sync().unwrap_err();
+        assert!(matches!(err, JobError::InvalidTransition { .. }));
+    }
+
+    #[test]
+    fn test_job_with_delivery_mode() {
+        let job_sync = Job::new("job-sync");
+        assert_eq!(job_sync.delivery_mode, ResultDeliveryMode::Sync);
+
+        let job_async = Job::with_delivery_mode("job-async", ResultDeliveryMode::Async);
+        assert_eq!(job_async.delivery_mode, ResultDeliveryMode::Async);
     }
 }

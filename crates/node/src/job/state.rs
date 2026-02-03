@@ -11,10 +11,17 @@ use serde::{Deserialize, Serialize};
 /// State transitions follow this graph:
 /// ```text
 /// PENDING → ACCEPTED → [BUILDING|CACHED] → RUNNING → [SUCCEEDED|FAILED|TIMEOUT]
-///                                                            ↓
-///                                                       DELIVERING
-///                                                            ↓
-///                                                   [DELIVERED|EXPIRED]
+///                                                            │
+///                                              ┌─────────────┴─────────────┐
+///                                              │                           │
+///                                           [Sync]                      [Async]
+///                                              │                           │
+///                                              ▼                           ▼
+///                                          DELIVERED                  DELIVERING
+///                                                                          │
+///                                                              ┌───────────┴───────────┐
+///                                                              │                       │
+///                                                          DELIVERED               EXPIRED
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -83,6 +90,10 @@ impl JobState {
     }
 
     /// Returns the valid next states for this state.
+    ///
+    /// Note: Succeeded/Failed/Timeout can transition to either:
+    /// - Delivering (async mode: upload to Iroh blob store)
+    /// - Delivered (sync mode: direct QUIC streaming)
     pub fn valid_transitions(&self) -> &'static [JobState] {
         match self {
             JobState::Pending => &[JobState::Accepted],
@@ -90,7 +101,10 @@ impl JobState {
             JobState::Building => &[JobState::Running, JobState::Failed],
             JobState::Cached => &[JobState::Running],
             JobState::Running => &[JobState::Succeeded, JobState::Failed, JobState::Timeout],
-            JobState::Succeeded | JobState::Failed | JobState::Timeout => &[JobState::Delivering],
+            // Allow both sync (direct to Delivered) and async (via Delivering) paths
+            JobState::Succeeded | JobState::Failed | JobState::Timeout => {
+                &[JobState::Delivering, JobState::Delivered]
+            }
             JobState::Delivering => &[JobState::Delivered, JobState::Expired],
             JobState::Delivered | JobState::Expired => &[],
         }
@@ -239,7 +253,26 @@ mod tests {
         assert!(JobState::Running.can_transition_to(JobState::Succeeded));
         assert!(JobState::Running.can_transition_to(JobState::Failed));
         assert!(JobState::Running.can_transition_to(JobState::Timeout));
+        // Running cannot skip execution-complete states
         assert!(!JobState::Running.can_transition_to(JobState::Delivered));
+    }
+
+    #[test]
+    fn test_valid_transitions_execution_complete_dual_mode() {
+        // Succeeded can go to either Delivering (async) or Delivered (sync)
+        assert!(JobState::Succeeded.can_transition_to(JobState::Delivering));
+        assert!(JobState::Succeeded.can_transition_to(JobState::Delivered));
+
+        // Failed can go to either Delivering (async) or Delivered (sync)
+        assert!(JobState::Failed.can_transition_to(JobState::Delivering));
+        assert!(JobState::Failed.can_transition_to(JobState::Delivered));
+
+        // Timeout can go to either Delivering (async) or Delivered (sync)
+        assert!(JobState::Timeout.can_transition_to(JobState::Delivering));
+        assert!(JobState::Timeout.can_transition_to(JobState::Delivered));
+
+        // But cannot skip to Expired directly
+        assert!(!JobState::Succeeded.can_transition_to(JobState::Expired));
     }
 
     #[test]
