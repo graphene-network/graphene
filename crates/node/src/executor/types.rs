@@ -294,6 +294,7 @@ mod tests {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         }
     }
 
@@ -404,6 +405,7 @@ mod tests {
             }],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         };
 
         assert_eq!(manifest.egress_allowlist.len(), 1);

@@ -66,6 +66,7 @@ fn create_test_request(
             egress_allowlist: vec![],
             env: user_env,
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         },
         JobAssets {
             code_hash: Hash::from_bytes([1u8; 32]),
@@ -99,6 +100,7 @@ fn test_env_json_has_graphene_vars() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
     let user_env = HashMap::new();
 
@@ -131,6 +133,7 @@ fn test_user_env_vars_preserved() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     let mut user_env = HashMap::new();
@@ -160,6 +163,7 @@ fn test_reserved_vars_override_user_attempts() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     let mut user_env = HashMap::new();
@@ -223,6 +227,7 @@ async fn test_drive_builder_records_code_and_env() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     let mut user_env = HashMap::new();
@@ -256,6 +261,7 @@ async fn test_drive_builder_with_input() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     let code = b"code-content";
@@ -284,6 +290,7 @@ async fn test_drive_builder_no_input_when_not_provided() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     let result = builder
@@ -316,6 +323,7 @@ async fn test_runner_success_path() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     use monad_node::executor::VmmRunner;
@@ -351,6 +359,7 @@ async fn test_runner_timeout_behavior() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     use monad_node::executor::VmmRunner;
@@ -383,6 +392,7 @@ async fn test_runner_crash_behavior() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     use monad_node::executor::VmmRunner;
@@ -817,6 +827,7 @@ async fn test_runner_enforces_manifest_timeout() {
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,
+        estimated_ingress_mb: None,
     };
 
     use monad_node::executor::VmmRunner;

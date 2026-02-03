@@ -23,8 +23,11 @@ pub struct ExecutionMetrics {
     /// Memory allocated in MB.
     pub memory_mb: u32,
 
-    /// Network egress in bytes (Phase 2 - currently 0).
+    /// Network egress in bytes (VM -> external).
     pub egress_bytes: u64,
+
+    /// Network ingress in bytes (external -> VM).
+    pub ingress_bytes: u64,
 
     /// Exit code of the job.
     pub exit_code: i32,
@@ -37,6 +40,7 @@ impl ExecutionMetrics {
         vcpu: u8,
         memory_mb: u32,
         egress_bytes: u64,
+        ingress_bytes: u64,
         exit_code: i32,
     ) -> Self {
         Self {
@@ -44,6 +48,7 @@ impl ExecutionMetrics {
             vcpu,
             memory_mb,
             egress_bytes,
+            ingress_bytes,
             exit_code,
         }
     }
@@ -162,7 +167,7 @@ impl DefaultCostCalculator {
         Ok(cost.round() as u64)
     }
 
-    /// Calculate egress cost (Phase 2): egress_bytes / MB * egress_mb_micros
+    /// Calculate egress cost: egress_bytes / MB * egress_mb_micros
     fn calculate_egress_cost(
         &self,
         egress_bytes: u64,
@@ -172,6 +177,25 @@ impl DefaultCostCalculator {
             Some(price) => {
                 let egress_mb = egress_bytes as f64 / (1024.0 * 1024.0);
                 let cost = egress_mb * price;
+                if cost.is_infinite() || cost.is_nan() || cost < 0.0 || cost > u64::MAX as f64 {
+                    return Err(CostError::Overflow);
+                }
+                Ok(cost.round() as u64)
+            }
+            None => Ok(0),
+        }
+    }
+
+    /// Calculate ingress cost: ingress_bytes / MB * ingress_mb_micros
+    fn calculate_ingress_cost(
+        &self,
+        ingress_bytes: u64,
+        ingress_mb_micros: Option<f64>,
+    ) -> Result<u64, CostError> {
+        match ingress_mb_micros {
+            Some(price) => {
+                let ingress_mb = ingress_bytes as f64 / (1024.0 * 1024.0);
+                let cost = ingress_mb * price;
                 if cost.is_infinite() || cost.is_nan() || cost < 0.0 || cost > u64::MAX as f64 {
                     return Err(CostError::Overflow);
                 }
@@ -254,14 +278,17 @@ impl CostCalculator for DefaultCostCalculator {
             pricing.memory_mb_ms_micros,
         )?;
 
-        // Phase 2: Egress metering
-        // For now, egress_bytes is always 0, so this returns 0
-        let egress_cost = self.calculate_egress_cost(metrics.egress_bytes, None)?;
+        // Network metering: calculate egress and ingress costs
+        let egress_cost =
+            self.calculate_egress_cost(metrics.egress_bytes, pricing.egress_mb_micros)?;
+        let ingress_cost =
+            self.calculate_ingress_cost(metrics.ingress_bytes, pricing.ingress_mb_micros)?;
 
         // GPU cost (future)
         let gpu_cost = 0u64;
 
-        let breakdown = CostBreakdown::new(cpu_cost, memory_cost, egress_cost, gpu_cost);
+        let breakdown =
+            CostBreakdown::new(cpu_cost, memory_cost, egress_cost, ingress_cost, gpu_cost);
 
         Ok(ActualJobCost::new(breakdown))
     }
@@ -325,6 +352,7 @@ mod tests {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         }
     }
 
@@ -335,6 +363,7 @@ mod tests {
             disk_gb_ms_micros: None,
             gpu_ms_micros: None,
             egress_mb_micros: None,
+            ingress_mb_micros: None,
         }
     }
 
@@ -372,7 +401,7 @@ mod tests {
     fn test_actual_cost() {
         let calc = DefaultCostCalculator::new();
         let pricing = make_pricing(10, 0.5);
-        let metrics = ExecutionMetrics::new(5_000, 2, 256, 0, 0);
+        let metrics = ExecutionMetrics::new(5_000, 2, 256, 0, 0, 0);
 
         let actual = calc.actual(&metrics, &pricing).unwrap();
 
@@ -387,7 +416,7 @@ mod tests {
     fn test_settle_success() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(1000, 1000, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(500, 500, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(500, 500, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 0);
 
@@ -403,7 +432,7 @@ mod tests {
     fn test_settle_user_error() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(500, 500, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(400, 400, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(400, 400, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 1);
 
@@ -416,7 +445,7 @@ mod tests {
     fn test_settle_worker_crash() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(500, 500, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(200, 200, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(200, 200, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 200);
 
@@ -430,7 +459,7 @@ mod tests {
     fn test_settle_kernel_panic() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(500, 500, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(100, 100, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(100, 100, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 201);
 
@@ -444,7 +473,7 @@ mod tests {
     fn test_settle_build_failure() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(500, 500, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(300, 300, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(300, 300, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, 202);
 
@@ -458,7 +487,7 @@ mod tests {
     fn test_settle_timeout() {
         let calc = DefaultCostCalculator::new();
         let max = JobCostEstimate::new(500, 500, 0, 0);
-        let actual = ActualJobCost::new(CostBreakdown::new(500, 500, 0, 0));
+        let actual = ActualJobCost::new(CostBreakdown::new(500, 500, 0, 0, 0));
 
         let settlement = calc.settle("job-1", [0u8; 32], &max, &actual, -1);
 

@@ -8,7 +8,10 @@ use std::net::ToSocketAddrs;
 use std::process::Command;
 use tracing::{debug, error, info, warn};
 
-use super::{EgressEntry, NetworkError, NetworkIsolator, Protocol, TapConfig, BLOCKED_IP_RANGES};
+use super::{
+    EgressEntry, NetworkError, NetworkIsolator, NetworkStats, Protocol, TapConfig,
+    BLOCKED_IP_RANGES,
+};
 
 /// A resolved egress entry with IP address instead of hostname.
 struct ResolvedEgress {
@@ -96,9 +99,37 @@ impl LinuxNetworkIsolator {
         resolved_entries: &[ResolvedEgress],
     ) -> Result<(), NetworkError> {
         let chain = self.chain_name(tap_name);
+        let egress_counter = self.egress_counter_name(tap_name);
+        let ingress_counter = self.ingress_counter_name(tap_name);
 
         // Create table if it doesn't exist (idempotent)
         let _ = self.run_command("nft", &["add", "table", "inet", "ephemeral_filter"]);
+
+        // Create named counters for traffic metering
+        if let Err(e) = self.run_command(
+            "nft",
+            &[
+                "add",
+                "counter",
+                "inet",
+                "ephemeral_filter",
+                &egress_counter,
+            ],
+        ) {
+            warn!("Failed to create egress counter: {}", e);
+        }
+        if let Err(e) = self.run_command(
+            "nft",
+            &[
+                "add",
+                "counter",
+                "inet",
+                "ephemeral_filter",
+                &ingress_counter,
+            ],
+        ) {
+            warn!("Failed to create ingress counter: {}", e);
+        }
 
         // Create chain for this TAP
         self.run_command(
@@ -113,7 +144,7 @@ impl LinuxNetworkIsolator {
             ],
         )?;
 
-        // Allow established connections (return traffic)
+        // Allow established/related connections with ingress counter (return traffic from external -> VM)
         self.run_command(
             "nft",
             &[
@@ -122,9 +153,14 @@ impl LinuxNetworkIsolator {
                 "inet",
                 "ephemeral_filter",
                 &chain,
+                "oifname",
+                tap_name,
                 "ct",
                 "state",
                 "established,related",
+                "counter",
+                "name",
+                &ingress_counter,
                 "accept",
             ],
         )?;
@@ -149,7 +185,7 @@ impl LinuxNetworkIsolator {
             )?;
         }
 
-        // Allow traffic to allowlisted IPs with port/protocol filtering
+        // Allow traffic to allowlisted IPs with port/protocol filtering and egress counter
         for entry in resolved_entries {
             let port_str = entry.port.to_string();
             self.run_command(
@@ -168,12 +204,15 @@ impl LinuxNetworkIsolator {
                     entry.protocol.as_str(),
                     "dport",
                     &port_str,
+                    "counter",
+                    "name",
+                    &egress_counter,
                     "accept",
                 ],
             )?;
         }
 
-        // Allow DNS (UDP 53) for initial resolution
+        // Allow DNS (UDP 53) for initial resolution with egress counter
         self.run_command(
             "nft",
             &[
@@ -187,6 +226,9 @@ impl LinuxNetworkIsolator {
                 "udp",
                 "dport",
                 "53",
+                "counter",
+                "name",
+                &egress_counter,
                 "accept",
             ],
         )?;
@@ -209,7 +251,7 @@ impl LinuxNetworkIsolator {
             ],
         )?;
 
-        info!("Applied nftables rules for {}", tap_name);
+        info!("Applied nftables rules for {} with counters", tap_name);
         Ok(())
     }
 
@@ -227,8 +269,62 @@ impl LinuxNetworkIsolator {
             &["delete", "chain", "inet", "ephemeral_filter", &chain],
         );
 
-        debug!("Removed nftables chain for {}", tap_name);
+        // Delete named counters
+        let egress_counter = format!("egress_{}", tap_name.replace('-', "_"));
+        let ingress_counter = format!("ingress_{}", tap_name.replace('-', "_"));
+        let _ = self.run_command(
+            "nft",
+            &[
+                "delete",
+                "counter",
+                "inet",
+                "ephemeral_filter",
+                &egress_counter,
+            ],
+        );
+        let _ = self.run_command(
+            "nft",
+            &[
+                "delete",
+                "counter",
+                "inet",
+                "ephemeral_filter",
+                &ingress_counter,
+            ],
+        );
+
+        debug!("Removed nftables chain and counters for {}", tap_name);
         Ok(())
+    }
+
+    /// Get the counter name for egress traffic.
+    fn egress_counter_name(&self, tap_name: &str) -> String {
+        format!("egress_{}", tap_name.replace('-', "_"))
+    }
+
+    /// Get the counter name for ingress traffic.
+    fn ingress_counter_name(&self, tap_name: &str) -> String {
+        format!("ingress_{}", tap_name.replace('-', "_"))
+    }
+
+    /// Query a named counter and return (packets, bytes).
+    fn query_counter(&self, counter_name: &str) -> Result<(u64, u64), NetworkError> {
+        let output = Command::new("nft")
+            .args(["list", "counter", "inet", "ephemeral_filter", counter_name])
+            .output()
+            .map_err(NetworkError::IoError)?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("Failed to query counter {}: {}", counter_name, stderr);
+            return Ok((0, 0));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        NetworkStats::parse_counter_output(&stdout).map_err(|e| {
+            warn!("Failed to parse counter output for {}: {}", counter_name, e);
+            NetworkError::FirewallError(format!("counter parse error: {}", e))
+        })
     }
 }
 
@@ -332,6 +428,41 @@ impl NetworkIsolator for LinuxNetworkIsolator {
             resolved_entries.len()
         );
         Ok(())
+    }
+
+    async fn get_network_stats(&self, tap_name: &str) -> Result<NetworkStats, NetworkError> {
+        let egress_counter = self.egress_counter_name(tap_name);
+        let ingress_counter = self.ingress_counter_name(tap_name);
+
+        // Query egress counter (VM -> external)
+        let (egress_packets, egress_bytes) = match self.query_counter(&egress_counter) {
+            Ok(stats) => stats,
+            Err(e) => {
+                warn!("Failed to query egress counter for {}: {}", tap_name, e);
+                (0, 0)
+            }
+        };
+
+        // Query ingress counter (external -> VM)
+        let (ingress_packets, ingress_bytes) = match self.query_counter(&ingress_counter) {
+            Ok(stats) => stats,
+            Err(e) => {
+                warn!("Failed to query ingress counter for {}: {}", tap_name, e);
+                (0, 0)
+            }
+        };
+
+        debug!(
+            "Network stats for {}: egress={}B/{}pkts, ingress={}B/{}pkts",
+            tap_name, egress_bytes, egress_packets, ingress_bytes, ingress_packets
+        );
+
+        Ok(NetworkStats::new(
+            egress_bytes,
+            ingress_bytes,
+            egress_packets,
+            ingress_packets,
+        ))
     }
 
     async fn teardown(&self, tap_name: &str) -> Result<(), NetworkError> {

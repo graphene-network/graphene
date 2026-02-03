@@ -27,6 +27,7 @@
 
 pub mod mock;
 
+use crate::ephemeral::NetworkStats;
 use crate::p2p::messages::JobManifest;
 use crate::vmm::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer, VmmError};
 use async_trait::async_trait;
@@ -60,6 +61,10 @@ pub struct VmmOutput {
 
     /// True if the VM was terminated due to timeout.
     pub timed_out: bool,
+
+    /// Network traffic statistics (egress and ingress bytes/packets).
+    /// Captured from nftables counters before VM teardown.
+    pub network_stats: NetworkStats,
 }
 
 impl VmmOutput {
@@ -77,6 +82,26 @@ impl VmmOutput {
             stderr,
             duration,
             timed_out,
+            network_stats: NetworkStats::default(),
+        }
+    }
+
+    /// Creates a new VmmOutput with network statistics.
+    pub fn with_network_stats(
+        exit_code: i32,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+        duration: Duration,
+        timed_out: bool,
+        network_stats: NetworkStats,
+    ) -> Self {
+        Self {
+            exit_code,
+            stdout,
+            stderr,
+            duration,
+            timed_out,
+            network_stats,
         }
     }
 

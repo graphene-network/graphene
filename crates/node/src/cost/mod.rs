@@ -87,6 +87,7 @@ mod tests {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         }
     }
 
@@ -97,6 +98,7 @@ mod tests {
             disk_gb_ms_micros: None,
             gpu_ms_micros: None,
             egress_mb_micros: None,
+            ingress_mb_micros: None,
         }
     }
 
@@ -127,6 +129,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             egress_bytes: 0,
+            ingress_bytes: 0,
             exit_code: 0,
         };
 
@@ -152,6 +155,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             egress_bytes: 0,
+            ingress_bytes: 0,
             exit_code: 0, // Success
         };
         let actual = calculator.actual(&metrics, &pricing).unwrap();
@@ -178,6 +182,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             egress_bytes: 0,
+            ingress_bytes: 0,
             exit_code: 200, // Worker crash
         };
         let actual = calculator.actual(&metrics, &pricing).unwrap();
@@ -202,6 +207,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             egress_bytes: 0,
+            ingress_bytes: 0,
             exit_code: 202, // Build failure
         };
         let actual = calculator.actual(&metrics, &pricing).unwrap();

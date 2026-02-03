@@ -173,6 +173,7 @@ fn make_test_request(delivery_mode: ResultDeliveryMode) -> JobRequest {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         },
         ticket: PaymentTicket::new([1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64]),
         assets: JobAssets {

@@ -363,3 +363,61 @@ pub const BLOCKED_IP_RANGES: &[&str] = &[
     "192.168.0.0/16",
     "127.0.0.0/8",
 ];
+
+/// Network traffic statistics captured from nftables counters.
+///
+/// These statistics are queried from nftables named counters before VM teardown
+/// to measure actual network usage for cost calculation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NetworkStats {
+    /// Bytes transmitted from VM to external networks (egress).
+    pub egress_bytes: u64,
+    /// Bytes received from external networks to VM (ingress).
+    pub ingress_bytes: u64,
+    /// Packets transmitted from VM (for debugging/monitoring).
+    pub egress_packets: u64,
+    /// Packets received by VM (for debugging/monitoring).
+    pub ingress_packets: u64,
+}
+
+impl NetworkStats {
+    /// Creates a new NetworkStats with the given values.
+    pub fn new(
+        egress_bytes: u64,
+        ingress_bytes: u64,
+        egress_packets: u64,
+        ingress_packets: u64,
+    ) -> Self {
+        Self {
+            egress_bytes,
+            ingress_bytes,
+            egress_packets,
+            ingress_packets,
+        }
+    }
+
+    /// Parses nftables counter output to extract packets and bytes.
+    ///
+    /// Expected format: `counter <name> { packets <N> bytes <M> }`
+    ///
+    /// # Returns
+    /// A tuple of (packets, bytes) on success, or an error message on failure.
+    pub fn parse_counter_output(output: &str) -> Result<(u64, u64), String> {
+        // Look for the pattern: packets <N> bytes <M>
+        let packets = output
+            .split_whitespace()
+            .skip_while(|&s| s != "packets")
+            .nth(1)
+            .and_then(|s| s.parse::<u64>().ok())
+            .ok_or_else(|| "failed to parse packets from counter output".to_string())?;
+
+        let bytes = output
+            .split_whitespace()
+            .skip_while(|&s| s != "bytes")
+            .nth(1)
+            .and_then(|s| s.parse::<u64>().ok())
+            .ok_or_else(|| "failed to parse bytes from counter output".to_string())?;
+
+        Ok((packets, bytes))
+    }
+}

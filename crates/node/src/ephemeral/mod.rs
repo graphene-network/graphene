@@ -280,6 +280,14 @@ pub trait NetworkIsolator: Send + Sync {
         allowlist: &[EgressEntry],
     ) -> Result<(), NetworkError>;
 
+    /// Get network statistics for a TAP device.
+    ///
+    /// Queries nftables named counters to retrieve traffic statistics.
+    /// Should be called AFTER VM completes but BEFORE teardown.
+    ///
+    /// Returns `NetworkStats::default()` (all zeros) if counters cannot be read.
+    async fn get_network_stats(&self, tap_name: &str) -> Result<NetworkStats, NetworkError>;
+
     /// Tear down network resources for a VM.
     ///
     /// Removes TAP device and associated firewall rules.

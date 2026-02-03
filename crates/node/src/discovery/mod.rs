@@ -121,6 +121,7 @@ mod tests {
                 disk_gb_ms_micros: None,
                 gpu_ms_micros: None,
                 egress_mb_micros: None,
+                ingress_mb_micros: None,
             },
             load: WorkerLoad {
                 available_slots: slots,

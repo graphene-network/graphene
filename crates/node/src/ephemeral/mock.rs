@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use super::{
     BuildError, BuildRequest, BuildResult, EgressEntry, EphemeralBuilder, NetworkError,
-    NetworkIsolator, TapConfig,
+    NetworkIsolator, NetworkStats, TapConfig,
 };
 
 /// Configurable behaviors for MockEphemeralBuilder.
@@ -222,10 +222,14 @@ pub struct NetworkSpyState {
     pub create_tap_calls: Vec<String>,
     /// (tap_name, allowlist) pairs for apply_allowlist calls
     pub apply_allowlist_calls: Vec<(String, Vec<EgressEntry>)>,
+    /// TAP names for which get_network_stats was called
+    pub get_stats_calls: Vec<String>,
     /// TAP names for which teardown was called
     pub teardown_calls: Vec<String>,
     /// Currently active TAPs
     pub active_taps: HashMap<String, TapConfig>,
+    /// Configurable network stats to return for specific TAP devices
+    pub network_stats: HashMap<String, NetworkStats>,
 }
 
 /// Mock implementation of NetworkIsolator for testing.
@@ -280,6 +284,20 @@ impl MockNetworkIsolator {
     pub fn teardown_count(&self) -> usize {
         self.spy.lock().unwrap().teardown_calls.len()
     }
+
+    /// Get the number of get_network_stats calls.
+    pub fn get_stats_count(&self) -> usize {
+        self.spy.lock().unwrap().get_stats_calls.len()
+    }
+
+    /// Set network stats to return for a specific TAP device.
+    pub fn set_network_stats(&self, tap_name: &str, stats: NetworkStats) {
+        self.spy
+            .lock()
+            .unwrap()
+            .network_stats
+            .insert(tap_name.to_string(), stats);
+    }
 }
 
 impl Default for MockNetworkIsolator {
@@ -332,6 +350,18 @@ impl NetworkIsolator for MockNetworkIsolator {
             }
             _ => Ok(()),
         }
+    }
+
+    async fn get_network_stats(&self, tap_name: &str) -> Result<NetworkStats, NetworkError> {
+        // Record the call
+        let stats = {
+            let mut spy = self.spy.lock().unwrap();
+            spy.get_stats_calls.push(tap_name.to_string());
+            spy.network_stats.get(tap_name).cloned()
+        };
+
+        // Return configured stats or default
+        Ok(stats.unwrap_or_default())
     }
 
     async fn teardown(&self, tap_name: &str) -> Result<(), NetworkError> {

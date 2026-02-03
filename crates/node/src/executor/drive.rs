@@ -574,6 +574,7 @@ mod tests {
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
+            estimated_ingress_mb: None,
         }
     }
 

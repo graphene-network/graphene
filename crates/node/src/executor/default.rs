@@ -689,6 +689,7 @@ mod tests {
                 egress_allowlist: vec![],
                 env: HashMap::new(),
                 estimated_egress_mb: None,
+                estimated_ingress_mb: None,
             },
             JobAssets {
                 code_hash: Hash::from_bytes([1u8; 32]),
@@ -778,6 +779,7 @@ mod tests {
                 egress_allowlist: vec![],
                 env: HashMap::new(),
                 estimated_egress_mb: None,
+                estimated_ingress_mb: None,
             },
             JobAssets {
                 code_hash: Hash::from_bytes([1u8; 32]),
