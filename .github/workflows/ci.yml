@@ -126,7 +126,7 @@ jobs:
 
       - name: Install kraft CLI
         run: |
-          curl -sSfL https://get.kraftkit.sh | sh
+          curl -sSfL https://get.kraftkit.sh | sudo sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Run E2E Unikraft tests
