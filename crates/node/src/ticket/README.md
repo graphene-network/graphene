@@ -18,7 +18,7 @@ This allows the same signature to work for both:
 
 ### Signing Tickets (User/Client Side)
 
-```rust
+```rust,ignore
 use monad_node::ticket::{DefaultTicketSigner, TicketSigner};
 
 let signer = DefaultTicketSigner::from_bytes(&user_secret_key);
@@ -33,7 +33,7 @@ let ticket = signer.sign_ticket(
 
 ### Validating Tickets (Worker Side)
 
-```rust
+```rust,ignore
 use monad_node::ticket::{
     DefaultTicketValidator, TicketValidator, ChannelState,
 };
@@ -53,7 +53,7 @@ validator.validate(&ticket, &user_pubkey, &channel_state).await?;
 
 ### Testing with Mocks
 
-```rust
+```rust,ignore
 use monad_node::ticket::{MockTicketValidator, MockValidatorBehavior};
 
 // Always accept
