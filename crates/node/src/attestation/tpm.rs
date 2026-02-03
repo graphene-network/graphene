@@ -13,6 +13,9 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// TPM quote output: (quote_data, signature, ak_public_key)
+type TpmQuoteOutput = (Vec<u8>, Vec<u8>, Vec<u8>);
+
 /// TPM 2.0 attestor for Linux systems
 pub struct TpmAttestor {
     /// Path to TPM device
@@ -162,7 +165,7 @@ impl TpmAttestor {
         &self,
         nonce: &[u8],
         pcr_values: &PcrValues,
-    ) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), AttestationError> {
+    ) -> Result<TpmQuoteOutput, AttestationError> {
         // TODO: Implement actual TPM quote generation using tss2-sys crate
         // This requires:
         // 1. Creating or loading an attestation key (AK)

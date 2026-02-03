@@ -74,7 +74,7 @@ impl ManagementHandler {
         // Dispatch to handler
         match request {
             // Configuration
-            ManagementRequest::ApplyConfig { config } => self.handle_apply_config(config).await,
+            ManagementRequest::ApplyConfig { config } => self.handle_apply_config(*config).await,
             ManagementRequest::GetConfig => self.handle_get_config().await,
 
             // Status
@@ -409,7 +409,9 @@ mod tests {
 
         let response = handler
             .handle(
-                ManagementRequest::ApplyConfig { config: new_config },
+                ManagementRequest::ApplyConfig {
+                    config: Box::new(new_config),
+                },
                 &token,
             )
             .await;

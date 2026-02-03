@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub enum ManagementRequest {
     // Configuration
     /// Apply new node configuration
-    ApplyConfig { config: NodeConfig },
+    ApplyConfig { config: Box<NodeConfig> },
     /// Get current configuration
     GetConfig,
 
