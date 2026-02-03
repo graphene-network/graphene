@@ -433,3 +433,49 @@ gh issue edit <issue-number> --add-label "priority/high"
 3. Add priority labels for bugs and time-sensitive work
 4. Use `good-first-issue` for newcomer-friendly tasks
 5. If a needed label doesn't exist, create it with `gh label create "name" --description "..." --color "hex"`
+
+---
+
+## Code Standards
+
+### TODO Comments
+
+**MANDATORY**: Every `TODO` or `FIXME` comment in code MUST link to a GitHub issue.
+
+**Format:**
+```rust
+// TODO(#123): Implement retry logic for network failures
+// FIXME(#456): This allocation is inefficient, needs optimization
+```
+
+**Why This Matters:**
+- Untracked TODOs represent unaccountable technical debt
+- GitHub issues provide context, priority, and ownership
+- Makes it easy to search for all work related to a TODO
+- Prevents TODOs from being forgotten or duplicated
+
+**Enforcement:**
+- Code review should reject TODOs without issue references
+- Use `grep -r "TODO\|FIXME" --include="*.rs" --include="*.py"` to audit
+- Consider adding a pre-commit hook to enforce this
+
+**Examples:**
+
+```rust
+// ✅ CORRECT
+// TODO(#789): Add support for IPv6 addresses
+let addr = parse_ipv4(input)?;
+
+// TODO(#234): Refactor to use async/await instead of callbacks
+fn legacy_callback_api() { ... }
+
+// ❌ INCORRECT - No issue reference
+// TODO: fix this later
+// FIXME: performance issue here
+```
+
+**Creating Issues for TODOs:**
+1. Before adding a TODO, check if an issue already exists
+2. If not, create one: `gh issue create --title "..." --label "tech-debt"`
+3. Reference the issue number in the TODO comment
+4. If you find untracked TODOs, create issues retroactively
