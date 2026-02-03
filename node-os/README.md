@@ -64,6 +64,47 @@ node-os/
 | dm-verity | Phase 2 |
 | TPM attestation | Phase 2 |
 
+## CI/CD and Releases
+
+### Build Triggers
+
+| Trigger | What Runs | Duration |
+|---------|-----------|----------|
+| PR to `node-os/**` | Validation only (`bitbake -p`) | ~5-10 min |
+| Tag `node-os-v*` | Full build + GitHub Release | ~60-90 min |
+| Weekly (Sun 2am UTC) | Full build (drift detection) | ~60-90 min |
+| Manual dispatch | Full build | ~60-90 min |
+
+### Creating a Release
+
+```bash
+# Tag with semantic version
+git tag node-os-v0.1.0
+git push origin node-os-v0.1.0
+```
+
+This triggers:
+1. Full Yocto build on `ubicloud-standard-16`
+2. Shell removal verification
+3. Image size check (<50MB target)
+4. Artifact upload (`.wic.gz`, `.ext4`, SBOM)
+5. GitHub Release creation
+6. sstate cache sync to S3
+
+### Manual Build
+
+Trigger via GitHub Actions UI:
+1. Go to Actions → "Build Node OS (Yocto)"
+2. Click "Run workflow"
+3. Select machine target
+4. Optionally skip sstate cache
+
+### Version Naming
+
+- `node-os-v{major}.{minor}.{patch}` - Production releases
+- `node-os-v{major}.{minor}.{patch}-rc{n}` - Release candidates
+- `node-os-v{major}.{minor}.{patch}-alpha{n}` - Alpha builds
+
 ## Management
 
 Since there's no shell, nodes are managed via the Iroh-based management API:
