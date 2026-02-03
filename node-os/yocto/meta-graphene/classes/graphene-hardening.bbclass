@@ -29,7 +29,8 @@ KERNEL_FEATURES:remove = "features/sound/snd_hda_intel.scc"
 CORE_IMAGE_EXTRA_INSTALL:remove = "gdb strace"
 
 # Audit and logging
-IMAGE_INSTALL:append = " audit"
+# TODO(#113): Add audit support when meta-oe layer is available
+# IMAGE_INSTALL:append = " audit"
 
 # Package exclusions - things that should never be in production
 PACKAGE_EXCLUDE = " \
