@@ -31,7 +31,7 @@ pub mod types;
 pub mod validation;
 pub mod wire;
 
-pub use handler::{JobProtocolHandler, ProtocolError};
+pub use handler::{JobContext, JobProtocolHandler, ProtocolError};
 pub use types::{
     JobAssets, JobProgress, JobRequest, JobResponse, JobResult, JobStatus, ProgressKind,
     RejectReason,

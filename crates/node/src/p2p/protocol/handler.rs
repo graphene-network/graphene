@@ -97,6 +97,16 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         Self { validator, context }
     }
 
+    /// Get a reference to the validator.
+    pub fn validator(&self) -> &Arc<V> {
+        &self.validator
+    }
+
+    /// Get a reference to the job context.
+    pub fn context(&self) -> &Arc<C> {
+        &self.context
+    }
+
     /// Handle an incoming connection.
     ///
     /// This accepts a bi-directional stream, reads the job request,
@@ -122,7 +132,23 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 .map_err(|e| ProtocolError::ConnectionError(format!("read error: {}", e)))?;
 
             match n {
-                Some(0) | None => return Err(ProtocolError::StreamClosed),
+                Some(0) | None => {
+                    // Check if we have a complete message before giving up
+                    if let Some((msg_type, payload, _consumed)) =
+                        super::wire::try_read_message(&buf[..offset])?
+                    {
+                        if msg_type != MessageType::JobRequest {
+                            return Err(ProtocolError::UnexpectedMessageType {
+                                expected: MessageType::JobRequest,
+                                actual: msg_type,
+                            });
+                        }
+
+                        let request: JobRequest = decode_payload(&payload)?;
+                        return self.process_request(request, &mut send).await;
+                    }
+                    return Err(ProtocolError::StreamClosed);
+                }
                 Some(bytes_read) => offset += bytes_read,
             }
 
@@ -174,6 +200,9 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 send.write_all(&encoded)
                     .await
                     .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
+                send.shutdown().await.map_err(|e| {
+                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
+                })?;
 
                 info!("Job {} accepted", job_id);
                 Ok(())
@@ -193,6 +222,9 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 send.write_all(&encoded)
                     .await
                     .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
+                send.shutdown().await.map_err(|e| {
+                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
+                })?;
 
                 warn!("Job {} rejected: {}", job_id, reason);
                 Err(ProtocolError::JobRejected(reason))
