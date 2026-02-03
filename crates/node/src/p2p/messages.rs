@@ -4,6 +4,38 @@ use iroh::PublicKey;
 use iroh_blobs::Hash;
 use serde::{Deserialize, Serialize};
 
+/// A 64-byte signature with proper serde support.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Signature64(pub [u8; 64]);
+
+impl Signature64 {
+    pub fn as_bytes(&self) -> &[u8; 64] {
+        &self.0
+    }
+}
+
+impl From<[u8; 64]> for Signature64 {
+    fn from(bytes: [u8; 64]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl Serialize for Signature64 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.as_slice().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Signature64 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let vec = Vec::<u8>::deserialize(deserializer)?;
+        let arr: [u8; 64] = vec.try_into().map_err(|v: Vec<u8>| {
+            serde::de::Error::custom(format!("expected 64 bytes, got {}", v.len()))
+        })?;
+        Ok(Self(arr))
+    }
+}
+
 /// Messages broadcast on the `graphene-compute-v1` topic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ComputeMessage {
@@ -201,4 +233,141 @@ pub struct JobResult {
 
     /// Execution time in milliseconds.
     pub execution_ms: u64,
+}
+
+// ============================================================================
+// Encrypted Job Messages (Soft Confidential Computing)
+// ============================================================================
+
+/// Resource requirements for a job (plaintext - worker needs for allocation).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct JobManifest {
+    /// Required vCPUs.
+    pub vcpu: u8,
+
+    /// Required memory in MB.
+    pub memory_mb: u32,
+
+    /// Maximum execution time in milliseconds.
+    pub timeout_ms: u64,
+
+    /// Required unikernel image.
+    pub kernel: String,
+
+    /// Allowed egress endpoints (for firewall configuration).
+    pub egress_allowlist: Vec<EgressRule>,
+}
+
+/// An allowed egress destination.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EgressRule {
+    /// Hostname or IP address.
+    pub host: String,
+
+    /// Port number.
+    pub port: u16,
+
+    /// Protocol (tcp/udp).
+    pub protocol: String,
+}
+
+/// Encrypted job request from user to worker.
+///
+/// The manifest remains plaintext so workers can validate resource availability
+/// and configure networking before decrypting the actual job data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedJobRequest {
+    /// Unique job identifier.
+    pub job_id: String,
+
+    /// Ephemeral X25519 public key for forward secrecy.
+    /// Used by worker to derive the job decryption key.
+    pub ephemeral_pubkey: [u8; 32],
+
+    /// Hash of the encrypted input blob in Iroh.
+    pub encrypted_input_hash: Hash,
+
+    /// Hash of the encrypted code blob in Iroh.
+    pub encrypted_code_hash: Hash,
+
+    /// Plaintext manifest (worker needs for resource allocation).
+    pub manifest: JobManifest,
+
+    /// Payment ticket authorizing computation.
+    pub payment_ticket: PaymentTicket,
+
+    /// Solana PDA of the payment channel (for key derivation).
+    pub channel_pda: [u8; 32],
+}
+
+/// Payment ticket for job authorization.
+///
+/// Contains a signed authorization from the user's payment channel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentTicket {
+    /// Payment channel address (Solana pubkey).
+    pub channel: [u8; 32],
+
+    /// Amount authorized for this job (in lamports or tokens).
+    pub amount: u64,
+
+    /// Sequence number (prevents replay).
+    pub sequence: u64,
+
+    /// Expiry timestamp (Unix epoch seconds).
+    pub expiry: u64,
+
+    /// Ed25519 signature over (channel, amount, sequence, expiry, job_id).
+    pub signature: Signature64,
+}
+
+/// Encrypted job result from worker to user.
+///
+/// Exit code and execution time remain plaintext for state machine handling.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedJobResult {
+    /// The job this result is for.
+    pub job_id: String,
+
+    /// Hash of the encrypted result blob in Iroh.
+    pub encrypted_result_hash: Hash,
+
+    /// Hash of the encrypted stdout blob in Iroh.
+    pub encrypted_stdout_hash: Hash,
+
+    /// Hash of the encrypted stderr blob in Iroh.
+    pub encrypted_stderr_hash: Hash,
+
+    /// Exit code of the job (0 = success).
+    pub exit_code: i32,
+
+    /// Execution time in milliseconds.
+    pub execution_ms: u64,
+
+    /// Worker's Ed25519 signature over the result.
+    pub worker_signature: Signature64,
+}
+
+/// Messages for encrypted job protocol on `graphene-jobs-v1` topic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EncryptedJobMessage {
+    /// User submitting an encrypted job.
+    Request(EncryptedJobRequest),
+
+    /// Worker acknowledging job receipt.
+    Accepted {
+        job_id: String,
+        worker_id: PublicKey,
+        estimated_start_ms: u64,
+    },
+
+    /// Worker reporting job completion.
+    Completed(EncryptedJobResult),
+
+    /// Worker reporting job failure.
+    Failed {
+        job_id: String,
+        reason: String,
+        refund_ticket: Option<PaymentTicket>,
+    },
 }
