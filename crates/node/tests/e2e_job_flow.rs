@@ -2,6 +2,10 @@
 //!
 //! These tests verify the full job lifecycle from submission through result delivery,
 //! testing state transitions and proper coordination between components.
+//!
+//! Run with: `cargo test --features integration-tests --test e2e_job_flow`
+
+#![cfg(feature = "integration-tests")]
 
 use std::collections::HashMap;
 use std::sync::Arc;
