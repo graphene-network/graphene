@@ -113,6 +113,47 @@ impl Default for WorkerLoad {
     }
 }
 
+/// Worker lifecycle state for gossip messages.
+///
+/// Duplicated here to avoid circular dependency with worker module.
+/// Must be kept in sync with `crate::worker::WorkerState`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[repr(u8)]
+pub enum GossipWorkerState {
+    /// Initial state before Solana registration.
+    #[default]
+    Unregistered = 0,
+    /// Stake confirmed on Solana, awaiting P2P gossip join.
+    Registered = 1,
+    /// Active and accepting jobs (has available slots).
+    Online = 2,
+    /// Active but at capacity (no available slots).
+    Busy = 3,
+    /// Graceful shutdown initiated, finishing current jobs.
+    Draining = 4,
+    /// Temporarily disconnected from P2P network.
+    Offline = 5,
+    /// Unbonding period active (14-day cooldown).
+    Unbonding = 6,
+    /// Terminal state, worker has exited.
+    Exited = 7,
+}
+
+impl std::fmt::Display for GossipWorkerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GossipWorkerState::Unregistered => write!(f, "unregistered"),
+            GossipWorkerState::Registered => write!(f, "registered"),
+            GossipWorkerState::Online => write!(f, "online"),
+            GossipWorkerState::Busy => write!(f, "busy"),
+            GossipWorkerState::Draining => write!(f, "draining"),
+            GossipWorkerState::Offline => write!(f, "offline"),
+            GossipWorkerState::Unbonding => write!(f, "unbonding"),
+            GossipWorkerState::Exited => write!(f, "exited"),
+        }
+    }
+}
+
 /// Worker availability announcement.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerAnnouncement {
@@ -131,6 +172,9 @@ pub struct WorkerAnnouncement {
     /// Current load status.
     pub load: WorkerLoad,
 
+    /// Current lifecycle state.
+    pub state: GossipWorkerState,
+
     /// Timestamp of this announcement (Unix epoch seconds).
     pub timestamp: u64,
 }
@@ -143,6 +187,9 @@ pub struct WorkerHeartbeat {
 
     /// Current load status.
     pub load: WorkerLoad,
+
+    /// Current lifecycle state.
+    pub state: GossipWorkerState,
 
     /// Timestamp of this heartbeat.
     pub timestamp: u64,

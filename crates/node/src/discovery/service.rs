@@ -3,7 +3,9 @@
 use super::types::{DiscoveryConfig, JobRequirements, WorkerInfo, WorkerStatus};
 use super::DiscoveryError;
 use super::WorkerDiscovery;
-use crate::p2p::messages::{ComputeMessage, WorkerAnnouncement, WorkerHeartbeat, WorkerLoad};
+use crate::p2p::messages::{
+    ComputeMessage, GossipWorkerState, WorkerAnnouncement, WorkerHeartbeat, WorkerLoad,
+};
 use crate::p2p::{P2PNetwork, TopicId};
 use async_trait::async_trait;
 use iroh::PublicKey;
@@ -218,6 +220,7 @@ impl<N: P2PNetwork + 'static> IrohWorkerDiscovery<N> {
             let msg = ComputeMessage::Heartbeat(WorkerHeartbeat {
                 node_id: ann.node_id,
                 load: ann.load,
+                state: GossipWorkerState::Draining,
                 timestamp: ann.timestamp,
             });
 
@@ -303,6 +306,7 @@ impl<N: P2PNetwork + 'static> WorkerDiscovery for IrohWorkerDiscovery<N> {
             let hb = WorkerHeartbeat {
                 node_id: ann.node_id,
                 load,
+                state: ann.state,
                 timestamp: Self::now_unix(),
             };
 
@@ -345,6 +349,7 @@ mod tests {
                 available_slots: 4,
                 queue_depth: 0,
             },
+            state: GossipWorkerState::Online,
             timestamp: IrohWorkerDiscovery::<MockGrapheneNode>::now_unix(),
         }
     }

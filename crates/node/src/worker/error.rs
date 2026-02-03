@@ -3,6 +3,8 @@
 use crate::p2p::P2PError;
 use thiserror::Error;
 
+use super::state::StateError;
+
 /// Errors that can occur during worker operations.
 #[derive(Debug, Error)]
 pub enum WorkerError {
@@ -37,6 +39,10 @@ pub enum WorkerError {
     /// TOML parsing error
     #[error("TOML parse error: {0}")]
     TomlError(#[from] toml::de::Error),
+
+    /// State machine error
+    #[error("State error: {0}")]
+    StateError(#[from] StateError),
 }
 
 impl From<solana_sdk::signer::SignerError> for WorkerError {

@@ -133,6 +133,7 @@ format = "pretty"           # pretty, json, compact
 │    └── run / register / unregister / status             │
 ├─────────────────────────────────────────────────────────┤
 │  Daemon                                                 │
+│    ├── State Machine (WorkerStateMachine)               │
 │    ├── P2P Loop (gossip events)                         │
 │    ├── Heartbeat Loop (30s interval)                    │
 │    └── Signal Handler (SIGINT/SIGTERM)                  │
@@ -143,6 +144,68 @@ format = "pretty"           # pretty, json, compact
 │    └── Gossip messaging      │    └── get_worker_status │
 └─────────────────────────────────────────────────────────┘
 ```
+
+## State Machine
+
+The worker lifecycle is managed by `WorkerStateMachine` (see Whitepaper Section 12.4).
+
+### State Diagram
+
+```
+UNREGISTERED → REGISTERED → ONLINE ⟷ BUSY
+                              ↓
+                          DRAINING
+                              ↓
+                          UNBONDING
+                              ↓
+                           EXITED
+
+ONLINE/BUSY ⟷ OFFLINE (connection loss/reconnect)
+```
+
+### States
+
+| State | Description |
+|-------|-------------|
+| `Unregistered` | Initial state before Solana registration |
+| `Registered` | Stake confirmed, awaiting P2P gossip join |
+| `Online` | Active and accepting jobs (has available slots) |
+| `Busy` | Active but at capacity (no available slots) |
+| `Draining` | Graceful shutdown initiated, finishing current jobs |
+| `Offline` | Temporarily disconnected from P2P network |
+| `Unbonding` | Unbonding period active (14-day cooldown) |
+| `Exited` | Terminal state, worker has exited |
+
+### Events
+
+| Event | Transition |
+|-------|------------|
+| `StakeConfirmed` | Unregistered → Registered |
+| `JoinedGossip` | Registered → Online |
+| `SlotsFull` | Online → Busy |
+| `SlotAvailable` | Busy → Online |
+| `ShutdownRequested` | Online/Busy → Draining |
+| `AllJobsComplete` | Draining → Unbonding |
+| `UnbondingComplete` | Unbonding → Exited |
+| `ConnectionLost` | Online/Busy → Offline |
+| `Reconnected` | Offline → Online/Busy |
+
+### Slot Management
+
+Job slots are managed with RAII via `SlotGuard`:
+
+```rust
+let state_machine = WorkerStateMachine::new_shared(4);
+
+// Reserve a slot (returns SlotGuard)
+if let Ok(guard) = state_machine.try_reserve_slot() {
+    // Slot is reserved, state may transition to Busy
+    process_job().await;
+    // Guard dropped here, slot released, may transition back to Online
+}
+```
+
+The state machine automatically transitions between `Online` and `Busy` based on slot availability.
 
 ## Gossip Protocol
 
@@ -178,13 +241,13 @@ worker/
 ├── config.rs   # WorkerConfig TOML parsing
 ├── daemon.rs   # run_daemon, signal handling
 ├── error.rs    # WorkerError enum
-└── solana.rs   # SolanaClient
+├── solana.rs   # SolanaClient
+└── state.rs    # WorkerStateMachine, SlotGuard
 ```
 
 ## Future Work
 
-- Job execution via Firecracker VMM (#44)
-- Worker state machine (#44)
+- Job execution via Firecracker VMM
 - Heartbeat loop with actual load metrics (#45)
-- Job slot management (#46)
 - Payment channel settlement
+- Integrate state machine with actual Solana stake confirmation

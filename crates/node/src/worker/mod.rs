@@ -8,6 +8,7 @@ mod config;
 mod daemon;
 mod error;
 mod solana;
+mod state;
 
 pub use config::{
     LoggingSettings, P2PSettings, SolanaSettings, VmmSettings, WorkerConfig, WorkerIdentity,
@@ -15,6 +16,7 @@ pub use config::{
 pub use daemon::{register_worker, run_daemon, show_status, unregister_worker};
 pub use error::WorkerError;
 pub use solana::{SolanaClient, WorkerStatus};
+pub use state::{SlotGuard, StateError, WorkerEvent, WorkerState, WorkerStateMachine};
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;

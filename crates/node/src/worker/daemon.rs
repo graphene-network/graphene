@@ -6,12 +6,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use tracing::{error, info, warn};
 
-use crate::p2p::messages::{ComputeMessage, WorkerAnnouncement, WorkerHeartbeat};
+use crate::p2p::messages::{
+    ComputeMessage, GossipWorkerState, WorkerAnnouncement, WorkerHeartbeat,
+};
 use crate::p2p::types::TopicId;
 use crate::p2p::{GrapheneNode, P2PNetwork};
 
 use super::config::WorkerConfig;
 use super::solana::SolanaClient;
+use super::state::{WorkerEvent, WorkerState, WorkerStateMachine};
 use super::WorkerError;
 
 /// Run the worker daemon.
@@ -22,6 +25,18 @@ pub async fn run_daemon(config: WorkerConfig, foreground: bool) -> Result<(), Wo
         "Starting Graphene worker '{}' (foreground={})",
         config.worker.name, foreground
     );
+
+    // Initialize state machine
+    let state_machine = WorkerStateMachine::new_shared(config.worker.job_slots);
+    info!(
+        "State machine initialized with {} job slots",
+        config.worker.job_slots
+    );
+
+    // Simulate stake confirmation (in production, this would come from Solana)
+    // TODO(#44): Integrate with actual Solana stake confirmation
+    state_machine.transition(WorkerEvent::StakeConfirmed)?;
+    info!("Worker state: {:?}", state_machine.state());
 
     // Initialize P2P node
     let p2p_config = config.to_p2p_config();
@@ -45,8 +60,12 @@ pub async fn run_daemon(config: WorkerConfig, foreground: bool) -> Result<(), Wo
     let mut compute_sub = node.subscribe(TopicId::compute_v1()).await?;
     info!("Subscribed to compute topic");
 
+    // Transition to Online now that we've joined gossip
+    state_machine.transition(WorkerEvent::JoinedGossip)?;
+    info!("Worker state: {:?}", state_machine.state());
+
     // Broadcast initial announcement
-    let announcement = create_announcement(&config, &node);
+    let announcement = create_announcement(&config, &node, &state_machine);
     let msg = ComputeMessage::Announcement(announcement);
     let encoded = serde_json::to_vec(&msg).map_err(|e| {
         WorkerError::P2PError(crate::p2p::P2PError::GossipError(format!(
@@ -64,10 +83,10 @@ pub async fn run_daemon(config: WorkerConfig, foreground: bool) -> Result<(), Wo
 
     // Spawn heartbeat task
     let node_clone = node.clone();
-    let config_clone = config.clone();
+    let state_machine_clone = state_machine.clone();
     let mut heartbeat_shutdown = shutdown_rx.clone();
     tokio::spawn(async move {
-        heartbeat_loop(node_clone, config_clone, &mut heartbeat_shutdown).await;
+        heartbeat_loop(node_clone, state_machine_clone, &mut heartbeat_shutdown).await;
     });
 
     // Main event loop
@@ -133,9 +152,27 @@ async fn shutdown_signal() -> Result<(), WorkerError> {
     Ok(())
 }
 
+/// Convert WorkerState to GossipWorkerState for messages.
+fn to_gossip_state(state: WorkerState) -> GossipWorkerState {
+    match state {
+        WorkerState::Unregistered => GossipWorkerState::Unregistered,
+        WorkerState::Registered => GossipWorkerState::Registered,
+        WorkerState::Online => GossipWorkerState::Online,
+        WorkerState::Busy => GossipWorkerState::Busy,
+        WorkerState::Draining => GossipWorkerState::Draining,
+        WorkerState::Offline => GossipWorkerState::Offline,
+        WorkerState::Unbonding => GossipWorkerState::Unbonding,
+        WorkerState::Exited => GossipWorkerState::Exited,
+    }
+}
+
 /// Create a worker announcement from config.
-fn create_announcement(config: &WorkerConfig, node: &Arc<GrapheneNode>) -> WorkerAnnouncement {
-    use crate::p2p::messages::{WorkerCapabilities, WorkerLoad, WorkerPricing};
+fn create_announcement(
+    config: &WorkerConfig,
+    node: &Arc<GrapheneNode>,
+    state_machine: &Arc<WorkerStateMachine>,
+) -> WorkerAnnouncement {
+    use crate::p2p::messages::{WorkerCapabilities, WorkerPricing};
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -146,18 +183,16 @@ fn create_announcement(config: &WorkerConfig, node: &Arc<GrapheneNode>) -> Worke
         node_id: node.node_id(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         capabilities: WorkerCapabilities {
-            max_vcpu: 4,         // TODO: Detect or configure
-            max_memory_mb: 4096, // TODO: Detect or configure
+            max_vcpu: 4,         // TODO(#44): Detect or configure
+            max_memory_mb: 4096, // TODO(#44): Detect or configure
             kernels: config.worker.capabilities.clone(),
         },
         pricing: WorkerPricing {
             cpu_ms_micros: config.worker.price_per_unit,
-            memory_mb_ms_micros: 0.0, // TODO: Add to config
+            memory_mb_ms_micros: 0.0, // TODO(#44): Add to config
         },
-        load: WorkerLoad {
-            available_slots: config.worker.job_slots as u8,
-            queue_depth: 0,
-        },
+        load: state_machine.load(),
+        state: to_gossip_state(state_machine.state()),
         timestamp,
     }
 }
@@ -165,7 +200,7 @@ fn create_announcement(config: &WorkerConfig, node: &Arc<GrapheneNode>) -> Worke
 /// Heartbeat loop that broadcasts periodic heartbeats.
 async fn heartbeat_loop(
     node: Arc<GrapheneNode>,
-    _config: WorkerConfig,
+    state_machine: Arc<WorkerStateMachine>,
     shutdown: &mut watch::Receiver<bool>,
 ) {
     let interval = Duration::from_secs(30);
@@ -173,14 +208,10 @@ async fn heartbeat_loop(
     loop {
         tokio::select! {
             _ = tokio::time::sleep(interval) => {
-                use crate::p2p::messages::WorkerLoad;
-
                 let heartbeat = WorkerHeartbeat {
                     node_id: node.node_id(),
-                    load: WorkerLoad {
-                        available_slots: 4, // TODO: Track actual available slots
-                        queue_depth: 0,     // TODO: Track job queue depth
-                    },
+                    load: state_machine.load(),
+                    state: to_gossip_state(state_machine.state()),
                     timestamp: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
