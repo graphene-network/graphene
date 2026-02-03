@@ -7,7 +7,9 @@ LICENSE = "AGPL-3.0-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=FIXME_ADD_CHECKSUM"
 
 # Fetch from git - uses the monad repository
-SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=main \
+# Branch can be overridden via GRAPHENE_GIT_BRANCH (e.g., for CI on PR branches)
+GRAPHENE_GIT_BRANCH ?= "main"
+SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=${GRAPHENE_GIT_BRANCH} \
            file://node-config.toml \
            "
 SRCREV = "${AUTOREV}"

@@ -108,16 +108,25 @@ jobs:
           "
           EOF
 
+          # Determine the branch to build from
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            GIT_BRANCH="${{ github.head_ref }}"
+          else
+            GIT_BRANCH="${{ github.ref_name }}"
+          fi
+          echo "Building from branch: $GIT_BRANCH"
+
           # Configure local.conf
-          cat > conf/local.conf << 'EOF'
+          cat > conf/local.conf << EOF
           MACHINE = "${{ matrix.machine }}"
           BB_NUMBER_THREADS = "8"
           PARALLEL_MAKE = "-j 8"
-          DL_DIR = "${TOPDIR}/../downloads"
-          SSTATE_DIR = "${TOPDIR}/../sstate-cache"
-          TMPDIR = "${TOPDIR}/tmp"
+          DL_DIR = "\${TOPDIR}/../downloads"
+          SSTATE_DIR = "\${TOPDIR}/../sstate-cache"
+          TMPDIR = "\${TOPDIR}/tmp"
           PACKAGE_CLASSES = "package_rpm"
           INHERIT += "create-spdx"
+          GRAPHENE_GIT_BRANCH = "$GIT_BRANCH"
           EOF
 
       - name: Build image
