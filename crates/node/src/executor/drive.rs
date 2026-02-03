@@ -267,7 +267,7 @@ pub mod linux {
         /// Unmount a mount point.
         async fn unmount(&self, mount_point: &Path) -> Result<(), ExecutionError> {
             let status = Command::new("umount")
-                .arg(&mount_point.display().to_string())
+                .arg(mount_point.display().to_string())
                 .output()
                 .map_err(|e| ExecutionError::drive(format!("umount failed: {}", e)))?;
 
