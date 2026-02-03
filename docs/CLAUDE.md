@@ -7,6 +7,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #12798 | 9:49 AM | ⚖️ | Comprehensive Yocto vs Buildroot analysis for Graphene sovereign node OS | ~807 |
+| #12789 | 9:48 AM | 🔵 | Graphene Network architecture using Unikraft unikernels and Firecracker MicroVMs | ~766 |
 | #12043 | 12:52 AM | 🔵 | Address book design uses Iroh-Docs for distributed worker registry with LWW conflict resolution | ~539 |
 | #11962 | 12:48 AM | 🔵 | Worker payment settlement uses Ed25519 instruction introspection with batched ticket claiming | ~623 |
 </claude-mem-context>
