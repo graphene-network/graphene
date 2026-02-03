@@ -120,6 +120,12 @@ export declare function verifyTicketSignature(ticket: PaymentTicket, payerPubkey
  * `Ok(())` if valid, throws an error with details on failure.
  */
 export declare function validateTicket(ticket: PaymentTicket, payerPubkey: Buffer, channelState: ChannelState): Promise<void>
+/**
+ * Compute the BLAKE3 hash of the given data.
+ *
+ * Returns the 32-byte hash as a Buffer.
+ */
+export declare function blake3Hash(data: Buffer): Buffer
 /** An egress rule specifying an allowed outbound connection. */
 export interface EgressRule {
   /** Hostname or IP address. */
@@ -145,6 +151,8 @@ export interface JobManifest {
   env: Record<string, string>
   /** Estimated network egress in megabytes (optional). */
   estimatedEgressMb?: bigint
+  /** Estimated network ingress in megabytes (optional). */
+  estimatedIngressMb?: bigint
 }
 /** References to code and input blobs in Iroh. */
 export interface JobAssets {
@@ -313,6 +321,55 @@ export declare function encodeWireMessage(msgType: number, payload: Buffer): Buf
  * WireMessage containing the message type and raw payload
  */
 export declare function decodeWireMessage(data: Buffer): WireMessage
+/** Configuration for creating a Graphene client. */
+export interface ClientConfig {
+  /** Storage path for persistent data (identity key, blob cache). */
+  storagePath: string
+  /** Your Ed25519 secret key (32 bytes). */
+  secretKey: Buffer
+  /** Worker's Ed25519 public key (32 bytes). */
+  workerPubkey: Buffer
+  /** Payment channel PDA (32 bytes). */
+  channelPda: Buffer
+  /** Worker's node ID for P2P connection (hex string). */
+  workerNodeId: string
+  /** Whether to use relay servers for NAT traversal. */
+  useRelay?: boolean
+  /** Optional bind port (0 for random). */
+  bindPort?: number
+}
+/** Options for submitting a job. */
+export interface JobOptions {
+  /** Code to execute (UTF-8 string). */
+  code: string
+  /** Optional input data. */
+  input?: Buffer
+  /** Number of vCPUs (default: 1). */
+  vcpu?: number
+  /** Memory in MB (default: 256). */
+  memoryMb?: number
+  /** Timeout in milliseconds (default: 30000). */
+  timeoutMs?: bigint
+  /** Kernel/runtime to use (default: "python:3.12"). */
+  kernel?: string
+  /** Environment variables. */
+  env?: Record<string, string>
+  /** Egress allowlist. */
+  egressAllowlist?: Array<EgressRule>
+  /** Result delivery mode: "sync" or "async". */
+  deliveryMode?: string
+}
+/** Result from a completed job. */
+export interface NativeJobResult {
+  /** Exit code (0 = success). */
+  exitCode: number
+  /** Decrypted output data. */
+  output: Buffer
+  /** Execution duration in milliseconds. */
+  durationMs: bigint
+  /** Resource usage metrics. */
+  metrics: JobMetrics
+}
 /**
  * Channel keys derived from a payment channel relationship.
  *
@@ -373,4 +430,90 @@ export declare class PaymentTicket {
   toBytes(): Buffer
   /** Deserialize a ticket from bytes. */
   static fromBytes(bytes: Buffer): PaymentTicket
+}
+/**
+ * A native Graphene network client.
+ *
+ * Handles everything internally:
+ * - Channel key derivation
+ * - Job encryption/decryption
+ * - Payment ticket creation
+ * - Blob upload/download
+ * - Protocol serialization
+ * - Network transport
+ */
+export declare class GrapheneClient {
+  /**
+   * Create a new Graphene client.
+   *
+   * This initializes:
+   * - Channel key derivation for end-to-end encryption
+   * - P2P networking (QUIC endpoint with NAT traversal)
+   * - Blob storage for code/input/output transfers
+   *
+   * # Arguments
+   * * `config` - Client configuration with keys and worker info
+   */
+  static create(config: ClientConfig): Promise<GrapheneClient>
+  /** Get this client's node ID (public key) as a hex string. */
+  nodeId(): Promise<string>
+  /**
+   * Upload a blob and return its BLAKE3 hash.
+   *
+   * # Arguments
+   * * `data` - The data to upload
+   *
+   * # Returns
+   * The BLAKE3 hash of the uploaded blob (32 bytes)
+   */
+  uploadBlob(data: Buffer): Promise<Buffer>
+  /**
+   * Download a blob by its BLAKE3 hash.
+   *
+   * # Arguments
+   * * `hash` - The BLAKE3 hash of the blob (32 bytes)
+   * * `from_node_id` - Optional peer node ID (hex string) to download from
+   *
+   * # Returns
+   * The blob data
+   */
+  downloadBlob(hash: Buffer, fromNodeId?: string | undefined | null): Promise<Buffer>
+  /**
+   * Send a job request to a worker and receive the response.
+   *
+   * This establishes a QUIC connection to the worker, sends the serialized
+   * job request, and waits for the response.
+   *
+   * # Arguments
+   * * `worker_node_id` - The worker's node ID (hex string)
+   * * `request` - Wire-formatted job request bytes
+   *
+   * # Returns
+   * Wire-formatted job response bytes
+   */
+  sendJobRequest(workerNodeId: string, request: Buffer): Promise<Buffer>
+  /**
+   * Submit a job to the worker.
+   *
+   * This handles everything internally:
+   * 1. Generates unique job ID
+   * 2. Encrypts code and input
+   * 3. Creates payment ticket
+   * 4. Uploads blobs to worker
+   * 5. Sends job request
+   * 6. Receives and decrypts response
+   *
+   * # Arguments
+   * * `options` - Job configuration
+   *
+   * # Returns
+   * Job result with decrypted output
+   */
+  submitJob(options: JobOptions): Promise<NativeJobResult>
+  /** Get the current nonce value. */
+  get currentNonce(): bigint
+  /** Get the cumulative amount authorized. */
+  get totalAuthorized(): bigint
+  /** Gracefully shut down the client. */
+  shutdown(): Promise<void>
 }

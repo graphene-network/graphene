@@ -1,6 +1,9 @@
 /**
  * Graphene SDK - High-level TypeScript client for Graphene Network.
  *
+ * This SDK is a thin wrapper around native Rust bindings.
+ * All cryptography, networking, and protocol handling is done in Rust.
+ *
  * @packageDocumentation
  * @module @graphene/sdk
  *
@@ -8,10 +11,11 @@
  * ```typescript
  * import { Client } from '@graphene/sdk';
  *
- * const client = new Client({
+ * const client = await Client.create({
  *   secretKey: mySecretKey,      // Your Ed25519 secret key (32 bytes)
  *   workerPubkey: workerPubkey,  // Worker's public key (32 bytes)
  *   channelPda: channelPda,      // Payment channel PDA (32 bytes)
+ *   workerNodeId: nodeId,        // Worker's P2P node ID (hex string)
  * });
  *
  * const result = await client.run({
@@ -20,14 +24,13 @@
  * });
  *
  * console.log(new TextDecoder().decode(result.output)); // "4\n"
+ *
+ * await client.close();
  * ```
  */
 
 // Main client
 export { Client } from './client.js';
-
-// Transport implementations
-export { MockTransport, IrohTransport, HttpGatewayTransport } from './transport.js';
 
 // Error classes
 export {
@@ -42,7 +45,6 @@ export {
 } from './errors.js';
 
 // Types (re-exports from native + additional types)
-// Native types (interfaces)
 export type {
   ChannelKeys,
   EncryptedBlob,
@@ -56,6 +58,9 @@ export type {
   JobMetrics,
   EgressRule,
   WireMessage,
+  NativeClientConfig,
+  NativeJobOptions,
+  NativeJobResult,
 } from './types.js';
 
 // Native enums (need value export for runtime)
@@ -70,10 +75,11 @@ export type {
   ClientConfig,
   RunOptions,
   RunResult,
-  Transport,
-  JobProgress,
   EgressRuleConfig,
 } from './types.js';
+
+// Re-export native client for advanced usage
+export { GrapheneClient } from '@graphene/sdk-native';
 
 // Re-export native functions for advanced usage
 export {
@@ -87,4 +93,5 @@ export {
   deserializeJobResponse,
   encodeWireMessage,
   decodeWireMessage,
+  blake3Hash,
 } from '@graphene/sdk-native';

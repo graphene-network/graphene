@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { EncryptionDirection, ChannelKeys, EncryptedBlob, deriveChannelKeys, encryptJobBlob, decryptJobBlob, PaymentTicket, createPaymentTicket, verifyTicketSignature, validateTicket, JobStatus, RejectReason, serializeJobRequest, deserializeJobResponse, encodeWireMessage, decodeWireMessage } = nativeBinding
+const { EncryptionDirection, ChannelKeys, EncryptedBlob, deriveChannelKeys, encryptJobBlob, decryptJobBlob, PaymentTicket, createPaymentTicket, verifyTicketSignature, validateTicket, blake3Hash, JobStatus, RejectReason, serializeJobRequest, deserializeJobResponse, encodeWireMessage, decodeWireMessage, GrapheneClient } = nativeBinding
 
 module.exports.EncryptionDirection = EncryptionDirection
 module.exports.ChannelKeys = ChannelKeys
@@ -322,9 +322,11 @@ module.exports.PaymentTicket = PaymentTicket
 module.exports.createPaymentTicket = createPaymentTicket
 module.exports.verifyTicketSignature = verifyTicketSignature
 module.exports.validateTicket = validateTicket
+module.exports.blake3Hash = blake3Hash
 module.exports.JobStatus = JobStatus
 module.exports.RejectReason = RejectReason
 module.exports.serializeJobRequest = serializeJobRequest
 module.exports.deserializeJobResponse = deserializeJobResponse
 module.exports.encodeWireMessage = encodeWireMessage
 module.exports.decodeWireMessage = decodeWireMessage
+module.exports.GrapheneClient = GrapheneClient

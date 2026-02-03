@@ -1,15 +1,13 @@
 /**
  * Type definitions for the Graphene SDK.
  *
- * Re-exports all types from the native bindings and adds additional
+ * Re-exports types from the native bindings and adds additional
  * TypeScript-specific types for the high-level client.
  *
  * @module types
  */
 
 // Re-export types from native bindings
-// Note: EncryptionDirection, JobStatus, RejectReason are const enums
-// and must be re-exported with their values for runtime use
 export type {
   ChannelKeys,
   EncryptedBlob,
@@ -23,28 +21,18 @@ export type {
   JobMetrics,
   EgressRule,
   WireMessage,
+  // Native client types
+  ClientConfig as NativeClientConfig,
+  JobOptions as NativeJobOptions,
+  NativeJobResult,
 } from '@graphene/sdk-native';
 
-// Re-export const enums (these need special handling)
+// Re-export const enums
 export {
   EncryptionDirection,
   JobStatus,
   RejectReason,
 } from '@graphene/sdk-native';
-
-/**
- * Progress information for a running job.
- */
-export interface JobProgress {
-  /** The job ID this progress refers to */
-  jobId: string;
-  /** Current stage of job execution */
-  stage: 'queued' | 'running' | 'uploading' | 'downloading';
-  /** Progress percentage (0-100), if available */
-  progress?: number;
-  /** Human-readable status message */
-  message?: string;
-}
 
 /**
  * Configuration options for the Graphene Client.
@@ -56,8 +44,14 @@ export interface ClientConfig {
   workerPubkey: Uint8Array;
   /** Solana payment channel PDA (32 bytes) */
   channelPda: Uint8Array;
-  /** Optional transport implementation (default: MockTransport for testing) */
-  transport?: Transport;
+  /** Worker's P2P node ID (hex string) */
+  workerNodeId: string;
+  /** Storage path for persistent data (default: '.graphene-sdk') */
+  storagePath?: string;
+  /** Whether to use relay servers for NAT traversal (default: true) */
+  useRelay?: boolean;
+  /** Optional bind port (0 for random) */
+  bindPort?: number;
 }
 
 /**
@@ -80,12 +74,8 @@ export interface RunOptions {
   env?: Record<string, string>;
   /** Allowed egress endpoints */
   egressAllowlist?: EgressRuleConfig[];
-  /** Estimated network egress in MB (for cost estimation) */
-  estimatedEgressMb?: number;
   /** Delivery mode: "sync" waits for result, "async" returns immediately */
   deliveryMode?: 'sync' | 'async';
-  /** Callback for job progress updates */
-  onProgress?: (progress: JobProgress) => void;
 }
 
 /**
@@ -112,32 +102,4 @@ export interface RunResult {
   durationMs: number;
   /** Resource usage metrics */
   metrics: import('@graphene/sdk-native').JobMetrics;
-}
-
-/**
- * Transport interface for sending jobs to workers.
- *
- * Implementations handle the actual network communication.
- */
-export interface Transport {
-  /**
-   * Send a job request and receive the response.
-   *
-   * @param request - Wire-formatted job request bytes
-   * @returns Wire-formatted job response bytes
-   */
-  send(request: Uint8Array): Promise<Uint8Array>;
-
-  /**
-   * Subscribe to progress updates for a job.
-   *
-   * @param jobId - The job ID to subscribe to
-   * @param callback - Called with progress updates
-   */
-  onProgress?(jobId: string, callback: (progress: JobProgress) => void): void;
-
-  /**
-   * Close the transport connection.
-   */
-  close(): Promise<void>;
 }
