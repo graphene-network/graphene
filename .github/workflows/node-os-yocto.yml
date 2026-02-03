@@ -1,13 +1,22 @@
 name: Build Node OS (Yocto)
 
 on:
-  push:
-    paths:
-      - 'node-os/yocto/**'
-      - '.github/workflows/node-os-yocto.yml'
+  # PRs: validation only (fast parse check)
   pull_request:
     paths:
       - 'node-os/yocto/**'
+      - '.github/workflows/node-os-yocto.yml'
+
+  # Release tags: full build
+  push:
+    tags:
+      - 'node-os-v*'
+
+  # Weekly drift check (Sundays at 2am UTC)
+  schedule:
+    - cron: '0 2 * * 0'
+
+  # Manual trigger for full builds
   workflow_dispatch:
     inputs:
       machine:
@@ -31,7 +40,91 @@ env:
   BUILD_DIR: "/tmp/yocto-build"
 
 jobs:
+  # Fast validation for PRs - parse recipes without building
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Yocto dependencies
+        timeout-minutes: 10
+        run: |
+          set -eo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+            python3-subunit zstd liblz4-tool file locales libacl1
+
+          sudo locale-gen en_US.UTF-8
+
+      - name: Clone Poky (Yocto reference)
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://git.yoctoproject.org/poky poky
+
+      - name: Configure build environment
+        timeout-minutes: 5
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+
+          cat > conf/bblayers.conf << EOF
+          POKY_BBLAYERS_CONF_VERSION = "2"
+          BBPATH = "\${TOPDIR}"
+          BBFILES ?= ""
+          BBLAYERS ?= " \\
+              ${{ github.workspace }}/poky/meta \\
+              ${{ github.workspace }}/poky/meta-poky \\
+              ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
+          "
+          EOF
+
+          cat > conf/local.conf << EOF
+          MACHINE = "graphene-node-x86_64"
+          BB_NUMBER_THREADS = "4"
+          PARALLEL_MAKE = "-j 4"
+          DL_DIR = "${{ env.BUILD_DIR }}/downloads"
+          SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
+          TMPDIR = "${{ env.BUILD_DIR }}/tmp"
+          INHERIT += "externalsrc"
+          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          SRCREV:pn-graphene-node = "${{ github.sha }}"
+          EOF
+
+      - name: Parse recipes (validation)
+        timeout-minutes: 10
+        run: |
+          set -eo pipefail
+          cd poky
+          source oe-init-build-env ${{ env.BUILD_DIR }}
+
+          echo "::group::Parsing all recipes"
+          # -p = parse only, validates recipe syntax and dependencies
+          bitbake -p 2>&1 | tee parse.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Recipe parsing failed"
+            tail -50 parse.log
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Checking graphene-node-image recipe"
+          # Verify our image recipe is valid
+          bitbake -e graphene-node-image > /dev/null 2>&1
+          echo "✓ graphene-node-image recipe is valid"
+          echo "::endgroup::"
+
+  # Full build for releases, scheduled runs, and manual dispatch
   generate-matrix:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
@@ -52,7 +145,8 @@ jobs:
 
   build:
     needs: generate-matrix
-    runs-on: ubicloud-standard-8
+    if: github.event_name != 'pull_request'
+    runs-on: ubicloud-standard-16
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
@@ -124,8 +218,8 @@ jobs:
           # This avoids git fetch issues with branch names containing slashes
           cat > conf/local.conf << EOF
           MACHINE = "${{ matrix.machine }}"
-          BB_NUMBER_THREADS = "8"
-          PARALLEL_MAKE = "-j 8"
+          BB_NUMBER_THREADS = "16"
+          PARALLEL_MAKE = "-j 16"
           DL_DIR = "${{ env.BUILD_DIR }}/downloads"
           SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
           TMPDIR = "${{ env.BUILD_DIR }}/tmp"
@@ -146,7 +240,6 @@ jobs:
           cd poky
           source oe-init-build-env ${{ env.BUILD_DIR }}
           # Run bitbake with explicit error handling
-          # -k: continue as much as possible after error (for better error messages)
           # 2>&1: merge stderr to stdout for proper logging
           bitbake graphene-node-image 2>&1 | tee bitbake.log
           # Check exit status
@@ -232,7 +325,7 @@ jobs:
           retention-days: 30
 
       - name: Upload sstate to S3
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/node-os-v')
         timeout-minutes: 30
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -246,7 +339,7 @@ jobs:
 
   release:
     needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/node-os-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -261,8 +354,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: node-os-${{ github.sha }}
-          name: Node OS (Yocto) - ${{ github.sha }}
+          name: Node OS (Yocto) - ${{ github.ref_name }}
           body: |
             Graphene Node OS built with Yocto (${{ env.YOCTO_RELEASE }}).
 
