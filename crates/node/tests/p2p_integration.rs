@@ -205,10 +205,7 @@ async fn test_multiple_blobs() {
 
     // Upload all blobs
     for data in &blobs {
-        let hash = node
-            .upload_blob(*data)
-            .await
-            .expect("Failed to upload blob");
+        let hash = node.upload_blob(data).await.expect("Failed to upload blob");
         hashes.push(hash);
     }
 
