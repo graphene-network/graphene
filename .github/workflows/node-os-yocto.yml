@@ -60,6 +60,15 @@ jobs:
 
           sudo locale-gen en_US.UTF-8
 
+      - name: Enable unprivileged user namespaces
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          # Ubuntu 24.04 restricts unprivileged user namespaces by default
+          # BitBake requires this for pseudo/fakeroot operations
+          echo 'kernel.apparmor_restrict_unprivileged_userns = 0' | sudo tee /etc/sysctl.d/99-userns.conf
+          sudo sysctl -p /etc/sysctl.d/99-userns.conf
+
       - name: Clone Poky (Yocto reference)
         timeout-minutes: 5
         run: |
