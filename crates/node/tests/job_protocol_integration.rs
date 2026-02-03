@@ -116,6 +116,7 @@ fn create_test_request(channel_id: [u8; 32], ticket: PaymentTicket) -> JobReques
             env: [("MY_VAR".to_string(), "my_value".to_string())]
                 .into_iter()
                 .collect(),
+            estimated_egress_mb: None,
         },
         ticket,
         assets: JobAssets {

@@ -507,6 +507,7 @@ mod tests {
                 kernel: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: HashMap::new(),
+                estimated_egress_mb: None,
             },
             ticket: PaymentTicket::new([1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64]),
             assets: JobAssets {

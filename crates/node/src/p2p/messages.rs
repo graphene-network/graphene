@@ -198,6 +198,11 @@ pub struct WorkerPricing {
 
     /// Price per GPU-millisecond in microtokens (if GPU is offered).
     pub gpu_ms_micros: Option<u64>,
+
+    /// Price per megabyte of network egress in microtokens.
+    /// Phase 2: Used for egress cost calculation once metering is implemented.
+    #[serde(default)]
+    pub egress_mb_micros: Option<f64>,
 }
 
 impl Default for WorkerPricing {
@@ -207,6 +212,7 @@ impl Default for WorkerPricing {
             memory_mb_ms_micros: 0.1,
             disk_gb_ms_micros: None,
             gpu_ms_micros: None,
+            egress_mb_micros: None,
         }
     }
 }
@@ -565,6 +571,12 @@ pub struct JobManifest {
     /// Total size (keys + values) must not exceed 128KB.
     #[serde(default)]
     pub env: HashMap<String, String>,
+
+    /// Estimated network egress in megabytes.
+    /// Phase 2: Used for cost estimation when egress pricing is enabled.
+    /// If not provided, assumed to be 0 (no egress).
+    #[serde(default)]
+    pub estimated_egress_mb: Option<u64>,
 }
 
 /// An allowed egress destination.

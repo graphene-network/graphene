@@ -573,6 +573,7 @@ mod tests {
             kernel: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
+            estimated_egress_mb: None,
         }
     }
 
