@@ -1295,6 +1295,100 @@ When TEE is added, decryption moves inside the enclave, but the encryption layer
 - Sensitive data processing
 - Cryptographic proof of correct execution
 
+### 8.14 Hardened Node OS
+
+Worker nodes run a purpose-built operating system designed to eliminate attack surface and prevent operator tampering. This "Graphene Node OS" is built with Yocto and enforces security guarantees at the OS level.
+
+**Core Security Properties:**
+
+| Property | Implementation |
+|----------|----------------|
+| **No Shell** | `/bin/sh`, `/bin/bash` removed from rootfs |
+| **No SSH** | No remote shell access possible |
+| **Read-Only Root** | dm-verity verified rootfs with signed root hash |
+| **No Package Manager** | apk/apt/yum excluded from image |
+| **Minimal Attack Surface** | <50MB image, only essential binaries |
+
+**Shell-Less Architecture:**
+
+Unlike traditional Linux servers, Graphene nodes have no shell interpreter:
+
+```
+Traditional Server:          Graphene Node:
+┌─────────────────────┐     ┌─────────────────────┐
+│ SSH → bash          │     │ Management API      │
+│ └─> arbitrary cmds  │     │ └─> predefined ops  │
+└─────────────────────┘     └─────────────────────┘
+      ↓ Risk                       ↓ Safe
+  Command injection            No shell to inject
+  Privilege escalation         No shell to escalate
+  Lateral movement             No interactive access
+```
+
+**Why This Matters:**
+
+Even if an attacker compromises the management API or a MicroVM escapes its sandbox, they cannot:
+- Execute arbitrary commands (no shell exists)
+- Install backdoors (no package manager)
+- Modify the rootfs (dm-verity rejects changes)
+- Establish persistence (verified boot reloads clean image)
+
+**dm-verity Integrity:**
+
+The rootfs is protected by dm-verity, a kernel feature that verifies every block read against a Merkle tree:
+
+```
+┌────────────────────────────────────────────────┐
+│                Root Hash                        │
+│  (embedded in kernel or signed manifest)        │
+└──────────────────────┬─────────────────────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         ▼                           ▼
+    ┌─────────┐                 ┌─────────┐
+    │ Hash L1 │                 │ Hash L1 │
+    └────┬────┘                 └────┬────┘
+         │                           │
+    ┌────┴────┐                 ┌────┴────┐
+    ▼         ▼                 ▼         ▼
+┌───────┐ ┌───────┐         ┌───────┐ ┌───────┐
+│Block 0│ │Block 1│   ...   │Block N│ │Block M│
+└───────┘ └───────┘         └───────┘ └───────┘
+```
+
+If any block is modified (malware, rootkit, tampering), the hash chain breaks and the kernel panics rather than executing corrupted code.
+
+**TPM-Based Attestation:**
+
+Nodes with TPM 2.0 hardware provide cryptographic proof of their configuration:
+
+| PCR | Contents | Purpose |
+|-----|----------|---------|
+| PCR 0 | Firmware | Verify UEFI not tampered |
+| PCR 7 | Secure Boot | Verify boot chain integrity |
+| PCR 14 | dm-verity root | Verify exact rootfs version |
+
+During registration, workers generate a TPM quote signed by their Endorsement Key. The network verifies:
+1. TPM is genuine (EK certificate chain)
+2. PCR values match expected golden values
+3. Node is running approved OS version
+
+**Management Without Shell:**
+
+Operators manage nodes through a secure API instead of SSH:
+
+```bash
+# Traditional (dangerous):
+ssh root@node "systemctl restart graphene-worker"
+
+# Graphene (safe):
+graphenectl --node <node-id> drain
+graphenectl --node <node-id> upgrade --version 1.2.0
+graphenectl --node <node-id> reboot
+```
+
+See Section 12.5 for the full management API specification.
+
 ---
 
 ## 9. Worker Selection
@@ -1736,6 +1830,166 @@ Dependency blobs are content-addressed and shared peer-to-peer:
 | OFFLINE | SLASHED | Grace period exceeded (1 hr) |
 | UNBONDING | EXITED | 14 days elapsed |
 
+### 12.5 Node Configuration
+
+Graphene nodes are managed remotely through a secure API, replacing traditional SSH-based administration. This approach eliminates shell access while providing all necessary operational capabilities.
+
+**Management Architecture:**
+
+```
+┌─────────────────┐         ┌─────────────────────────────────┐
+│   graphenectl   │         │         Graphene Node           │
+│   (operator)    │         │                                 │
+└────────┬────────┘         │  ┌───────────────────────────┐  │
+         │                  │  │    Management Daemon       │  │
+         │ QUIC/Iroh        │  │    (Rust binary)          │  │
+         │ (encrypted)      │  │                           │  │
+         └──────────────────┼──│  • Config validation      │  │
+                            │  │  • Lifecycle control      │  │
+                            │  │  • Log streaming          │  │
+                            │  │  • Metrics export         │  │
+                            │  └───────────────────────────┘  │
+                            │                                 │
+                            │  ┌───────────────────────────┐  │
+                            │  │    Worker Process         │  │
+                            │  └───────────────────────────┘  │
+                            └─────────────────────────────────┘
+```
+
+**Capability-Based Authentication:**
+
+Instead of passwords or SSH keys, `graphenectl` uses capability tokens derived from a root secret:
+
+```
+Root Secret (operator holds)
+         │
+         ├─► Admin Token    (full control)
+         │
+         ├─► Operator Token (lifecycle, config)
+         │
+         └─► Reader Token   (status, logs only)
+```
+
+Token derivation uses HKDF:
+```
+token = HKDF(root_secret, salt=node_id, info=role)
+```
+
+**Key Properties:**
+- Tokens are revocable by rotating the root secret
+- Tokens are role-scoped (cannot escalate privileges)
+- Tokens are node-specific (cannot use on other nodes)
+- No shared secrets stored on nodes (derived on-demand)
+
+**Management Commands:**
+
+| Command | Role Required | Description |
+|---------|--------------|-------------|
+| `graphenectl status` | Reader | Show node health and metrics |
+| `graphenectl logs` | Reader | Stream worker logs |
+| `graphenectl drain` | Operator | Stop accepting new jobs |
+| `graphenectl apply` | Operator | Update configuration |
+| `graphenectl upgrade` | Admin | Stage OS upgrade |
+| `graphenectl reboot` | Admin | Reboot node |
+| `graphenectl register` | Admin | Register with Solana |
+| `graphenectl cap issue` | Admin | Generate new capability token |
+
+**Configuration Flow:**
+
+```
+┌─────────────────┐
+│ 1. Write config │
+│    (YAML file)  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│ 2. graphenectl  │────▶│ 3. Node daemon  │
+│    apply        │     │    validates    │
+└─────────────────┘     └────────┬────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+             ┌───────────┐             ┌───────────┐
+             │ 4a. Valid │             │ 4b. Invalid│
+             │  → Apply  │             │  → Reject  │
+             └───────────┘             └───────────┘
+```
+
+Configuration is validated before application:
+- Schema validation (required fields, types)
+- Resource limits (within node capacity)
+- Network rules (valid CIDR, ports)
+- Stake requirements (meets minimums)
+
+**Remote Upgrade Process:**
+
+OS upgrades are staged and verified before activation:
+
+```
+┌─────────────────┐
+│ 1. Stage image  │
+│    (download)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 2. Verify hash  │
+│    (SHA256)     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 3. Drain jobs   │
+│    (graceful)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 4. Switch root  │
+│    (atomic)     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 5. Reboot       │
+│    (verified)   │
+└─────────────────┘
+```
+
+If the new image fails to boot, the bootloader automatically reverts to the previous known-good image.
+
+**Log Streaming:**
+
+Operators can stream logs without shell access:
+
+```bash
+# Stream all worker logs
+graphenectl logs --follow
+
+# Filter by severity
+graphenectl logs --level=error
+
+# Search historical logs
+graphenectl logs --since=1h --grep="payment"
+```
+
+Logs are structured JSON, enabling automated monitoring and alerting.
+
+**Metrics Export:**
+
+Nodes expose Prometheus-compatible metrics via the management API:
+
+```bash
+# Fetch current metrics
+graphenectl metrics
+
+# Continuous export to Prometheus
+graphenectl metrics --prometheus-push=http://monitor:9091
+```
+
+See Appendix F for the complete node configuration schema.
+
 ---
 
 ## 13. SDK Quick Start
@@ -2060,6 +2314,235 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+## Appendix F: Node Configuration Schema
+
+Complete YAML schema for Graphene node configuration, managed via `graphenectl apply`.
+
+```yaml
+# node-config.yaml
+# Graphene Node Configuration Schema v1.0
+
+# Schema version (required)
+version: "1.0"
+
+# Node identity
+node:
+  # Human-readable name (optional, for operator reference)
+  name: "worker-us-west-01"
+
+  # Geographic region for routing
+  region: "us-west-2"
+
+  # Coordinates for latency estimation [lat, lon]
+  coordinates: [45.52, -122.67]
+
+# Resource allocation
+resources:
+  # Maximum vCPUs available for jobs
+  max_vcpu: 16
+
+  # Maximum memory in MB
+  max_memory_mb: 65536
+
+  # Maximum concurrent jobs
+  max_concurrent_jobs: 8
+
+  # Supported job tiers
+  tiers:
+    - standard
+    - compute
+
+# Staking configuration
+staking:
+  # Solana wallet address (base58)
+  wallet: "GrPhN3..."
+
+  # Minimum stake to maintain (in $GRAPHENE)
+  min_stake: 1000
+
+  # Auto-compound rewards
+  auto_compound: true
+
+# Pricing (in micro-USDC)
+pricing:
+  # Per vCPU-millisecond
+  cpu_ms: 1
+
+  # Per MB-millisecond of memory
+  memory_mb_ms: 0.1
+
+  # Per MB of egress
+  egress_mb: 10000
+
+# Network configuration
+network:
+  # Iroh relay servers (optional, uses defaults if empty)
+  relay_servers: []
+
+  # Gossip topic (do not change unless instructed)
+  gossip_topic: "graphene-compute-v1"
+
+  # Listen addresses
+  listen:
+    # Management API port
+    management: 9090
+
+    # Prometheus metrics port
+    metrics: 9091
+
+    # P2P port (Iroh)
+    p2p: 4433
+
+# Firecracker MicroVM configuration
+vmm:
+  # Path to kernel binary
+  kernel_path: "/var/lib/graphene/vmlinux"
+
+  # Default rootfs for unikernels
+  rootfs_path: "/var/lib/graphene/rootfs.ext4"
+
+  # VM boot timeout in milliseconds
+  boot_timeout_ms: 5000
+
+  # Enable jailer for additional isolation
+  jailer_enabled: true
+
+  # Jailer UID/GID range start
+  jailer_uid_start: 10000
+
+# Builder VM configuration
+builder:
+  # Enable ephemeral builder VMs
+  enabled: true
+
+  # Builder timeout in seconds
+  timeout_seconds: 300
+
+  # Maximum builder memory in MB
+  max_memory_mb: 4096
+
+  # Maximum builder disk in MB
+  max_disk_mb: 10240
+
+# Cache configuration
+cache:
+  # Local cache directory
+  path: "/var/cache/graphene"
+
+  # Maximum cache size in GB
+  max_size_gb: 100
+
+  # Enable P2P cache sharing via Iroh
+  p2p_enabled: true
+
+  # Cache TTL in hours (0 = infinite)
+  ttl_hours: 168  # 7 days
+
+# Logging configuration
+logging:
+  # Log level: trace, debug, info, warn, error
+  level: "info"
+
+  # Log format: json, pretty
+  format: "json"
+
+  # Log output: stdout, file, both
+  output: "both"
+
+  # Log file path (if output includes file)
+  file_path: "/var/log/graphene/worker.log"
+
+  # Log rotation
+  rotation:
+    max_size_mb: 100
+    max_files: 10
+
+# Security configuration
+security:
+  # Require TLS for management API
+  tls_required: true
+
+  # TLS certificate path (auto-generated if not specified)
+  tls_cert_path: "/etc/graphene/tls/cert.pem"
+  tls_key_path: "/etc/graphene/tls/key.pem"
+
+  # Capability token settings
+  capability:
+    # Token expiry in hours (0 = no expiry)
+    expiry_hours: 720  # 30 days
+
+    # Allowed roles
+    allowed_roles:
+      - admin
+      - operator
+      - reader
+
+# Attestation configuration (for hardened nodes)
+attestation:
+  # Enable TPM-based attestation
+  tpm_enabled: true
+
+  # TPM device path
+  tpm_device: "/dev/tpmrm0"
+
+  # Enable dm-verity verification
+  verity_enabled: true
+
+  # Expected dm-verity root hash (set during build)
+  # verity_root_hash: "sha256:..."
+
+# Maintenance windows
+maintenance:
+  # Automatic updates enabled
+  auto_update: false
+
+  # Preferred update window (UTC)
+  update_window:
+    start: "04:00"
+    end: "06:00"
+
+  # Drain timeout before forced shutdown (seconds)
+  drain_timeout: 300
+```
+
+**Configuration Validation Rules:**
+
+| Field | Validation |
+|-------|------------|
+| `version` | Must be "1.0" |
+| `node.region` | Must match pattern `[a-z]+-[a-z]+-[0-9]+` |
+| `resources.max_vcpu` | 1-128, must not exceed host CPU count |
+| `resources.max_memory_mb` | 512-524288, must not exceed host RAM |
+| `staking.wallet` | Valid Solana base58 address |
+| `pricing.*` | Non-negative integers |
+| `network.listen.*` | Valid port numbers (1024-65535) |
+| `vmm.boot_timeout_ms` | 1000-30000 |
+| `cache.max_size_gb` | 1-1000 |
+| `logging.level` | One of: trace, debug, info, warn, error |
+
+**Example: Minimal Configuration**
+
+```yaml
+version: "1.0"
+
+node:
+  region: "us-west-2"
+
+resources:
+  max_vcpu: 8
+  max_memory_mb: 32768
+
+staking:
+  wallet: "GrPhN3exampleWallet..."
+
+pricing:
+  cpu_ms: 1
+  memory_mb_ms: 0.1
+  egress_mb: 10000
+```
+
+All other fields use secure defaults when not specified.
 
 ---
 
