@@ -661,7 +661,7 @@ pub struct EncryptedJobResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EncryptedJobMessage {
     /// User submitting an encrypted job.
-    Request(EncryptedJobRequest),
+    Request(Box<EncryptedJobRequest>),
 
     /// Worker acknowledging job receipt.
     Accepted {
