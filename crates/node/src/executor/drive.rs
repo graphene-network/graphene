@@ -2,7 +2,13 @@
 //!
 //! This module provides the infrastructure for creating ext4 disk images
 //! that contain the job code, input, and configuration. These images are
-//! mounted as the root filesystem for unikernel execution.
+//! used as the root filesystem for unikernel execution.
+//!
+//! # Implementation Notes
+//!
+//! The Linux implementation uses `mke2fs -d` to create populated ext4 images
+//! without requiring root privileges or mounting. This is critical for running
+//! in unprivileged environments like CI runners or cloud VPS instances.
 //!
 //! # Drive Layout
 //!
@@ -186,11 +192,13 @@ pub mod linux {
     use super::*;
     use std::process::Command;
     use tokio::fs;
+    use tracing::{debug, warn};
 
     /// Linux implementation of ExecutionDriveBuilder.
     ///
-    /// Uses system tools (dd, mkfs.ext4, mount) to create and populate
-    /// ext4 filesystem images.
+    /// Uses `mke2fs -d` to create and populate ext4 filesystem images without
+    /// requiring root privileges or mounting. This is critical for running in
+    /// unprivileged environments like CI runners.
     pub struct LinuxDriveBuilder {
         config: DriveConfig,
     }
@@ -206,83 +214,8 @@ pub mod linux {
             Self::new(DriveConfig::default())
         }
 
-        /// Create an empty ext4 image file.
-        async fn create_image(&self, path: &Path, size_mb: u32) -> Result<(), ExecutionError> {
-            // Create sparse file with dd
-            let status = Command::new("dd")
-                .args([
-                    "if=/dev/zero",
-                    &format!("of={}", path.display()),
-                    "bs=1M",
-                    &format!("count={}", size_mb),
-                ])
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("dd failed: {}", e)))?;
-
-            if !status.status.success() {
-                return Err(ExecutionError::drive(format!(
-                    "dd failed: {}",
-                    String::from_utf8_lossy(&status.stderr)
-                )));
-            }
-
-            // Format as ext4
-            let status = Command::new("mkfs.ext4")
-                .args(["-F", "-q", &path.display().to_string()])
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("mkfs.ext4 failed: {}", e)))?;
-
-            if !status.status.success() {
-                return Err(ExecutionError::drive(format!(
-                    "mkfs.ext4 failed: {}",
-                    String::from_utf8_lossy(&status.stderr)
-                )));
-            }
-
-            Ok(())
-        }
-
-        /// Mount an ext4 image to a directory.
-        async fn mount(&self, image: &Path, mount_point: &Path) -> Result<(), ExecutionError> {
-            let status = Command::new("mount")
-                .args([
-                    "-o",
-                    "loop",
-                    &image.display().to_string(),
-                    &mount_point.display().to_string(),
-                ])
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("mount failed: {}", e)))?;
-
-            if !status.status.success() {
-                return Err(ExecutionError::drive(format!(
-                    "mount failed: {}",
-                    String::from_utf8_lossy(&status.stderr)
-                )));
-            }
-
-            Ok(())
-        }
-
-        /// Unmount a mount point.
-        async fn unmount(&self, mount_point: &Path) -> Result<(), ExecutionError> {
-            let status = Command::new("umount")
-                .arg(mount_point.display().to_string())
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("umount failed: {}", e)))?;
-
-            if !status.status.success() {
-                return Err(ExecutionError::drive(format!(
-                    "umount failed: {}",
-                    String::from_utf8_lossy(&status.stderr)
-                )));
-            }
-
-            Ok(())
-        }
-
         /// Extract a tarball to a directory.
-        async fn extract_tarball(&self, tarball: &[u8], dest: &Path) -> Result<(), ExecutionError> {
+        fn extract_tarball(&self, tarball: &[u8], dest: &Path) -> Result<(), ExecutionError> {
             use std::io::Write;
 
             // Write tarball to temp file
@@ -317,6 +250,62 @@ pub mod linux {
 
             Ok(())
         }
+
+        /// Create an ext4 image from a staging directory using mke2fs -d.
+        ///
+        /// This approach does not require root privileges or mounting, making it
+        /// suitable for unprivileged environments like CI runners.
+        fn create_image_from_dir(
+            &self,
+            image_path: &Path,
+            staging_dir: &Path,
+            size_mb: u32,
+        ) -> Result<(), ExecutionError> {
+            debug!(
+                image = %image_path.display(),
+                staging = %staging_dir.display(),
+                size_mb,
+                "Creating ext4 image with mke2fs -d"
+            );
+
+            let output = Command::new("mke2fs")
+                .args([
+                    "-t",
+                    "ext4",
+                    "-d",
+                    &staging_dir.display().to_string(),
+                    // Set root ownership to uid/gid 0 (required since we're not root)
+                    "-E",
+                    "root_owner=0:0",
+                    // Force creation even if file doesn't exist
+                    "-F",
+                    // Quiet mode
+                    "-q",
+                    &image_path.display().to_string(),
+                    &format!("{}M", size_mb),
+                ])
+                .output()
+                .map_err(|e| ExecutionError::drive(format!("mke2fs failed to execute: {}", e)))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(ExecutionError::drive(format!("mke2fs failed: {}", stderr)));
+            }
+
+            debug!(image = %image_path.display(), "Successfully created ext4 image");
+            Ok(())
+        }
+
+        /// Clean up the staging directory, logging but not failing on errors.
+        fn cleanup_staging(&self, staging_dir: &Path) {
+            if let Err(e) = std::fs::remove_dir_all(staging_dir) {
+                warn!(
+                    staging = %staging_dir.display(),
+                    error = %e,
+                    "Failed to clean up staging directory"
+                );
+            }
+        }
     }
 
     #[async_trait]
@@ -335,68 +324,63 @@ pub mod linux {
                 .map_err(|e| ExecutionError::drive(format!("failed to create work dir: {}", e)))?;
 
             let image_path = self.config.work_dir.join(format!("{}.ext4", job_id));
-            let mount_point = self.config.work_dir.join(format!("{}_mount", job_id));
+            let staging_dir = self.config.work_dir.join(format!("{}_staging", job_id));
 
-            // Create the ext4 image
-            self.create_image(&image_path, self.config.image_size_mb)
-                .await?;
+            // Create staging directory structure mirroring the target filesystem
+            let app_dir = staging_dir.join("app");
+            let input_dir = staging_dir.join("input");
+            let output_dir = staging_dir.join("output");
+            let config_dir = staging_dir.join("etc/graphene");
 
-            // Create mount point
-            fs::create_dir_all(&mount_point).await.map_err(|e| {
-                ExecutionError::drive(format!("failed to create mount point: {}", e))
+            // Create all directories
+            fs::create_dir_all(&app_dir)
+                .await
+                .map_err(|e| ExecutionError::drive(format!("failed to create /app: {}", e)))?;
+            fs::create_dir_all(&input_dir)
+                .await
+                .map_err(|e| ExecutionError::drive(format!("failed to create /input: {}", e)))?;
+            fs::create_dir_all(&output_dir)
+                .await
+                .map_err(|e| ExecutionError::drive(format!("failed to create /output: {}", e)))?;
+            fs::create_dir_all(&config_dir).await.map_err(|e| {
+                ExecutionError::drive(format!("failed to create /etc/graphene: {}", e))
             })?;
 
-            // Mount the image
-            self.mount(&image_path, &mount_point).await?;
-
-            // Create directory structure
-            let app_dir = mount_point.join("app");
-            let input_dir = mount_point.join("input");
-            let output_dir = mount_point.join("output");
-            let config_dir = mount_point.join("etc/graphene");
-
-            // Use a closure to ensure cleanup on error
-            let result = async {
-                fs::create_dir_all(&app_dir)
-                    .await
-                    .map_err(|e| ExecutionError::drive(format!("failed to create /app: {}", e)))?;
-                fs::create_dir_all(&input_dir).await.map_err(|e| {
-                    ExecutionError::drive(format!("failed to create /input: {}", e))
-                })?;
-                fs::create_dir_all(&output_dir).await.map_err(|e| {
-                    ExecutionError::drive(format!("failed to create /output: {}", e))
-                })?;
-                fs::create_dir_all(&config_dir).await.map_err(|e| {
-                    ExecutionError::drive(format!("failed to create /etc/graphene: {}", e))
-                })?;
-
-                // Extract code tarball to /app
-                self.extract_tarball(code, &app_dir).await?;
-
-                // Extract input tarball to /input if provided
-                if let Some(input_data) = input {
-                    self.extract_tarball(input_data, &input_dir).await?;
-                }
-
-                // Write environment variables
-                let env_json = build_env_json(job_id, user_env, manifest);
-                let env_path = config_dir.join("env.json");
-                fs::write(&env_path, &env_json).await.map_err(|e| {
-                    ExecutionError::drive(format!("failed to write env.json: {}", e))
-                })?;
-
-                Ok::<(), ExecutionError>(())
+            // Extract code tarball to /app
+            if let Err(e) = self.extract_tarball(code, &app_dir) {
+                self.cleanup_staging(&staging_dir);
+                return Err(e);
             }
-            .await;
 
-            // Always unmount, even on error
-            self.unmount(&mount_point).await?;
+            // Extract input tarball to /input if provided
+            if let Some(input_data) = input {
+                if let Err(e) = self.extract_tarball(input_data, &input_dir) {
+                    self.cleanup_staging(&staging_dir);
+                    return Err(e);
+                }
+            }
 
-            // Clean up mount point directory
-            let _ = fs::remove_dir(&mount_point).await;
+            // Write environment variables
+            let env_json = build_env_json(job_id, user_env, manifest);
+            let env_path = config_dir.join("env.json");
+            if let Err(e) = fs::write(&env_path, &env_json).await {
+                self.cleanup_staging(&staging_dir);
+                return Err(ExecutionError::drive(format!(
+                    "failed to write env.json: {}",
+                    e
+                )));
+            }
 
-            // Propagate any error from the inner operations
-            result?;
+            // Create the ext4 image from the staging directory
+            if let Err(e) =
+                self.create_image_from_dir(&image_path, &staging_dir, self.config.image_size_mb)
+            {
+                self.cleanup_staging(&staging_dir);
+                return Err(e);
+            }
+
+            // Clean up staging directory
+            self.cleanup_staging(&staging_dir);
 
             Ok(image_path)
         }
