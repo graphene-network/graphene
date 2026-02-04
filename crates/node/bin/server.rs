@@ -205,9 +205,19 @@ async fn main() -> Result<()> {
 
     // Add a test channel for e2e testing
     // TODO(#141): Remove this when real channel registration is implemented
+    let test_user_pubkey: [u8; 32] = match std::env::var("GRAPHENE_TEST_USER_PUBKEY") {
+        Ok(hex_str) => {
+            let bytes = hex::decode(&hex_str).expect("GRAPHENE_TEST_USER_PUBKEY must be valid hex");
+            bytes
+                .try_into()
+                .expect("GRAPHENE_TEST_USER_PUBKEY must be 64 hex chars (32 bytes)")
+        }
+        Err(_) => [2u8; 32],
+    };
+
     let test_channel = ChannelLocalState {
         channel_id: [1u8; 32],
-        user: [2u8; 32],
+        user: test_user_pubkey,
         worker: *node_id.as_bytes(),
         on_chain_balance: 100_000_000, // 100 USDC worth of micros
         accepted_amount: 0,
