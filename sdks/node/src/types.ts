@@ -50,6 +50,8 @@ export interface ClientConfig {
   useRelay?: boolean;
   /** Optional bind port (0 for random) */
   bindPort?: number;
+  /** Worker's relay URL for NAT traversal (obtained from worker's connection info) */
+  relayUrl?: string;
 }
 
 /**

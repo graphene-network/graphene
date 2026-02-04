@@ -128,6 +128,10 @@ async fn main() -> Result<()> {
     info!("═══════════════════════════════════════════════════════════════");
     info!("  SDK Connection Info:");
     info!("  workerNodeId: \"{}\"", node_id);
+    // Add relay URL for client connection (needed by Iroh 0.96 for NAT traversal)
+    if let Some(relay_url) = node_addr.relay_urls().next() {
+        info!("  relayUrl: \"{}\"", relay_url);
+    }
     info!("═══════════════════════════════════════════════════════════════");
     info!("");
 

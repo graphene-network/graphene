@@ -81,6 +81,7 @@ export class Client {
       workerNodeId: config.workerNodeId,
       useRelay: config.useRelay ?? true,
       bindPort: config.bindPort,
+      relayUrl: config.relayUrl,
     };
 
     const native = await NativeClient.create(nativeConfig);

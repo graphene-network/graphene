@@ -56,6 +56,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -91,6 +92,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -120,6 +122,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -150,6 +153,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -192,6 +196,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -219,6 +224,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -240,6 +246,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -262,6 +269,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -290,6 +298,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: wrongKeypair.secretKey, // Different from test channel user
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -313,6 +322,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -338,6 +348,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -368,6 +379,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -400,6 +412,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -433,6 +446,7 @@ describe('E2E: Mock Channel Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 
@@ -473,6 +487,7 @@ print(f"Compressed delivery: {len(data)} chars")
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-${Date.now()}`,
       });
 

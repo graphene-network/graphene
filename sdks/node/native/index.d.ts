@@ -340,6 +340,8 @@ export interface ClientConfig {
   useRelay?: boolean
   /** Optional bind port (0 for random). */
   bindPort?: number
+  /** Worker's relay URL for NAT traversal (needed by Iroh 0.96). */
+  relayUrl?: string
 }
 /** Resource requirements for a job. */
 export interface ResourceOptions {

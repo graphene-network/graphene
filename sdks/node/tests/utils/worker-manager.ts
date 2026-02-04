@@ -25,6 +25,8 @@ export interface WorkerConfig {
 export interface WorkerInstance {
   /** The worker's node ID (hex-encoded Ed25519 pubkey) */
   nodeId: string;
+  /** The worker's relay URL for NAT traversal (may be null if no relay) */
+  relayUrl: string | null;
   /** The underlying child process */
   process: ChildProcess;
   /** Storage path used by this worker */
@@ -90,9 +92,10 @@ export class WorkerManager {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    // Parse node ID and wait for ready signal
+    // Parse node ID, relay URL, and wait for ready signal
     return new Promise((resolve, reject) => {
       let nodeId: string | null = null;
+      let relayUrl: string | null = null;
       let ready = false;
       let stderr = '';
       let stdout = '';
@@ -115,16 +118,23 @@ export class WorkerManager {
           nodeId = nodeIdMatch[1];
         }
 
+        // Parse relay URL from "relayUrl: ..." line
+        const relayMatch = text.match(/relayUrl:\s*"([^"]+)"/);
+        if (relayMatch) {
+          relayUrl = relayMatch[1];
+        }
+
         // Check for ready signal
         if (text.includes('Listening for job requests')) {
           ready = true;
         }
 
-        // Resolve when we have both
+        // Resolve when we have both nodeId and ready (relayUrl is optional)
         if (nodeId && ready) {
           clearTimeout(timeout);
           this.instance = {
             nodeId,
+            relayUrl,
             process: proc,
             storagePath,
           };
@@ -142,6 +152,12 @@ export class WorkerManager {
           nodeId = nodeIdMatch[1];
         }
 
+        // Parse relay URL from stderr too (tracing outputs here)
+        const relayMatch = text.match(/relayUrl:\s*"([^"]+)"/);
+        if (relayMatch) {
+          relayUrl = relayMatch[1];
+        }
+
         if (text.includes('Listening for job requests')) {
           ready = true;
         }
@@ -150,6 +166,7 @@ export class WorkerManager {
           clearTimeout(timeout);
           this.instance = {
             nodeId,
+            relayUrl,
             process: proc,
             storagePath,
           };
