@@ -149,7 +149,7 @@ jobs:
         if: steps.kvm.outputs.available == 'true'
         working-directory: programs/graphene
         run: |
-          bun anchor build
+          anchor build
           echo "Program built at:"
           ls -la target/deploy/
 
