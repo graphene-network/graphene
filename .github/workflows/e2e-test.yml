@@ -69,6 +69,14 @@ jobs:
           solana --version
           solana-test-validator --version
 
+      - name: Setup Solana keypair
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
+          solana config set --url http://localhost:8899
+          echo "Keypair created at ~/.config/solana/id.json"
+
       - name: Install Anchor CLI
         if: steps.kvm.outputs.available == 'true'
         run: |
