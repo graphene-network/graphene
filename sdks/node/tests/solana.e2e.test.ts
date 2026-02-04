@@ -12,6 +12,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { Client } from '../src/client.js';
 import { WorkerManager, type WorkerInstance } from './utils/worker-manager.js';
 import { SolanaValidator, type ValidatorInstance } from './utils/solana-validator.js';
@@ -26,21 +29,37 @@ const MOCK_OUTPUT = 'Mock execution completed\n';
 const TEST_TIMEOUT = 180_000;
 const SETUP_TIMEOUT = 120_000;
 
-// Skip these tests if solana-test-validator is not available
-const SOLANA_AVAILABLE = await checkSolanaAvailable();
+// Path to the Graphene program build artifacts
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const PROGRAM_SO_PATH = join(currentDir, '../../../programs/graphene/target/deploy/graphene.so');
+const PROGRAM_KEYPAIR_PATH = join(currentDir, '../../../programs/graphene/target/deploy/graphene-keypair.json');
 
-async function checkSolanaAvailable(): Promise<boolean> {
+// Skip these tests if solana-test-validator is not available or program not built
+const { solanaAvailable, programBuilt } = await checkRequirements();
+
+async function checkRequirements(): Promise<{ solanaAvailable: boolean; programBuilt: boolean }> {
+  let solanaAvailable = false;
+  let programBuilt = false;
+
+  // Check for solana-test-validator
   try {
     const proc = Bun.spawn(['solana-test-validator', '--version'], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
     await proc.exited;
-    return proc.exitCode === 0;
+    solanaAvailable = proc.exitCode === 0;
   } catch {
-    return false;
+    solanaAvailable = false;
   }
+
+  // Check for built program
+  programBuilt = existsSync(PROGRAM_SO_PATH) && existsSync(PROGRAM_KEYPAIR_PATH);
+
+  return { solanaAvailable, programBuilt };
 }
+
+const SOLANA_AVAILABLE = solanaAvailable && programBuilt;
 
 describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
   let validator: SolanaValidator;
@@ -208,16 +227,23 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
 });
 
 // Always pass test to indicate the file is valid
-// (actual tests are skipped if Solana is unavailable)
+// (actual tests are skipped if requirements not met)
 describe('E2E Solana Test File', () => {
   it('loads successfully', () => {
     expect(true).toBe(true);
   });
 
-  it('reports Solana availability', () => {
-    console.log(`Solana test validator available: ${SOLANA_AVAILABLE}`);
-    if (!SOLANA_AVAILABLE) {
-      console.log('Install solana-cli to run Level 2 E2E tests');
+  it('reports requirements', () => {
+    console.log(`Requirements for Level 2 E2E tests:`);
+    console.log(`  - solana-test-validator available: ${solanaAvailable}`);
+    console.log(`  - Graphene program built: ${programBuilt}`);
+    console.log(`  - All requirements met: ${SOLANA_AVAILABLE}`);
+
+    if (!solanaAvailable) {
+      console.log('\nTo install Solana CLI: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"');
+    }
+    if (!programBuilt) {
+      console.log('\nTo build Graphene program: cd programs/graphene && anchor build');
     }
   });
 });

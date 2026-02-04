@@ -5,10 +5,15 @@
  * and provides RPC URL for worker configuration.
  */
 
-import { spawn, type ChildProcess } from 'child_process';
-import { mkdtemp, rm } from 'fs/promises';
+import { spawn, exec, type ChildProcess } from 'child_process';
+import { mkdtemp, rm, access } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { promisify } from 'util';
+import { GRAPHENE_PROGRAM_ID } from './solana-types.js';
+
+const execAsync = promisify(exec);
 
 export interface ValidatorConfig {
   /** Port for JSON-RPC (default: 8899) */
@@ -162,13 +167,37 @@ export class SolanaValidator {
       throw new Error('Validator not running');
     }
 
-    // TODO: Implement actual deployment
-    // For now, return the expected program ID
-    // In practice, this would run:
-    // cd programs/graphene && anchor deploy --provider.cluster localnet
+    // Resolve path to the Graphene program directory
+    const currentDir = dirname(fileURLToPath(import.meta.url));
+    const programDir = join(currentDir, '../../../../programs/graphene');
+    const soPath = join(programDir, 'target/deploy/graphene.so');
 
-    const programId = 'DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs';
-    console.log(`Program ID: ${programId} (deployment not yet implemented)`);
+    // Verify program is built
+    try {
+      await access(soPath);
+    } catch {
+      throw new Error(
+        `Graphene program not built at ${soPath}. ` +
+        'Run: cd programs/graphene && anchor build'
+      );
+    }
+
+    // Deploy using solana CLI (more reliable than anchor deploy for test validators)
+    // We use the program keypair that anchor generates to get deterministic program ID
+    const keypairPath = join(programDir, 'target/deploy/graphene-keypair.json');
+
+    try {
+      await execAsync(
+        `solana program deploy "${soPath}" --program-id "${keypairPath}" --url "${this.instance.rpcUrl}"`,
+        { cwd: programDir, timeout: 60000 }
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to deploy Graphene program: ${message}`);
+    }
+
+    const programId = GRAPHENE_PROGRAM_ID.toBase58();
+    console.log(`Program deployed: ${programId}`);
 
     return programId;
   }
