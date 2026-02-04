@@ -60,6 +60,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y e2fsprogs
 
+      - name: Install Solana CLI
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          solana-test-validator --version
+
       - name: Install Firecracker
         if: steps.kvm.outputs.available == 'true'
         run: |
