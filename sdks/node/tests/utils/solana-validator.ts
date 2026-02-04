@@ -167,10 +167,11 @@ export class SolanaValidator {
       throw new Error('Validator not running');
     }
 
-    // Resolve path to the repo root (where Anchor.toml lives)
+    // Resolve paths to program artifacts
     const currentDir = dirname(fileURLToPath(import.meta.url));
     const repoRoot = join(currentDir, '../../../..');
     const soPath = join(repoRoot, 'programs/graphene/target/deploy/graphene.so');
+    const keypairPath = join(repoRoot, 'programs/graphene/target/deploy/graphene-keypair.json');
 
     // Verify program is built
     try {
@@ -182,10 +183,11 @@ export class SolanaValidator {
       );
     }
 
-    // Deploy using anchor deploy with custom cluster URL
+    // Deploy using solana CLI with specific program keypair for deterministic address
+    // (anchor deploy generates a new address each time, which we don't want)
     try {
       await execAsync(
-        `bun anchor deploy --provider.cluster ${this.instance.rpcUrl}`,
+        `solana program deploy "${soPath}" --program-id "${keypairPath}" --url "${this.instance.rpcUrl}"`,
         { cwd: repoRoot, timeout: 60000 }
       );
     } catch (err: unknown) {
