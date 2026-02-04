@@ -253,6 +253,8 @@ export const enum RejectReason {
   ReservedEnvPrefix = 'ReservedEnvPrefix',
   /** Code or input blob could not be fetched. */
   AssetUnavailable = 'AssetUnavailable',
+  /** Inline asset exceeds maximum allowed size. */
+  InlineTooLarge = 'InlineTooLarge',
   /** Generic internal error. */
   InternalError = 'InternalError'
 }
@@ -355,6 +357,22 @@ export interface NetworkingOptions {
   /** Egress allowlist. */
   egressAllowlist?: Array<EgressRule>
 }
+/** Asset delivery options for a job. */
+export interface AssetOptions {
+  /**
+   * Delivery mode: "auto", "inline", or "blob".
+   * - "auto" (default): Use inline for small payloads, blob for large.
+   * - "inline": Always inline, error if over 16 MB message limit.
+   * - "blob": Always upload to Iroh blob storage.
+   */
+  mode?: string
+  /** Threshold for inline code in bytes (default: 4MB, only for "auto" mode). */
+  inlineCodeThreshold?: number
+  /** Threshold for inline input in bytes (default: 8MB, only for "auto" mode). */
+  inlineInputThreshold?: number
+  /** Enable zstd compression before encryption. */
+  compress?: boolean
+}
 /** Options for submitting a job. */
 export interface JobOptions {
   /** Code to execute (UTF-8 string). */
@@ -365,6 +383,8 @@ export interface JobOptions {
   resources?: ResourceOptions
   /** Networking options (egress allowlist, bandwidth estimates). */
   networking?: NetworkingOptions
+  /** Asset delivery options (mode, compression, thresholds). */
+  assets?: AssetOptions
   /** Timeout in milliseconds (default: 30000). */
   timeoutMs?: bigint
   /** Kernel/runtime to use (default: "python:3.12"). */

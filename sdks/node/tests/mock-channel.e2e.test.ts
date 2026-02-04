@@ -331,4 +331,181 @@ describe('E2E: Mock Channel Tests', () => {
       expect(worker.nodeId).toMatch(/^[a-f0-9]{64}$/i);
     });
   });
+
+  describe('Asset Delivery Modes', () => {
+    it('uses auto mode by default (inlines small payloads)', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        // Small code should be delivered inline by default (auto mode)
+        const result = await client.run({
+          code: 'print("Auto mode inline delivery")',
+          kernel: 'python:3.12',
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Auto mode inline delivery');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('accepts explicit inline mode for small payloads', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: 'print("Explicit inline mode")',
+          kernel: 'python:3.12',
+          assets: {
+            mode: 'inline',
+          },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Explicit inline mode');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('accepts explicit blob mode', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        // Blob mode should upload to Iroh and then be fetched by worker
+        const result = await client.run({
+          code: 'print("Explicit blob mode")',
+          kernel: 'python:3.12',
+          assets: {
+            mode: 'blob',
+          },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Explicit blob mode');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('handles compression enabled', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        // Compression should reduce payload size before encryption
+        // Using repetitive code to benefit from compression
+        const repetitiveCode = `
+# Repetitive data that compresses well
+data = "AAAAAAAAAA" * 1000
+print(f"Compressed delivery: {len(data)} chars")
+`.trim();
+
+        const result = await client.run({
+          code: repetitiveCode,
+          kernel: 'python:3.12',
+          assets: {
+            compress: true,
+          },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Compressed delivery: 10000 chars');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('handles input data with inline delivery', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const inputData = new TextEncoder().encode('Hello from input data!');
+
+        const result = await client.run({
+          code: `
+import sys
+# Read input from stdin
+input_data = sys.stdin.read()
+print(f"Received input: {input_data}")
+`.trim(),
+          kernel: 'python:3.12',
+          input: inputData,
+          assets: {
+            mode: 'inline',
+          },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Received input: Hello from input data!');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+  });
 });
