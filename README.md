@@ -149,6 +149,7 @@ result = client.run(
 - [Whitepaper](docs/WHITEPAPER.md) — Full technical specification
 - [ELI5](docs/ELI5.md) — Simple explanation
 - [Endgame Vision](docs/ENDGAME.md) — Long-term roadmap
+- [Development Guide](docs/DEVELOPMENT.md) — Running E2E tests locally
 
 ## Security Model
 
