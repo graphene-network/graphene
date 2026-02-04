@@ -136,6 +136,17 @@ jobs:
         run: cargo build --bin graphene-worker --release
         working-directory: crates/node
 
+      - name: Install root dependencies
+        run: bun install
+
+      - name: Build Graphene Anchor program
+        if: steps.kvm.outputs.available == 'true'
+        working-directory: programs/graphene
+        run: |
+          bun anchor build
+          echo "Program built at:"
+          ls -la target/deploy/
+
       - name: Install native SDK dependencies
         working-directory: sdks/node/native
         run: bun install
