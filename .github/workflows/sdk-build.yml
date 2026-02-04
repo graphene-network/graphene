@@ -1,0 +1,260 @@
+name: Build SDK Native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sdks/**'
+      - '.github/workflows/sdk-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sdks/**'
+      - '.github/workflows/sdk-build.yml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 (GNU libc)
+          - os: ubicloud-standard-8
+            target: x86_64-unknown-linux-gnu
+            docker: false
+
+          # Linux ARM64 (GNU libc) - cross compile
+          - os: ubicloud-standard-8
+            target: aarch64-unknown-linux-gnu
+            docker: false
+            cross: true
+
+          # Linux x86_64 (musl) - cross compile
+          - os: ubicloud-standard-8
+            target: x86_64-unknown-linux-musl
+            docker: false
+            cross: true
+
+          # Linux ARM64 (musl) - cross compile
+          - os: ubicloud-standard-8
+            target: aarch64-unknown-linux-musl
+            docker: false
+            cross: true
+
+          # macOS x86_64
+          - os: macos-13  # x86_64 runner
+            target: x86_64-apple-darwin
+            docker: false
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14  # ARM64 runner
+            target: aarch64-apple-darwin
+            docker: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64 GNU)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Install cross-compilation tools (Linux x86_64 musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          # Use zig as a cross-compiler for reliable musl builds
+          pip3 install ziglang
+          ZIG_PATH=$(python3 -c "import ziglang; print(ziglang.__file__.replace('__init__.py', 'zig'))")
+          mkdir -p ~/.local/bin
+          # Create wrapper scripts that filter out --target args (cc-rs adds incompatible format)
+          # and use the correct zig target format (x86_64-linux-musl, not x86_64-unknown-linux-musl)
+          cat > ~/.local/bin/zigcc << ZIGCC
+          #!/bin/sh
+          # Filter out --target args since we provide our own
+          args=""
+          skip_next=0
+          for arg in "\$@"; do
+            if [ \$skip_next -eq 1 ]; then
+              skip_next=0
+              continue
+            fi
+            case "\$arg" in
+              --target=*) continue ;;
+              -target) skip_next=1; continue ;;
+              *) args="\$args \$arg" ;;
+            esac
+          done
+          exec "$ZIG_PATH" cc -target x86_64-linux-musl \$args
+          ZIGCC
+          cat > ~/.local/bin/zigcxx << ZIGCXX
+          #!/bin/sh
+          # Filter out --target args since we provide our own
+          args=""
+          skip_next=0
+          for arg in "\$@"; do
+            if [ \$skip_next -eq 1 ]; then
+              skip_next=0
+              continue
+            fi
+            case "\$arg" in
+              --target=*) continue ;;
+              -target) skip_next=1; continue ;;
+              *) args="\$args \$arg" ;;
+            esac
+          done
+          exec "$ZIG_PATH" c++ -target x86_64-linux-musl \$args
+          ZIGCXX
+          chmod +x ~/.local/bin/zigcc ~/.local/bin/zigcxx
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install cross-compilation tools (Linux ARM64 musl)
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu musl-tools
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sdks/node/native/target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Install dependencies
+        working-directory: sdks/node/native
+        run: bun install
+
+      - name: Build native addon
+        working-directory: sdks/node/native
+        env:
+          # Set linker for cross-compilation
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: zigcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
+          # Set CC for vendored OpenSSL cross-compilation
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CC_x86_64_unknown_linux_musl: zigcc
+          CXX_x86_64_unknown_linux_musl: zigcxx
+          CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
+        run: |
+          bun run build -- --target ${{ matrix.target }}
+
+      - name: List built artifacts
+        working-directory: sdks/node/native
+        run: ls -la *.node || echo "No .node files found"
+
+      - name: Run tests (native platform only)
+        if: ${{ !matrix.cross }}
+        working-directory: sdks/node/native
+        run: bun test
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.target }}
+          path: sdks/node/native/*.node
+          if-no-files-found: error
+
+  # Job to run TypeScript SDK tests
+  test-typescript:
+    name: Test TypeScript SDK
+    runs-on: ubicloud-standard-4
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Download Linux x86_64 bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings-x86_64-unknown-linux-gnu
+          path: sdks/node/native/
+
+      - name: Install native SDK dependencies
+        working-directory: sdks/node/native
+        run: bun install
+
+      - name: Install TypeScript SDK dependencies
+        working-directory: sdks/node
+        run: bun install
+
+      - name: Build TypeScript SDK
+        working-directory: sdks/node
+        run: bun run build
+
+      - name: Run TypeScript SDK tests
+        working-directory: sdks/node
+        run: bun test
+
+  # Aggregate all bindings for publishing
+  publish-ready:
+    name: Collect All Binaries
+    runs-on: ubicloud-standard-2
+    needs: [build, test-typescript]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -name "*.node" -type f | while read f; do
+            echo "  $f"
+            ls -lh "$f"
+          done
+
+      - name: Collect binaries
+        run: |
+          mkdir -p sdks/node/native/npm
+          for dir in artifacts/bindings-*; do
+            target=$(basename "$dir" | sed 's/bindings-//')
+            echo "Processing $target..."
+            cp "$dir"/*.node sdks/node/native/npm/ || true
+          done
+          ls -la sdks/node/native/npm/
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-native-all-platforms
+          path: sdks/node/native/npm/
+          retention-days: 30

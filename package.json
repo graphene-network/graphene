@@ -1,13 +1,21 @@
 {
   "name": "monad",
   "packageManager": "bun@1.3.5",
+  "workspaces": [
+    "packages/*",
+    "sdks/*"
+  ],
   "scripts": {
-    "test": "bun test",
+    "test": "bun run test:sdk",
+    "test:anchor": "anchor test",
+    "test:sdk": "bun test --cwd sdks/node tests/integration.test.ts tests/client.test.ts",
+    "test:sdk:e2e": "bun test --cwd sdks/node ./tests/*.e2e.test.ts --timeout 120000",
     "postinstall": "lefthook install"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.32.1",
     "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.95.0",
     "smol-toml": "^1.6.0"
   },
   "devDependencies": {

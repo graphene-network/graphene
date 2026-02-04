@@ -2163,6 +2163,73 @@ const result = await client.run({
 console.log(result.output); // { squared: 1764 }
 ```
 
+### 13.6 SDK Architecture
+
+The SDK uses **per-run worker selection** — each job is routed to an appropriate worker based on its requirements, not bound to a single worker at client creation.
+
+**Client Creation (One-Time)**
+```typescript
+import { Client } from '@graphene/sdk';
+
+const client = await Client.create({
+  secretKey: mySecretKey,
+  channelPda: myChannelPda,
+});
+```
+
+**Per-Run Worker Selection**
+```typescript
+// Python job → routed to Python-capable worker
+const result1 = await client.run({
+  code: 'print(2 + 2)',
+  kernel: 'python:3.12',
+});
+
+// Node.js job → routed to Node-capable worker (may be different)
+const result2 = await client.run({
+  code: 'console.log(2 + 2)',
+  kernel: 'node:20',
+  memoryMb: 1024,
+});
+```
+
+**Sticky Sessions with Fallback**
+
+The SDK caches workers by capability fingerprint:
+- Same requirements → reuse cached worker (~50ms)
+- Different requirements → discover new worker (~300ms)
+
+```typescript
+// First Python run: discovers worker (~300ms)
+await client.run({ kernel: 'python:3.12' });
+
+// Second Python run: reuses cached worker (~50ms)
+await client.run({ kernel: 'python:3.12' });
+
+// Node run: discovers Node worker (~300ms)
+await client.run({ kernel: 'node:20' });
+```
+
+**Explicit Worker Selection (Advanced)**
+```typescript
+const workers = await client.discoverWorkers({ kernel: 'python:3.12' });
+const result = await client.run({
+  code: '...',
+  workerNodeId: workers[0].nodeId,  // Pin to specific worker
+});
+```
+
+**Discovery Modes:**
+
+| Mode | How It Works | Best For |
+|------|--------------|----------|
+| `gateway` | Queries REST API that aggregates gossip | Browsers, mobile, serverless |
+| `p2p` | Joins gossip network directly | Long-running services, full decentralization |
+
+Channel keys are derived per-worker, ensuring proper cryptographic isolation for each worker relationship.
+
+See [ADR-0001](./adr/ADR-0001-sdk-discovery-architecture.md) for detailed architecture decisions.
+
 ---
 
 ## 14. Roadmap

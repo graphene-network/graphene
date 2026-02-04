@@ -1,0 +1,334 @@
+/**
+ * E2E tests for TypeScript SDK ↔ Graphene Worker communication.
+ *
+ * Level 1: Mock Channel Tests
+ * - Tests QUIC protocol, encryption, job execution
+ * - Uses GRAPHENE_TEST_USER_PUBKEY for test channel injection
+ * - No Solana dependencies
+ *
+ * Platform handling:
+ * - macOS: Uses MockRunner (returns "Mock execution completed\n")
+ * - Linux: Uses FirecrackerRunner (returns actual execution output)
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { Client } from '../src/client.js';
+import { WorkerManager, type WorkerInstance } from './utils/worker-manager.js';
+import { generateTestKeypair, testChannelPda, type TestKeypair } from './utils/test-keys.js';
+
+// Platform detection for expected outputs
+const IS_MACOS = process.platform === 'darwin';
+const MOCK_OUTPUT = 'Mock execution completed\n';
+
+// Test timeout (longer for worker startup)
+const TEST_TIMEOUT = 60_000;
+
+describe('E2E: Mock Channel Tests', () => {
+  let workerManager: WorkerManager;
+  let worker: WorkerInstance;
+  let testKeypair: TestKeypair;
+
+  beforeAll(async () => {
+    // Generate test keypair
+    testKeypair = await generateTestKeypair();
+    console.log(`Test user pubkey: ${testKeypair.publicKeyHex}`);
+
+    // Start worker with test channel configured
+    workerManager = new WorkerManager({
+      testUserPubkeyHex: testKeypair.publicKeyHex,
+      startupTimeoutMs: 45_000,
+    });
+
+    console.log('Starting worker...');
+    worker = await workerManager.start();
+    console.log(`Worker started with node ID: ${worker.nodeId}`);
+  }, TEST_TIMEOUT);
+
+  afterAll(async () => {
+    console.log('Stopping worker...');
+    await workerManager.stop();
+    console.log('Worker stopped');
+  }, TEST_TIMEOUT);
+
+  describe('Happy Path', () => {
+    it('executes a Python job successfully', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: 'print("Hello from Python!")',
+          kernel: 'python:3.12',
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          // MockRunner returns fixed output
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          // Real execution returns actual output
+          expect(output).toContain('Hello from Python!');
+        }
+
+        // Verify metrics are populated
+        expect(result.durationMs).toBeGreaterThan(0);
+        expect(result.metrics.totalCostMicros).toBeGreaterThanOrEqual(0n);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('executes a Node.js job successfully', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: 'console.log("Hello from Node!")',
+          kernel: 'node:20',
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('Hello from Node!');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('passes environment variables to the job', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: 'import os; print(os.environ.get("MY_VAR", "NOT_SET"))',
+          kernel: 'python:3.12',
+          env: { MY_VAR: 'test_value_123' },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (IS_MACOS) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('test_value_123');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('handles sequential jobs with incrementing nonces', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const initialNonce = client.currentNonce;
+
+        // Run first job
+        const result1 = await client.run({
+          code: 'print(1)',
+          kernel: 'python:3.12',
+        });
+        expect(result1.exitCode).toBe(0);
+        expect(client.currentNonce).toBe(initialNonce + 1n);
+
+        // Run second job
+        const result2 = await client.run({
+          code: 'print(2)',
+          kernel: 'python:3.12',
+        });
+        expect(result2.exitCode).toBe(0);
+        expect(client.currentNonce).toBe(initialNonce + 2n);
+
+        // Run third job
+        const result3 = await client.run({
+          code: 'print(3)',
+          kernel: 'python:3.12',
+        });
+        expect(result3.exitCode).toBe(0);
+        expect(client.currentNonce).toBe(initialNonce + 3n);
+
+        // Verify total authorized is increasing
+        expect(client.totalAuthorized).toBeGreaterThan(0n);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('handles custom resource requests', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: 'print("With resources")',
+          kernel: 'python:3.12',
+          resources: {
+            vcpu: 2,
+            memoryMb: 512,
+          },
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Error Handling', () => {
+    it('rejects unsupported kernel', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        await expect(
+          client.run({
+            code: 'print("test")',
+            kernel: 'ruby:3.2', // Not in supported kernels list
+            timeoutMs: 10_000,
+          })
+        ).rejects.toThrow(/UnsupportedKernel|not supported/i);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('rejects reserved GRAPHENE_* environment variable prefix', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        await expect(
+          client.run({
+            code: 'print("test")',
+            kernel: 'python:3.12',
+            env: { GRAPHENE_INTERNAL: 'forbidden' },
+            timeoutMs: 10_000,
+          })
+        ).rejects.toThrow(/ReservedEnvPrefix|GRAPHENE_|reserved/i);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('rejects excessive resource requests', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        await expect(
+          client.run({
+            code: 'print("test")',
+            kernel: 'python:3.12',
+            resources: {
+              vcpu: 100, // Way over max_vcpu: 4
+              memoryMb: 100_000, // Way over max_memory_mb: 4096
+            },
+            timeoutMs: 10_000,
+          })
+        ).rejects.toThrow(/ResourcesExceedLimits|exceed|limit/i);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('rejects wrong user key (signature mismatch)', async () => {
+      // Generate a different keypair (won't match test channel)
+      const wrongKeypair = await generateTestKeypair();
+
+      const client = await Client.create({
+        secretKey: wrongKeypair.secretKey, // Different from test channel user
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        await expect(
+          client.run({
+            code: 'print("test")',
+            kernel: 'python:3.12',
+            timeoutMs: 10_000,
+          })
+        ).rejects.toThrow(/TicketInvalid|signature|invalid/i);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Protocol Verification', () => {
+    it('client reports correct node ID format', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const clientNodeId = await client.nodeId();
+
+        // Node ID should be a 64-character hex string
+        expect(clientNodeId).toMatch(/^[a-f0-9]{64}$/i);
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('worker node ID matches expected format', () => {
+      // Worker node ID should be a 64-character hex string (Ed25519 pubkey)
+      expect(worker.nodeId).toMatch(/^[a-f0-9]{64}$/i);
+    });
+  });
+});

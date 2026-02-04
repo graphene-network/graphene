@@ -1,0 +1,32 @@
+[package]
+name = "graphene-sdk-native"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+repository.workspace = true
+description = "Native bindings for Graphene Network SDK"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["tokio_rt", "async", "napi9"] }
+napi-derive = "2"
+monad_node = { path = "../../../crates/node" }
+thiserror = "2.0"
+bincode = "1.3"
+hex = "0.4"
+ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }
+uuid = { version = "1.4", features = ["v4", "serde"] }
+iroh = "0.96"
+iroh-blobs = "0.98"
+tokio = { version = "1", features = ["sync"] }
+blake3 = "1"
+# Required for cross-compilation - compiles OpenSSL from source
+openssl = { version = "0.10", features = ["vendored"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }

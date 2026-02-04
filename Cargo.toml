@@ -2,6 +2,7 @@
 members = [
     "crates/node",
     "crates/ctl",
+    "sdks/node/native",
 ]
 resolver = "2"
 
