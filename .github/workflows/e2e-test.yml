@@ -69,6 +69,12 @@ jobs:
           solana --version
           solana-test-validator --version
 
+      - name: Install Anchor CLI
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.2 anchor-cli
+          anchor --version
+
       - name: Install Firecracker
         if: steps.kvm.outputs.available == 'true'
         run: |
