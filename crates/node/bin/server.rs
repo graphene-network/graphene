@@ -20,22 +20,36 @@
 //! ┌─────────────────────────────────────────────────────┐
 //! │  WorkerJobContext                                   │
 //! │    - WorkerStateMachine (slot management)           │
-//! │    - JobExecutor (mock for testing, real for prod)  │
-//! │    - ResultDelivery (result delivery)               │
+//! │    - DefaultJobExecutor (Firecracker runner)        │
+//! │    - SyncDelivery (QUIC result streaming)           │
 //! └─────────────────────────────────────────────────────┘
 //! ```
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use tracing::{error, info};
+use rand::RngCore;
+use tracing::{error, info, warn};
 
-use monad_node::executor::{MockExecutorBehavior, MockJobExecutor};
+use monad_node::cache::build::LayeredBuildCache;
+use monad_node::cache::iroh::IrohCache;
+use monad_node::cache::local::LocalDiskCache;
+use monad_node::crypto::DefaultCryptoProvider;
+use monad_node::executor::output::DefaultOutputProcessor;
+
+#[cfg(target_os = "linux")]
+use monad_node::executor::drive::linux::LinuxDriveBuilder;
+
+#[cfg(not(target_os = "linux"))]
+use monad_node::executor::drive::mock::MockDriveBuilder;
+use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
+use monad_node::executor::DefaultJobExecutor;
 use monad_node::p2p::graphene::GrapheneNode;
 use monad_node::p2p::messages::WorkerCapabilities;
 use monad_node::p2p::protocol::handler::JobProtocolHandler;
 use monad_node::p2p::{P2PConfig, P2PNetwork};
-use monad_node::result::MockResultDelivery;
+use monad_node::result::SyncDelivery;
 use monad_node::ticket::{
     ChannelConfig, ChannelLocalState, ChannelStateManager, DefaultChannelStateManager,
     DefaultTicketValidator, OnChainChannelState,
@@ -69,13 +83,27 @@ async fn main() -> Result<()> {
 
     info!("🚀 Graphene Worker Node Initializing...");
 
-    // Create P2P configuration
-    let storage_path = std::env::var("GRAPHENE_STORAGE_PATH")
-        .map(std::path::PathBuf::from)
+    // Create storage paths
+    let base_path = std::env::var("GRAPHENE_STORAGE_PATH")
+        .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir().join("graphene-worker"));
 
+    let p2p_path = base_path.join("p2p");
+    let cache_path = base_path.join("cache");
+    let drives_path = base_path.join("drives");
+
+    // Ensure directories exist
+    std::fs::create_dir_all(&p2p_path)?;
+    std::fs::create_dir_all(&cache_path)?;
+    std::fs::create_dir_all(&drives_path)?;
+
+    // Generate or load worker secret key
+    let worker_secret = load_or_generate_worker_secret(&base_path)?;
+    info!("🔑 Worker secret key loaded");
+
+    // Create P2P configuration
     let config = P2PConfig {
-        storage_path,
+        storage_path: p2p_path,
         ..Default::default()
     };
 
@@ -107,16 +135,51 @@ async fn main() -> Result<()> {
         state_machine.available_slots()
     );
 
-    // 2. Job executor (mock for e2e testing - replace with DefaultJobExecutor for production)
-    // TODO(#141): Replace with real DefaultJobExecutor when Firecracker setup is available
-    let executor = Arc::new(MockJobExecutor::new(MockExecutorBehavior::Success {
-        exit_code: 0,
-        duration: std::time::Duration::from_millis(100),
-    }));
+    // 2. Build the real job executor pipeline
+    let crypto = Arc::new(DefaultCryptoProvider);
 
-    // 3. Result delivery (mock for e2e testing - replace with SyncDelivery for production)
-    // TODO(#141): Replace with real SyncDelivery when P2P result streaming is implemented
-    let delivery = Arc::new(MockResultDelivery::new());
+    // Drive builder for creating ext4 execution images (platform-specific)
+    #[cfg(target_os = "linux")]
+    let drive_builder = Arc::new(LinuxDriveBuilder::with_defaults());
+
+    #[cfg(not(target_os = "linux"))]
+    let drive_builder = {
+        warn!("⚠️  Running on non-Linux platform - using mock drive builder");
+        warn!("   Production deployment requires Linux for Firecracker VMM");
+        Arc::new(MockDriveBuilder::new())
+    };
+
+    // Firecracker runner for VM execution
+    let runner_config = FirecrackerRunnerConfig::new().with_runtime_dir(drives_path.clone());
+    let runner = Arc::new(FirecrackerRunner::new(runner_config));
+
+    // Output processor for encrypting results
+    let output_processor = Arc::new(DefaultOutputProcessor::new(crypto.clone()));
+
+    // Build cache for kernel lookups
+    let local_cache = LocalDiskCache::new(cache_path.join("local").to_str().unwrap());
+    let iroh_cache = IrohCache::new(node.clone(), cache_path.join("iroh"));
+    let build_cache = Arc::new(LayeredBuildCache::new(
+        local_cache,
+        iroh_cache,
+        node.clone(),
+    ));
+
+    // Create the full job executor
+    let executor = Arc::new(DefaultJobExecutor::new(
+        drive_builder,
+        runner,
+        output_processor,
+        crypto,
+        node.clone(),
+        build_cache,
+        worker_secret,
+    ));
+    info!("⚙️  Job executor initialized (Firecracker + real crypto)");
+
+    // 3. Result delivery via QUIC streaming
+    let delivery = Arc::new(SyncDelivery::new(node.clone()));
+    info!("📤 Result delivery initialized (QUIC streaming)");
 
     // 4. Channel state manager with real ticket validator
     let channel_config = ChannelConfig::default();
@@ -193,4 +256,30 @@ async fn main() -> Result<()> {
     node_for_shutdown.shutdown().await?;
 
     Ok(())
+}
+
+/// Load worker secret key from disk, or generate a new one.
+fn load_or_generate_worker_secret(base_path: &std::path::Path) -> Result<[u8; 32]> {
+    let secret_path = base_path.join("worker_secret.key");
+
+    if secret_path.exists() {
+        // Load existing key
+        let bytes = std::fs::read(&secret_path)?;
+        if bytes.len() != 32 {
+            anyhow::bail!(
+                "Invalid worker secret key length: expected 32, got {}",
+                bytes.len()
+            );
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes);
+        Ok(key)
+    } else {
+        // Generate new key
+        let mut key = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut key);
+        std::fs::write(&secret_path, key)?;
+        info!("🔐 Generated new worker secret key at {:?}", secret_path);
+        Ok(key)
+    }
 }
