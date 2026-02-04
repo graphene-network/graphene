@@ -49,7 +49,8 @@ do_compile:prepend() {
 do_install() {
     install -d ${D}${bindir}
     # Binary is built as graphene-worker, install as graphene-node for consistency
-    install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/graphene-worker ${D}${bindir}/graphene-node
+    # CARGO_BINDIR is set by cargo_bin class to ${B}/${RUST_TARGET}/${profile}/
+    install -m 0755 ${CARGO_BINDIR}/graphene-worker ${D}${bindir}/graphene-node
 
     # Install default configuration
     install -d ${D}${sysconfdir}/graphene
