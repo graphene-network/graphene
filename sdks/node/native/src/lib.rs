@@ -1024,6 +1024,8 @@ pub struct ClientConfig {
     pub use_relay: Option<bool>,
     /// Optional bind port (0 for random).
     pub bind_port: Option<u32>,
+    /// Worker's relay URL for NAT traversal (needed by Iroh 0.96).
+    pub relay_url: Option<String>,
 }
 
 /// Resource requirements for a job.
@@ -1117,6 +1119,8 @@ pub struct GrapheneClient {
     worker_node_id: String,
     nonce: AtomicU64,
     cumulative_amount: AtomicU64,
+    /// Worker's relay URL for NAT traversal (needed by Iroh 0.96).
+    relay_url: Option<iroh::RelayUrl>,
 }
 
 #[napi]
@@ -1184,6 +1188,17 @@ impl GrapheneClient {
             .await
             .map_err(|e| napi::Error::from_reason(format!("Failed to create P2P node: {}", e)))?;
 
+        // Parse relay URL if provided
+        let relay_url = if let Some(url_str) = config.relay_url {
+            Some(
+                url_str
+                    .parse()
+                    .map_err(|e| napi::Error::from_reason(format!("Invalid relay URL: {}", e)))?,
+            )
+        } else {
+            None
+        };
+
         Ok(GrapheneClient {
             node: Arc::new(RwLock::new(Some(node))),
             channel_keys,
@@ -1192,6 +1207,7 @@ impl GrapheneClient {
             worker_node_id: config.worker_node_id,
             nonce: AtomicU64::new(0),
             cumulative_amount: AtomicU64::new(0),
+            relay_url,
         })
     }
 
@@ -1626,7 +1642,11 @@ impl GrapheneClient {
             .worker_node_id
             .parse()
             .map_err(|e| napi::Error::from_reason(format!("Invalid worker node ID: {}", e)))?;
-        let addr = iroh::EndpointAddr::new(worker_pubkey);
+        // Create endpoint address with relay URL if available (needed by Iroh 0.96 for NAT traversal)
+        let mut addr = iroh::EndpointAddr::new(worker_pubkey);
+        if let Some(relay_url) = &self.relay_url {
+            addr = addr.with_relay_url(relay_url.clone());
+        }
 
         let conn = node
             .connect(addr.clone(), monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)

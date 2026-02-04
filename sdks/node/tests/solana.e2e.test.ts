@@ -107,6 +107,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: channelInfo.channelPda,
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-solana-${Date.now()}`,
       });
 
@@ -136,6 +137,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: channelInfo.channelPda,
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-solana-${Date.now()}`,
       });
 
@@ -160,6 +162,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         secretKey: testKeypair.secretKey,
         channelPda: channelInfo.channelPda,
         workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
         storagePath: `.graphene-test-solana-${Date.now()}`,
       });
 
