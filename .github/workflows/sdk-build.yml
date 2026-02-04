@@ -24,24 +24,24 @@ jobs:
       matrix:
         include:
           # Linux x86_64 (GNU libc)
-          - os: ubicloud-standard-2
+          - os: ubicloud-standard-8
             target: x86_64-unknown-linux-gnu
             docker: false
 
           # Linux ARM64 (GNU libc) - cross compile
-          - os: ubicloud-standard-2
+          - os: ubicloud-standard-8
             target: aarch64-unknown-linux-gnu
             docker: false
             cross: true
 
           # Linux x86_64 (musl) - cross compile
-          - os: ubicloud-standard-2
+          - os: ubicloud-standard-8
             target: x86_64-unknown-linux-musl
             docker: false
             cross: true
 
           # Linux ARM64 (musl) - cross compile
-          - os: ubicloud-standard-2
+          - os: ubicloud-standard-8
             target: aarch64-unknown-linux-musl
             docker: false
             cross: true
@@ -181,7 +181,7 @@ jobs:
   # Job to run TypeScript SDK tests
   test-typescript:
     name: Test TypeScript SDK
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-4
     needs: build
     steps:
       - name: Checkout
