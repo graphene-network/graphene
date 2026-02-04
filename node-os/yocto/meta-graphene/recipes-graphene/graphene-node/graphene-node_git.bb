@@ -33,6 +33,10 @@ GRAPHENE_BUILD_TIME ?= ""
 # Pass attestation values to cargo
 CARGO_BUILD_FLAGS = "--release --package monad_node --bin graphene-node"
 
+# Enable network access for do_compile (required for cargo to fetch dependencies)
+# See: https://github.com/rust-embedded/meta-rust-bin#use-with-yocto-release-40-kirkstone-and-above
+do_compile[network] = "1"
+
 do_compile:prepend() {
     # Set environment variables for build-time attestation embedding
     export GRAPHENE_VERITY_ROOT="${GRAPHENE_VERITY_ROOT}"
