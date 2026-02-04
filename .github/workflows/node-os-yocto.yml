@@ -93,7 +93,7 @@ jobs:
         timeout-minutes: 2
         run: |
           set -eo pipefail
-          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+          git clone --depth 1 \
             https://github.com/rust-embedded/meta-rust-bin.git meta-rust-bin
 
       - name: Configure build environment
@@ -235,7 +235,7 @@ jobs:
         timeout-minutes: 2
         run: |
           set -eo pipefail
-          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+          git clone --depth 1 \
             https://github.com/rust-embedded/meta-rust-bin.git meta-rust-bin
 
       - name: Configure S3 sstate cache
