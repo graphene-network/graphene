@@ -1298,20 +1298,25 @@ impl GrapheneClient {
                 Ok(Some(n)) => {
                     response_buf.extend_from_slice(&chunk[..n]);
 
-                    // Try to parse - if we have a complete message, we're done
-                    if let Some((
-                        WireMessageType::JobAccepted
-                        | WireMessageType::JobResult
-                        | WireMessageType::JobRejected,
-                        _,
-                        consumed,
-                    )) = try_read_message(&response_buf)
+                    // Try to parse - check if we have a terminal message
+                    if let Some((msg_type, _, consumed)) = try_read_message(&response_buf)
                         .map_err(|e| napi::Error::from_reason(format!("Wire error: {}", e)))?
                     {
-                        response_buf.truncate(consumed);
-                        break;
+                        match msg_type {
+                            // Terminal messages - stop reading
+                            WireMessageType::JobResult | WireMessageType::JobRejected => {
+                                response_buf.truncate(consumed);
+                                break;
+                            }
+                            // JobAccepted is an ack - continue reading for the result
+                            WireMessageType::JobAccepted => {
+                                // Remove the accepted message from buffer and continue
+                                response_buf.drain(..consumed);
+                            }
+                            // Progress messages etc - continue reading
+                            _ => {}
+                        }
                     }
-                    // Otherwise keep reading for progress messages, etc.
                 }
                 Err(e) => {
                     return Err(napi::Error::from_reason(format!("Read failed: {}", e)));
@@ -1530,17 +1535,24 @@ impl GrapheneClient {
                 Ok(Some(0)) | Ok(None) => break,
                 Ok(Some(n)) => {
                     response_buf.extend_from_slice(&chunk[..n]);
-                    if let Some((
-                        WireMessageType::JobAccepted
-                        | WireMessageType::JobResult
-                        | WireMessageType::JobRejected,
-                        _,
-                        consumed,
-                    )) = try_read_message(&response_buf)
+                    // Try to parse - check if we have a terminal message
+                    if let Some((msg_type, _, consumed)) = try_read_message(&response_buf)
                         .map_err(|e| napi::Error::from_reason(format!("Wire error: {}", e)))?
                     {
-                        response_buf.truncate(consumed);
-                        break;
+                        match msg_type {
+                            // Terminal messages - stop reading
+                            WireMessageType::JobResult | WireMessageType::JobRejected => {
+                                response_buf.truncate(consumed);
+                                break;
+                            }
+                            // JobAccepted is an ack - continue reading for the result
+                            WireMessageType::JobAccepted => {
+                                // Remove the accepted message from buffer and continue
+                                response_buf.drain(..consumed);
+                            }
+                            // Progress messages etc - continue reading
+                            _ => {}
+                        }
                     }
                 }
                 Err(e) => return Err(napi::Error::from_reason(format!("Read failed: {}", e))),
