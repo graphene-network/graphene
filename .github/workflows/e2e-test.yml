@@ -58,7 +58,7 @@ jobs:
         if: steps.kvm.outputs.available == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y e2fsprogs
+          sudo apt-get install -y e2fsprogs libudev-dev
 
       - name: Install Solana CLI
         if: steps.kvm.outputs.available == 'true'
