@@ -30,6 +30,13 @@ IMAGE_INSTALL += " \
     firecracker \
 "
 
+# Tools required by graphene-node for drive creation
+# Note: These are called directly via execve(), not via shell
+IMAGE_INSTALL += " \
+    e2fsprogs \
+    tar \
+"
+
 # No debug features in production
 IMAGE_FEATURES:remove = "debug-tweaks ssh-server-openssh"
 
