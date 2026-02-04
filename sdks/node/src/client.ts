@@ -95,7 +95,7 @@ export class Client {
    */
   async run(options: RunOptions): Promise<RunResult> {
     // Convert egress allowlist to native format
-    const egressAllowlist: EgressRule[] | undefined = options.egressAllowlist?.map(
+    const egressAllowlist: EgressRule[] | undefined = options.networking?.egressAllowlist?.map(
       (rule) => ({
         host: rule.host,
         port: rule.port,
@@ -106,12 +106,22 @@ export class Client {
     const nativeOptions: NativeJobOptions = {
       code: options.code,
       input: options.input ? Buffer.from(options.input) : undefined,
-      vcpu: options.vcpu,
-      memoryMb: options.memoryMb,
+      resources: options.resources ? {
+        vcpu: options.resources.vcpu,
+        memoryMb: options.resources.memoryMb,
+      } : undefined,
+      networking: options.networking ? {
+        estimatedIngressMb: options.networking.estimatedIngressMb !== undefined
+          ? BigInt(options.networking.estimatedIngressMb)
+          : undefined,
+        estimatedEgressMb: options.networking.estimatedEgressMb !== undefined
+          ? BigInt(options.networking.estimatedEgressMb)
+          : undefined,
+        egressAllowlist,
+      } : undefined,
       timeoutMs: options.timeoutMs !== undefined ? BigInt(options.timeoutMs) : undefined,
       kernel: options.kernel,
       env: options.env,
-      egressAllowlist,
       deliveryMode: options.deliveryMode,
     };
 

@@ -53,6 +53,28 @@ export interface ClientConfig {
 }
 
 /**
+ * Resource requirements for a job.
+ */
+export interface ResourceOptions {
+  /** Number of vCPUs (default: 1) */
+  vcpu?: number;
+  /** Memory in MB (default: 256) */
+  memoryMb?: number;
+}
+
+/**
+ * Networking options for a job.
+ */
+export interface NetworkingOptions {
+  /** Estimated network ingress in megabytes */
+  estimatedIngressMb?: number;
+  /** Estimated network egress in megabytes */
+  estimatedEgressMb?: number;
+  /** Allowed egress endpoints */
+  egressAllowlist?: EgressRuleConfig[];
+}
+
+/**
  * Options for running a job.
  */
 export interface RunOptions {
@@ -60,18 +82,16 @@ export interface RunOptions {
   code: string;
   /** Optional input data (will be encrypted) */
   input?: Uint8Array;
-  /** Number of vCPUs (default: 1) */
-  vcpu?: number;
-  /** Memory in MB (default: 256) */
-  memoryMb?: number;
+  /** Resource requirements (vCPU, memory) */
+  resources?: ResourceOptions;
+  /** Networking options (egress allowlist, bandwidth estimates) */
+  networking?: NetworkingOptions;
   /** Execution timeout in milliseconds (default: 30000) */
   timeoutMs?: number;
   /** Kernel image to use (default: "python:3.12") */
   kernel?: string;
   /** Environment variables to pass to the job */
   env?: Record<string, string>;
-  /** Allowed egress endpoints */
-  egressAllowlist?: EgressRuleConfig[];
   /** Delivery mode: "sync" waits for result, "async" returns immediately */
   deliveryMode?: 'sync' | 'async';
 }

@@ -339,24 +339,38 @@ export interface ClientConfig {
   /** Optional bind port (0 for random). */
   bindPort?: number
 }
+/** Resource requirements for a job. */
+export interface ResourceOptions {
+  /** Number of vCPUs (default: 1). */
+  vcpu?: number
+  /** Memory in MB (default: 256). */
+  memoryMb?: number
+}
+/** Networking options for a job. */
+export interface NetworkingOptions {
+  /** Estimated network ingress in megabytes. */
+  estimatedIngressMb?: bigint
+  /** Estimated network egress in megabytes. */
+  estimatedEgressMb?: bigint
+  /** Egress allowlist. */
+  egressAllowlist?: Array<EgressRule>
+}
 /** Options for submitting a job. */
 export interface JobOptions {
   /** Code to execute (UTF-8 string). */
   code: string
   /** Optional input data. */
   input?: Buffer
-  /** Number of vCPUs (default: 1). */
-  vcpu?: number
-  /** Memory in MB (default: 256). */
-  memoryMb?: number
+  /** Resource requirements (vCPU, memory). */
+  resources?: ResourceOptions
+  /** Networking options (egress allowlist, bandwidth estimates). */
+  networking?: NetworkingOptions
   /** Timeout in milliseconds (default: 30000). */
   timeoutMs?: bigint
   /** Kernel/runtime to use (default: "python:3.12"). */
   kernel?: string
   /** Environment variables. */
   env?: Record<string, string>
-  /** Egress allowlist. */
-  egressAllowlist?: Array<EgressRule>
   /** Result delivery mode: "sync" or "async". */
   deliveryMode?: string
 }

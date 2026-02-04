@@ -1016,6 +1016,26 @@ pub struct ClientConfig {
     pub bind_port: Option<u32>,
 }
 
+/// Resource requirements for a job.
+#[napi(object)]
+pub struct ResourceOptions {
+    /// Number of vCPUs (default: 1).
+    pub vcpu: Option<u32>,
+    /// Memory in MB (default: 256).
+    pub memory_mb: Option<u32>,
+}
+
+/// Networking options for a job.
+#[napi(object)]
+pub struct NetworkingOptions {
+    /// Estimated network ingress in megabytes.
+    pub estimated_ingress_mb: Option<BigInt>,
+    /// Estimated network egress in megabytes.
+    pub estimated_egress_mb: Option<BigInt>,
+    /// Egress allowlist.
+    pub egress_allowlist: Option<Vec<EgressRule>>,
+}
+
 /// Options for submitting a job.
 #[napi(object)]
 pub struct JobOptions {
@@ -1023,18 +1043,16 @@ pub struct JobOptions {
     pub code: String,
     /// Optional input data.
     pub input: Option<Buffer>,
-    /// Number of vCPUs (default: 1).
-    pub vcpu: Option<u32>,
-    /// Memory in MB (default: 256).
-    pub memory_mb: Option<u32>,
+    /// Resource requirements (vCPU, memory).
+    pub resources: Option<ResourceOptions>,
+    /// Networking options (egress allowlist, bandwidth estimates).
+    pub networking: Option<NetworkingOptions>,
     /// Timeout in milliseconds (default: 30000).
     pub timeout_ms: Option<BigInt>,
     /// Kernel/runtime to use (default: "python:3.12").
     pub kernel: Option<String>,
     /// Environment variables.
     pub env: Option<HashMap<String, String>>,
-    /// Egress allowlist.
-    pub egress_allowlist: Option<Vec<EgressRule>>,
     /// Result delivery mode: "sync" or "async".
     pub delivery_mode: Option<String>,
 }
@@ -1338,13 +1356,25 @@ impl GrapheneClient {
         let job_id = uuid::Uuid::new_v4();
         let job_id_str = job_id.to_string();
 
-        // Apply defaults
-        let vcpu = options.vcpu.unwrap_or(1) as u8;
-        let memory_mb = options.memory_mb.unwrap_or(256);
+        // Apply defaults from nested structures
+        let resources = options.resources.unwrap_or(ResourceOptions {
+            vcpu: None,
+            memory_mb: None,
+        });
+        let networking = options.networking.unwrap_or(NetworkingOptions {
+            estimated_ingress_mb: None,
+            estimated_egress_mb: None,
+            egress_allowlist: None,
+        });
+
+        let vcpu = resources.vcpu.unwrap_or(1) as u8;
+        let memory_mb = resources.memory_mb.unwrap_or(256);
         let timeout_ms = options.timeout_ms.map(|b| b.get_u64().1).unwrap_or(30000);
         let kernel = options.kernel.unwrap_or_else(|| "python:3.12".to_string());
         let env = options.env.unwrap_or_default();
-        let egress_allowlist = options.egress_allowlist.unwrap_or_default();
+        let egress_allowlist = networking.egress_allowlist.unwrap_or_default();
+        let estimated_egress_mb = networking.estimated_egress_mb.map(|b| b.get_u64().1);
+        let estimated_ingress_mb = networking.estimated_ingress_mb.map(|b| b.get_u64().1);
         let delivery_mode = match options.delivery_mode.as_deref() {
             Some("async") => RustResultDeliveryMode::Async,
             _ => RustResultDeliveryMode::Sync,
@@ -1442,8 +1472,8 @@ impl GrapheneClient {
             kernel,
             egress_allowlist: egress,
             env,
-            estimated_egress_mb: None,
-            estimated_ingress_mb: None,
+            estimated_egress_mb,
+            estimated_ingress_mb,
         };
 
         let assets = RustJobAssets {
