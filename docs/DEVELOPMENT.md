@@ -4,6 +4,15 @@
 
 The E2E tests require Firecracker, which depends on KVM (Linux only). This guide covers running tests on different platforms.
 
+### Prerequisites
+
+The E2E tests need:
+- **Firecracker** - MicroVM hypervisor (requires KVM)
+- **Solana CLI** - For program deployment
+- **Anchor CLI** - For building the Solana program
+- **Kraft CLI** - For building unikernel images
+- **Bun** - JavaScript runtime
+
 ### Linux (Native)
 
 On Linux with KVM support:
@@ -18,6 +27,9 @@ tar -xzf firecracker.tgz
 sudo mv release-v1.11.0-x86_64/firecracker-v1.11.0-x86_64 /usr/local/bin/firecracker
 sudo chmod +x /usr/local/bin/firecracker
 
+# Install Kraft CLI (for building unikernels)
+curl --proto '=https' --tlsv1.2 -sSf https://get.kraftkit.sh | sh
+
 # Install Solana CLI
 sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
 export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
@@ -27,9 +39,47 @@ solana-keygen new --no-bip39-passphrase
 
 # Install Anchor CLI
 cargo install --git https://github.com/coral-xyz/anchor --tag v0.32.1 anchor-cli
+```
 
-# Build and run tests
-cd sdks/node
+#### Build Kernels
+
+The E2E tests require pre-built unikernel images in the cache:
+
+```bash
+# Create kernel cache directory
+mkdir -p ~/.graphene/cache/kernels
+
+# Build Python 3.12 kernel (required for most tests)
+cd kernels/python/3.12
+kraft build --plat fc --arch x86_64
+kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
+cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+
+# Build other kernels as needed
+cd ../3.10
+kraft build --plat fc --arch x86_64
+kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.10"
+cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.10_fc-x86_64
+
+cd ../../node/21
+kraft build --plat fc --arch x86_64
+kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/node:21"
+cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/node-21_fc-x86_64
+```
+
+#### Build and Run Tests
+
+```bash
+# Build the worker binary
+cd crates/node
+cargo build --bin graphene-worker --release
+
+# Build the Anchor program
+cd ../../programs/graphene
+anchor build
+
+# Build and test the SDK
+cd ../../sdks/node
 bun install
 bun run build
 bun test ./tests/*.e2e.test.ts
@@ -73,6 +123,9 @@ sudo chmod +x /usr/local/bin/firecracker
 # Verify KVM access
 ls -la /dev/kvm
 
+# Kraft CLI (for building unikernels)
+curl --proto '=https' --tlsv1.2 -sSf https://get.kraftkit.sh | sh
+
 # Rust (if not installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
@@ -101,7 +154,23 @@ Lima mounts your home directory by default:
 cd /Users/$(whoami)/Git/monad
 ```
 
-#### 6. Build and Run Tests
+#### 6. Build Kernels
+
+```bash
+# Create kernel cache directory
+mkdir -p ~/.graphene/cache/kernels
+
+# Build Python 3.12 kernel
+cd kernels/python/3.12
+kraft build --plat fc --arch x86_64
+kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
+cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+
+# Return to project root
+cd /Users/$(whoami)/Git/monad
+```
+
+#### 7. Build and Run Tests
 
 ```bash
 # Build the worker binary
@@ -116,6 +185,7 @@ anchor build
 cd ../../sdks/node
 bun install
 bun run build
+export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
 bun test ./tests/*.e2e.test.ts
 ```
 
