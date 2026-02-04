@@ -167,10 +167,10 @@ export class SolanaValidator {
       throw new Error('Validator not running');
     }
 
-    // Resolve path to the Graphene program directory
+    // Resolve path to the repo root (where Anchor.toml lives)
     const currentDir = dirname(fileURLToPath(import.meta.url));
-    const programDir = join(currentDir, '../../../../programs/graphene');
-    const soPath = join(programDir, 'target/deploy/graphene.so');
+    const repoRoot = join(currentDir, '../../../..');
+    const soPath = join(repoRoot, 'programs/graphene/target/deploy/graphene.so');
 
     // Verify program is built
     try {
@@ -178,18 +178,15 @@ export class SolanaValidator {
     } catch {
       throw new Error(
         `Graphene program not built at ${soPath}. ` +
-        'Run: cd programs/graphene && anchor build'
+        'Run: anchor build'
       );
     }
 
-    // Deploy using solana CLI (more reliable than anchor deploy for test validators)
-    // We use the program keypair that anchor generates to get deterministic program ID
-    const keypairPath = join(programDir, 'target/deploy/graphene-keypair.json');
-
+    // Deploy using anchor deploy with custom cluster URL
     try {
       await execAsync(
-        `solana program deploy "${soPath}" --program-id "${keypairPath}" --url "${this.instance.rpcUrl}"`,
-        { cwd: programDir, timeout: 60000 }
+        `bun anchor deploy --provider.cluster ${this.instance.rpcUrl}`,
+        { cwd: repoRoot, timeout: 60000 }
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
