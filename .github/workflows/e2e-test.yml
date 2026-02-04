@@ -13,6 +13,12 @@ env:
   RUST_LOG: monad_node=info,graphene_worker=info
   FIRECRACKER_VERSION: "1.11.0"
 
+# Required because kernel-build.yml's release job declares contents: write
+# The release job won't run (only triggers on main branch push), but GitHub
+# validates permissions at parse time
+permissions:
+  contents: write
+
 jobs:
   # Build kernels first
   build-kernels:
