@@ -30,7 +30,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use rand::RngCore;
-use tracing::{error, info, warn};
+#[cfg(not(target_os = "linux"))]
+use tracing::warn;
+use tracing::{error, info};
 
 use monad_node::cache::build::LayeredBuildCache;
 use monad_node::cache::iroh::IrohCache;
