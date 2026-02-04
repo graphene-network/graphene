@@ -24,24 +24,24 @@ jobs:
       matrix:
         include:
           # Linux x86_64 (GNU libc)
-          - os: ubuntu-latest
+          - os: ubicloud-standard-2
             target: x86_64-unknown-linux-gnu
             docker: false
 
           # Linux ARM64 (GNU libc) - cross compile
-          - os: ubuntu-latest
+          - os: ubicloud-standard-2
             target: aarch64-unknown-linux-gnu
             docker: false
             cross: true
 
           # Linux x86_64 (musl) - cross compile
-          - os: ubuntu-latest
+          - os: ubicloud-standard-2
             target: x86_64-unknown-linux-musl
             docker: false
             cross: true
 
           # Linux ARM64 (musl) - cross compile
-          - os: ubuntu-latest
+          - os: ubicloud-standard-2
             target: aarch64-unknown-linux-musl
             docker: false
             cross: true
@@ -152,7 +152,7 @@ jobs:
   # Job to run TypeScript SDK tests
   test-typescript:
     name: Test TypeScript SDK
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     needs: build
     steps:
       - name: Checkout
@@ -188,7 +188,7 @@ jobs:
   # Aggregate all bindings for publishing
   publish-ready:
     name: Collect All Binaries
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     needs: [build, test-typescript]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
