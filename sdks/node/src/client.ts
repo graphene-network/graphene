@@ -119,6 +119,12 @@ export class Client {
           : undefined,
         egressAllowlist,
       } : undefined,
+      assets: options.assets ? {
+        mode: options.assets.mode,
+        inlineCodeThreshold: options.assets.inlineCodeThreshold,
+        inlineInputThreshold: options.assets.inlineInputThreshold,
+        compress: options.assets.compress,
+      } : undefined,
       timeoutMs: options.timeoutMs !== undefined ? BigInt(options.timeoutMs) : undefined,
       kernel: options.kernel,
       env: options.env,

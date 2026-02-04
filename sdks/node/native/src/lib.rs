@@ -554,8 +554,9 @@ use monad_node::p2p::messages::{
 };
 use monad_node::p2p::protocol::{
     wire::{decode_message as wire_decode, encode_message as wire_encode, MessageType},
-    JobAssets as RustJobAssets, JobRequest as RustJobRequest, JobResponse as RustJobResponse,
-    JobStatus as RustJobStatus, RejectReason as RustRejectReason,
+    AssetData, Compression, JobAssets as RustJobAssets, JobRequest as RustJobRequest,
+    JobResponse as RustJobResponse, JobStatus as RustJobStatus, RejectReason as RustRejectReason,
+    INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD, MAX_MESSAGE_SIZE,
 };
 use std::collections::HashMap;
 
@@ -1045,6 +1046,23 @@ pub struct NetworkingOptions {
     pub egress_allowlist: Option<Vec<EgressRule>>,
 }
 
+/// Asset delivery options for a job.
+#[napi(object)]
+#[derive(Default)]
+pub struct AssetOptions {
+    /// Delivery mode: "auto", "inline", or "blob".
+    /// - "auto" (default): Use inline for small payloads, blob for large.
+    /// - "inline": Always inline, error if over 16 MB message limit.
+    /// - "blob": Always upload to Iroh blob storage.
+    pub mode: Option<String>,
+    /// Threshold for inline code in bytes (default: 4MB, only for "auto" mode).
+    pub inline_code_threshold: Option<u32>,
+    /// Threshold for inline input in bytes (default: 8MB, only for "auto" mode).
+    pub inline_input_threshold: Option<u32>,
+    /// Enable zstd compression before encryption.
+    pub compress: Option<bool>,
+}
+
 /// Options for submitting a job.
 #[napi(object)]
 pub struct JobOptions {
@@ -1056,6 +1074,8 @@ pub struct JobOptions {
     pub resources: Option<ResourceOptions>,
     /// Networking options (egress allowlist, bandwidth estimates).
     pub networking: Option<NetworkingOptions>,
+    /// Asset delivery options (mode, compression, thresholds).
+    pub assets: Option<AssetOptions>,
     /// Timeout in milliseconds (default: 30000).
     pub timeout_ms: Option<BigInt>,
     /// Kernel/runtime to use (default: "python:3.12").
@@ -1394,12 +1414,36 @@ impl GrapheneClient {
             _ => RustResultDeliveryMode::Sync,
         };
 
+        // Parse asset options
+        let asset_opts = options.assets.unwrap_or_default();
+        let mode = asset_opts.mode.as_deref().unwrap_or("auto");
+        let compress = asset_opts.compress.unwrap_or(false);
+        let code_threshold = asset_opts
+            .inline_code_threshold
+            .map(|t| t as usize)
+            .unwrap_or(INLINE_CODE_THRESHOLD);
+        let input_threshold = asset_opts
+            .inline_input_threshold
+            .map(|t| t as usize)
+            .unwrap_or(INLINE_INPUT_THRESHOLD);
+
         // Encrypt code
         let provider = DefaultCryptoProvider;
         let code_bytes = options.code.as_bytes();
+
+        // Optionally compress before encryption
+        let code_to_encrypt: std::borrow::Cow<[u8]> =
+            if compress {
+                std::borrow::Cow::Owned(zstd::encode_all(code_bytes, 3).map_err(|e| {
+                    napi::Error::from_reason(format!("Failed to compress code: {}", e))
+                })?)
+            } else {
+                std::borrow::Cow::Borrowed(code_bytes)
+            };
+
         let encrypted_code = provider
             .encrypt_job_blob(
-                code_bytes,
+                &code_to_encrypt,
                 &self.channel_keys,
                 &job_id_str,
                 RustEncryptionDirection::Input,
@@ -1409,9 +1453,17 @@ impl GrapheneClient {
 
         // Encrypt input if provided
         let encrypted_input_bytes = if let Some(input) = &options.input {
+            let input_to_encrypt: std::borrow::Cow<[u8]> = if compress {
+                std::borrow::Cow::Owned(zstd::encode_all(&input[..], 3).map_err(|e| {
+                    napi::Error::from_reason(format!("Failed to compress input: {}", e))
+                })?)
+            } else {
+                std::borrow::Cow::Borrowed(&input[..])
+            };
+
             let encrypted = provider
                 .encrypt_job_blob(
-                    input,
+                    &input_to_encrypt,
                     &self.channel_keys,
                     &job_id_str,
                     RustEncryptionDirection::Input,
@@ -1422,18 +1474,76 @@ impl GrapheneClient {
             None
         };
 
-        // Upload blobs
-        let code_hash = node
-            .upload_blob(&encrypted_code_bytes)
-            .await
-            .map_err(|e| napi::Error::from_reason(format!("Failed to upload code: {}", e)))?;
+        // Determine asset delivery based on mode
+        let code_asset = match mode {
+            "inline" => {
+                if encrypted_code_bytes.len() > MAX_MESSAGE_SIZE {
+                    return Err(napi::Error::from_reason(format!(
+                        "Code too large for inline mode: {} bytes (max {} bytes)",
+                        encrypted_code_bytes.len(),
+                        MAX_MESSAGE_SIZE
+                    )));
+                }
+                AssetData::inline(encrypted_code_bytes.clone())
+            }
+            "blob" => {
+                let hash = node.upload_blob(&encrypted_code_bytes).await.map_err(|e| {
+                    napi::Error::from_reason(format!("Failed to upload code: {}", e))
+                })?;
+                AssetData::blob(hash, None)
+            }
+            _ => {
+                // "auto" mode - inline if under threshold, blob otherwise
+                if encrypted_code_bytes.len() <= code_threshold {
+                    AssetData::inline(encrypted_code_bytes.clone())
+                } else {
+                    let hash = node.upload_blob(&encrypted_code_bytes).await.map_err(|e| {
+                        napi::Error::from_reason(format!("Failed to upload code: {}", e))
+                    })?;
+                    AssetData::blob(hash, None)
+                }
+            }
+        };
 
-        let input_hash = if let Some(ref input_bytes) = encrypted_input_bytes {
-            node.upload_blob(input_bytes)
-                .await
-                .map_err(|e| napi::Error::from_reason(format!("Failed to upload input: {}", e)))?
+        let input_asset = if let Some(ref input_bytes) = encrypted_input_bytes {
+            let asset = match mode {
+                "inline" => {
+                    if input_bytes.len() > MAX_MESSAGE_SIZE {
+                        return Err(napi::Error::from_reason(format!(
+                            "Input too large for inline mode: {} bytes (max {} bytes)",
+                            input_bytes.len(),
+                            MAX_MESSAGE_SIZE
+                        )));
+                    }
+                    AssetData::inline(input_bytes.clone())
+                }
+                "blob" => {
+                    let hash = node.upload_blob(input_bytes).await.map_err(|e| {
+                        napi::Error::from_reason(format!("Failed to upload input: {}", e))
+                    })?;
+                    AssetData::blob(hash, None)
+                }
+                _ => {
+                    // "auto" mode
+                    if input_bytes.len() <= input_threshold {
+                        AssetData::inline(input_bytes.clone())
+                    } else {
+                        let hash = node.upload_blob(input_bytes).await.map_err(|e| {
+                            napi::Error::from_reason(format!("Failed to upload input: {}", e))
+                        })?;
+                        AssetData::blob(hash, None)
+                    }
+                }
+            };
+            Some(asset)
         } else {
-            iroh_blobs::Hash::from_bytes([0u8; 32])
+            None
+        };
+
+        let compression = if compress {
+            Compression::Zstd
+        } else {
+            Compression::None
         };
 
         // Estimate cost and create payment ticket
@@ -1490,7 +1600,12 @@ impl GrapheneClient {
             estimated_ingress_mb,
         };
 
-        let assets = RustJobAssets::blobs(code_hash, Some(input_hash));
+        let assets = RustJobAssets {
+            code: code_asset,
+            input: input_asset,
+            files: vec![],
+            compression,
+        };
 
         let request = RustJobRequest {
             job_id,

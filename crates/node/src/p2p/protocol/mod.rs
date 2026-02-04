@@ -33,8 +33,9 @@ pub mod wire;
 
 pub use handler::{JobContext, JobProtocolHandler, ProtocolError};
 pub use types::{
-    JobAssets, JobProgress, JobRequest, JobResponse, JobResult, JobStatus, ProgressKind,
-    RejectReason,
+    AssetData, Compression, JobAssets, JobFile, JobMetrics, JobProgress, JobRequest, JobResponse,
+    JobResult, JobStatus, ProgressKind, RejectReason, INLINE_CODE_THRESHOLD,
+    INLINE_INPUT_THRESHOLD, MAX_MESSAGE_SIZE,
 };
 pub use validation::{validate_env, EnvValidationError, ENV_NAME_REGEX, MAX_ENV_SIZE_BYTES};
 pub use wire::{decode_message, encode_message, MessageType, WireError};
