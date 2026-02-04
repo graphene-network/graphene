@@ -15,7 +15,7 @@ env:
 jobs:
   e2e-test:
     name: E2E Tests (Linux)
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-2
     timeout-minutes: 30
     steps:
       - name: Checkout
