@@ -43,7 +43,13 @@ use monad_node::executor::drive::linux::LinuxDriveBuilder;
 
 #[cfg(not(target_os = "linux"))]
 use monad_node::executor::drive::mock::MockDriveBuilder;
+
+#[cfg(target_os = "linux")]
 use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
+
+#[cfg(not(target_os = "linux"))]
+use monad_node::executor::runner::MockRunner;
+
 use monad_node::executor::DefaultJobExecutor;
 use monad_node::p2p::graphene::GrapheneNode;
 use monad_node::p2p::messages::WorkerCapabilities;
@@ -149,9 +155,17 @@ async fn main() -> Result<()> {
         Arc::new(MockDriveBuilder::new())
     };
 
-    // Firecracker runner for VM execution
-    let runner_config = FirecrackerRunnerConfig::new().with_runtime_dir(drives_path.clone());
-    let runner = Arc::new(FirecrackerRunner::new(runner_config));
+    // VMM runner for VM execution (platform-specific)
+    #[cfg(target_os = "linux")]
+    let runner = {
+        let runner_config = FirecrackerRunnerConfig::new().with_runtime_dir(drives_path.clone());
+        Arc::new(FirecrackerRunner::new(runner_config))
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let runner = Arc::new(MockRunner::new(
+        monad_node::executor::runner::MockRunnerBehavior::default(),
+    ));
 
     // Output processor for encrypting results
     let output_processor = Arc::new(DefaultOutputProcessor::new(crypto.clone()));
