@@ -11,15 +11,74 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: monad_node=info,graphene_worker=info
+  FIRECRACKER_VERSION: "1.11.0"
 
 jobs:
+  # Build kernels first
+  build-kernels:
+    uses: ./.github/workflows/kernel-build.yml
+    with:
+      runtime: ''
+      version: ''
+
   e2e-test:
     name: E2E Tests (Linux)
+    needs: build-kernels
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Check KVM availability
+        id: kvm
+        run: |
+          if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "✅ KVM is available"
+            ls -la /dev/kvm
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ KVM is not available"
+          fi
+
+      - name: Install Firecracker
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-x86_64.tgz" -o firecracker.tgz
+          tar -xzf firecracker.tgz
+          sudo mv release-v${FIRECRACKER_VERSION}-x86_64/firecracker-v${FIRECRACKER_VERSION}-x86_64 /usr/local/bin/firecracker
+          sudo chmod +x /usr/local/bin/firecracker
+          firecracker --version
+
+      - name: Download kernel artifacts
+        if: steps.kvm.outputs.available == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/kernels
+          pattern: '*-x86_64'
+          merge-multiple: true
+
+      - name: Setup kernel cache
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          mkdir -p $HOME/.graphene/cache/kernels
+          if [ -d /tmp/kernels ] && [ "$(ls -A /tmp/kernels 2>/dev/null)" ]; then
+            echo "Downloaded kernels:"
+            find /tmp/kernels -type f
+            # Move kernel binaries to cache
+            find /tmp/kernels -type f -name '*_fc-x86_64' -exec mv {} $HOME/.graphene/cache/kernels/ \;
+            echo "Kernels in cache:"
+            ls -la $HOME/.graphene/cache/kernels/
+          else
+            echo "⚠️ No kernel artifacts found"
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -79,6 +138,10 @@ jobs:
         env:
           # Use release binary for faster startup
           GRAPHENE_WORKER_BINARY: ${{ github.workspace }}/target/release/graphene-worker
+          # Pass KVM availability to tests for conditional behavior
+          KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
+          # Path to pre-built kernels
+          GRAPHENE_KERNEL_CACHE: ${{ env.HOME }}/.graphene/cache/kernels
 
       - name: Upload test artifacts on failure
         if: failure()

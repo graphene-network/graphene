@@ -271,11 +271,21 @@ where
                 return Ok(result.path);
             }
             Ok(None) => {
-                debug!(kernel = kernel_spec, "Cache miss, build required");
+                debug!(
+                    kernel = kernel_spec,
+                    "Cache miss, checking for pre-built kernel"
+                );
             }
             Err(e) => {
-                warn!(kernel = kernel_spec, error = %e, "Cache lookup failed, proceeding with build");
+                warn!(kernel = kernel_spec, error = %e, "Cache lookup failed, checking for pre-built kernel");
             }
+        }
+
+        // Check for pre-built kernel at known paths
+        // This supports CI/testing scenarios where kernels are pre-built but not in the cache
+        if let Some(kernel_path) = self.find_prebuilt_kernel(kernel_spec) {
+            info!(kernel = kernel_spec, path = ?kernel_path, "Found pre-built kernel");
+            return Ok(kernel_path);
         }
 
         // TODO(#43): Implement actual unikernel build
@@ -284,6 +294,42 @@ where
             "Unikernel build not yet implemented for kernel: {}. Cache miss.",
             kernel_spec
         )))
+    }
+
+    /// Find a pre-built kernel at known paths.
+    ///
+    /// Checks for kernels in:
+    /// 1. GRAPHENE_KERNEL_CACHE environment variable
+    /// 2. $HOME/.graphene/cache/kernels
+    /// 3. /usr/share/graphene/kernels
+    fn find_prebuilt_kernel(&self, kernel_spec: &str) -> Option<std::path::PathBuf> {
+        // Convert kernel spec like "python:3.12" to filename like "python-3.12_fc-x86_64"
+        let kernel_name = kernel_spec.replace(':', "-");
+        let filename = format!("{}_fc-x86_64", kernel_name);
+
+        // Check paths in priority order
+        let search_paths = [
+            std::env::var("GRAPHENE_KERNEL_CACHE")
+                .ok()
+                .map(std::path::PathBuf::from),
+            dirs::home_dir().map(|h| h.join(".graphene/cache/kernels")),
+            Some(std::path::PathBuf::from("/usr/share/graphene/kernels")),
+        ];
+
+        for path_opt in search_paths.into_iter().flatten() {
+            let kernel_path = path_opt.join(&filename);
+            if kernel_path.exists() {
+                debug!(
+                    kernel = kernel_spec,
+                    path = ?kernel_path,
+                    "Found pre-built kernel"
+                );
+                return Some(kernel_path);
+            }
+        }
+
+        debug!(kernel = kernel_spec, "No pre-built kernel found");
+        None
     }
 
     /// Check cancellation and return error if cancelled.
