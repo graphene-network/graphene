@@ -15,9 +15,8 @@
     "build": "tsc",
     "test": "bun test tests/integration.test.ts tests/client.test.ts",
     "test:watch": "bun test --watch tests/integration.test.ts tests/client.test.ts",
-    "test:e2e": "bun test tests/e2e-mock-channel.test.ts --timeout 120000",
-    "test:e2e:solana": "bun test tests/e2e-solana.test.ts --timeout 300000",
-    "test:all": "bun test",
+    "test:e2e": "bun test ./tests/*.e2e.test.ts --timeout 120000",
+    "test:all": "bun test tests/",
     "clean": "rm -rf dist"
   },
   "dependencies": {

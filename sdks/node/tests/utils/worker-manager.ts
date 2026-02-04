@@ -40,8 +40,10 @@ export class WorkerManager {
   private ownedStoragePath: boolean = false;
 
   constructor(config: WorkerConfig) {
+    // Allow env var to override binary path (useful for CI with pre-built binary)
+    const envBinary = process.env.GRAPHENE_WORKER_BINARY;
     this.config = {
-      binaryPath: config.binaryPath ?? 'cargo',
+      binaryPath: config.binaryPath ?? envBinary ?? 'cargo',
       testUserPubkeyHex: config.testUserPubkeyHex,
       storagePath: config.storagePath ?? '',
       startupTimeoutMs: config.startupTimeoutMs ?? 30000,
@@ -73,7 +75,7 @@ export class WorkerManager {
       ...process.env as Record<string, string>,
       GRAPHENE_STORAGE_PATH: storagePath,
       GRAPHENE_TEST_USER_PUBKEY: this.config.testUserPubkeyHex,
-      RUST_LOG: 'monad_node=debug,server=debug',
+      RUST_LOG: 'monad_node=debug,graphene_worker=debug',
       ...this.config.env,
     };
 

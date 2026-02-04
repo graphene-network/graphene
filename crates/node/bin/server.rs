@@ -81,11 +81,12 @@ fn default_capabilities() -> WorkerCapabilities {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
+    // Note: Binary logs use "graphene_worker" as the target (binary name with underscores)
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive("monad_node=debug".parse()?)
-                .add_directive("server=debug".parse()?),
+                .add_directive("graphene_worker=debug".parse()?),
         )
         .init();
 

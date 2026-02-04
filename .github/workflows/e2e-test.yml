@@ -1,0 +1,92 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: 'Test timeout in seconds'
+        required: false
+        default: '300'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: monad_node=info,graphene_worker=info
+
+jobs:
+  e2e-test:
+    name: E2E Tests (Linux)
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92.0"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-e2e-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache SDK native build
+        uses: actions/cache@v4
+        with:
+          path: |
+            sdks/node/native/target
+          key: ${{ runner.os }}-sdk-native-${{ hashFiles('sdks/node/native/Cargo.lock', 'sdks/node/native/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-sdk-native-
+
+      - name: Build graphene-worker binary
+        run: cargo build --bin graphene-worker --release
+        working-directory: crates/node
+
+      - name: Install native SDK dependencies
+        working-directory: sdks/node/native
+        run: bun install
+
+      - name: Build native SDK
+        working-directory: sdks/node/native
+        run: bun run build
+
+      - name: Install TypeScript SDK dependencies
+        working-directory: sdks/node
+        run: bun install
+
+      - name: Build TypeScript SDK
+        working-directory: sdks/node
+        run: bun run build
+
+      - name: Run all E2E Tests
+        working-directory: sdks/node
+        run: |
+          bun test ./tests/*.e2e.test.ts --timeout ${{ inputs.timeout_seconds }}000
+        env:
+          # Use release binary for faster startup
+          GRAPHENE_WORKER_BINARY: ${{ github.workspace }}/target/release/graphene-worker
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-logs
+          path: |
+            sdks/node/.graphene-test-*
+            /tmp/graphene-test-*
+          if-no-files-found: ignore
+          retention-days: 7
