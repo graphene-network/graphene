@@ -83,15 +83,16 @@ jobs:
         run: |
           # Use zig as a cross-compiler for reliable musl builds
           pip3 install ziglang
+          ZIG_PATH=$(python3 -c "import ziglang; print(ziglang.__file__.replace('__init__.py', 'zig'))")
           mkdir -p ~/.local/bin
-          # Create wrapper scripts for zig cc/c++
-          cat > ~/.local/bin/zigcc << 'ZIGCC'
+          # Create wrapper scripts for zig cc/c++ with absolute path
+          cat > ~/.local/bin/zigcc << ZIGCC
           #!/bin/sh
-          zig cc -target x86_64-linux-musl "$@"
+          exec "$ZIG_PATH" cc -target x86_64-linux-musl "\$@"
           ZIGCC
-          cat > ~/.local/bin/zigcxx << 'ZIGCXX'
+          cat > ~/.local/bin/zigcxx << ZIGCXX
           #!/bin/sh
-          zig c++ -target x86_64-linux-musl "$@"
+          exec "$ZIG_PATH" c++ -target x86_64-linux-musl "\$@"
           ZIGCXX
           chmod +x ~/.local/bin/zigcc ~/.local/bin/zigcxx
           echo "$HOME/.local/bin" >> $GITHUB_PATH
