@@ -125,7 +125,8 @@ jobs:
           TMPDIR = "${{ env.BUILD_DIR }}/tmp"
           INHERIT += "externalsrc"
           EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
-          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          # B (build dir) must point to cargo's target dir for CARGO_BINDIR to work
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}/target"
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           # Use meta-rust-bin instead of Poky's rust recipes
@@ -282,7 +283,8 @@ jobs:
           INHERIT += "create-spdx"
           INHERIT += "externalsrc"
           EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
-          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
+          # B (build dir) must point to cargo's target dir for CARGO_BINDIR to work
+          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}/target"
           # Override SRCREV to prevent BitBake from querying the git remote
           # (AUTOREV triggers git ls-remote which fails without credentials)
           SRCREV:pn-graphene-node = "${{ github.sha }}"
