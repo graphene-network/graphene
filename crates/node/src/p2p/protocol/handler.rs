@@ -4,11 +4,13 @@
 //! job requests on QUIC bi-directional streams.
 
 use super::types::{
-    JobProgress, JobRequest, JobResponse, JobResult, JobStatus, ProgressKind, RejectReason,
+    JobMetrics, JobProgress, JobRequest, JobResponse, JobResult, JobStatus, ProgressKind,
+    RejectReason,
 };
 use super::validation::{validate_env, EnvValidationError};
 use super::wire::{decode_payload, encode_message, MessageType, WireError};
-use crate::p2p::messages::WorkerCapabilities;
+use crate::executor::{ExecutionError, ExecutionResult};
+use crate::p2p::messages::{ResultDeliveryMode, Signature64, WorkerCapabilities};
 use crate::ticket::{ChannelState, PaymentTicket, TicketError, TicketValidator};
 use async_trait::async_trait;
 use iroh::endpoint::Connection;
@@ -73,7 +75,17 @@ pub trait JobContext: Send + Sync {
     async fn get_payer_pubkey(&self, channel_id: &[u8; 32]) -> Option<[u8; 32]>;
 
     /// Called when a job is accepted - should reserve a slot.
+    /// Used for async delivery mode where execution is spawned in background.
     async fn on_job_accepted(&self, job_id: Uuid, request: &JobRequest);
+
+    /// Execute a job synchronously, returning the result directly.
+    /// Used for sync delivery mode where result is sent on the same stream.
+    /// Returns the execution result and job status for wire protocol.
+    async fn execute_job_sync(
+        &self,
+        job_id: Uuid,
+        request: &JobRequest,
+    ) -> Result<(ExecutionResult, JobStatus), ExecutionError>;
 
     /// Called when a job is rejected.
     async fn on_job_rejected(&self, job_id: Uuid, reason: RejectReason);
@@ -186,26 +198,17 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         // Validate the request
         match self.validate_request(&request).await {
             Ok(()) => {
-                // Accept the job
-                self.context.on_job_accepted(job_id, &request).await;
-
-                let response = JobResponse {
-                    job_id,
-                    status: JobStatus::Accepted,
-                    result: None,
-                    error: None,
-                };
-
-                let encoded = encode_message(MessageType::JobAccepted, &response)?;
-                send.write_all(&encoded)
-                    .await
-                    .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
-                send.shutdown().await.map_err(|e| {
-                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
-                })?;
-
-                info!("Job {} accepted", job_id);
-                Ok(())
+                // Branch based on delivery mode
+                match request.delivery_mode {
+                    ResultDeliveryMode::Sync => {
+                        // Sync mode: keep stream open, execute job, send result on same stream
+                        self.process_sync_job(job_id, &request, send).await
+                    }
+                    ResultDeliveryMode::Async => {
+                        // Async mode: spawn background execution, close stream after JobAccepted
+                        self.process_async_job(job_id, &request, send).await
+                    }
+                }
             }
             Err(reason) => {
                 // Reject the job
@@ -230,6 +233,105 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 Err(ProtocolError::JobRejected(reason))
             }
         }
+    }
+
+    /// Process a job in sync mode - keep stream open and send result on same stream.
+    async fn process_sync_job(
+        &self,
+        job_id: Uuid,
+        request: &JobRequest,
+        send: &mut (impl AsyncWriteExt + Unpin),
+    ) -> Result<(), ProtocolError> {
+        // Send JobAccepted first (but don't close stream)
+        let accepted_response = JobResponse {
+            job_id,
+            status: JobStatus::Accepted,
+            result: None,
+            error: None,
+        };
+
+        let encoded = encode_message(MessageType::JobAccepted, &accepted_response)?;
+        send.write_all(&encoded)
+            .await
+            .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
+
+        info!("Job {} accepted (sync mode), executing...", job_id);
+
+        // Execute job synchronously (blocks until complete)
+        match self.context.execute_job_sync(job_id, request).await {
+            Ok((exec_result, status)) => {
+                // Build JobResult from ExecutionResult
+                let job_result = JobResult {
+                    result_hash: exec_result.result_hash,
+                    result_url: None, // Sync mode doesn't use URLs
+                    exit_code: exec_result.exit_code,
+                    duration_ms: exec_result.duration_ms(),
+                    metrics: JobMetrics::default(),
+                    worker_signature: Signature64([0u8; 64]), // TODO(#47): Sign with worker key
+                };
+
+                // Send JobResult
+                self.send_result(send, job_id, job_result, status).await?;
+
+                // Now close the stream
+                send.shutdown().await.map_err(|e| {
+                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
+                })?;
+
+                info!("Job {} completed (sync mode): {:?}", job_id, status);
+                Ok(())
+            }
+            Err(e) => {
+                // Send failure result
+                let status = JobStatus::Failed;
+                let job_result = JobResult {
+                    result_hash: iroh_blobs::Hash::from_bytes([0u8; 32]),
+                    result_url: None,
+                    exit_code: -1,
+                    duration_ms: 0,
+                    metrics: JobMetrics::default(),
+                    worker_signature: Signature64([0u8; 64]),
+                };
+
+                self.send_result(send, job_id, job_result, status).await?;
+
+                send.shutdown().await.map_err(|e| {
+                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
+                })?;
+
+                warn!("Job {} failed (sync mode): {}", job_id, e);
+                Err(ProtocolError::InternalError(e.to_string()))
+            }
+        }
+    }
+
+    /// Process a job in async mode - spawn background execution and close stream after JobAccepted.
+    async fn process_async_job(
+        &self,
+        job_id: Uuid,
+        request: &JobRequest,
+        send: &mut (impl AsyncWriteExt + Unpin),
+    ) -> Result<(), ProtocolError> {
+        // Accept the job (spawns background execution)
+        self.context.on_job_accepted(job_id, request).await;
+
+        let response = JobResponse {
+            job_id,
+            status: JobStatus::Accepted,
+            result: None,
+            error: None,
+        };
+
+        let encoded = encode_message(MessageType::JobAccepted, &response)?;
+        send.write_all(&encoded)
+            .await
+            .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
+        send.shutdown()
+            .await
+            .map_err(|e| ProtocolError::ConnectionError(format!("shutdown error: {}", e)))?;
+
+        info!("Job {} accepted (async mode)", job_id);
+        Ok(())
     }
 
     /// Validate a job request.
@@ -434,6 +536,39 @@ pub mod mock {
             if *slots > 0 {
                 *slots -= 1;
             }
+        }
+
+        async fn execute_job_sync(
+            &self,
+            job_id: Uuid,
+            _request: &JobRequest,
+        ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
+            // Reserve slot
+            {
+                let mut slots = self.available_slots.write().await;
+                if *slots > 0 {
+                    *slots -= 1;
+                }
+            }
+            self.accepted_jobs.write().await.push(job_id);
+
+            // Return mock successful result
+            let result = ExecutionResult::new(
+                0, // exit_code
+                std::time::Duration::from_millis(100),
+                vec![], // encrypted_result
+                vec![], // encrypted_stdout
+                vec![], // encrypted_stderr
+                iroh_blobs::Hash::from_bytes([0u8; 32]),
+            );
+
+            // Release slot after execution
+            {
+                let mut slots = self.available_slots.write().await;
+                *slots += 1;
+            }
+
+            Ok((result, JobStatus::Succeeded))
         }
 
         async fn on_job_rejected(&self, job_id: Uuid, reason: RejectReason) {

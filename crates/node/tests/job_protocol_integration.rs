@@ -4,6 +4,7 @@
 
 use iroh::endpoint::Endpoint;
 use iroh::SecretKey;
+use monad_node::executor::{ExecutionError, ExecutionResult};
 use monad_node::p2p::graphene::GRAPHENE_JOB_ALPN;
 use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode, WorkerCapabilities};
 use monad_node::p2p::protocol::{
@@ -82,6 +83,39 @@ impl JobContext for TestWorkerContext {
         if *slots > 0 {
             *slots -= 1;
         }
+    }
+
+    async fn execute_job_sync(
+        &self,
+        job_id: Uuid,
+        _request: &JobRequest,
+    ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
+        // Reserve slot
+        {
+            let mut slots = self.available_slots.write().await;
+            if *slots > 0 {
+                *slots -= 1;
+            }
+        }
+        self.accepted_jobs.write().await.push(job_id);
+
+        // Return mock successful result
+        let result = ExecutionResult::new(
+            0, // exit_code
+            std::time::Duration::from_millis(100),
+            vec![], // encrypted_result
+            vec![], // encrypted_stdout
+            vec![], // encrypted_stderr
+            iroh_blobs::Hash::from_bytes([0u8; 32]),
+        );
+
+        // Release slot after execution
+        {
+            let mut slots = self.available_slots.write().await;
+            *slots += 1;
+        }
+
+        Ok((result, JobStatus::Succeeded))
     }
 
     async fn on_job_rejected(&self, job_id: Uuid, reason: RejectReason) {
