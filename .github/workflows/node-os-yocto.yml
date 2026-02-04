@@ -128,9 +128,9 @@ jobs:
           EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
-          # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
-          PREFERRED_VERSION_rust-bin-cross = "${RUST_VERSION}"
-          PREFERRED_VERSION_cargo-bin-cross = "${RUST_VERSION}"
+          # Use meta-rust-bin instead of Poky's rust recipes
+          # Mask Poky's rust to force use of meta-rust-bin
+          BBMASK += "poky/meta/recipes-devtools/rust"
           EOF
 
       - name: Parse recipes (validation)
@@ -288,9 +288,9 @@ jobs:
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           # Kernel branch from os-matrix.toml
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
-          # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
-          PREFERRED_VERSION_rust-bin-cross = "${RUST_VERSION}"
-          PREFERRED_VERSION_cargo-bin-cross = "${RUST_VERSION}"
+          # Use meta-rust-bin instead of Poky's rust recipes
+          # Mask Poky's rust to force use of meta-rust-bin
+          BBMASK += "poky/meta/recipes-devtools/rust"
           EOF
 
       - name: Build image

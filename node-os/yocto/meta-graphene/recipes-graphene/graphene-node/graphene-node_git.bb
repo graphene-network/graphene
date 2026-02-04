@@ -17,8 +17,8 @@ PV = "0.1.0+git${SRCPV}"
 
 S = "${WORKDIR}/git"
 
-# Rust build
-inherit cargo
+# Rust build - use meta-rust-bin's prebuilt toolchain (supports newer Rust versions)
+inherit cargo_bin
 
 # Build dependencies
 DEPENDS = "openssl"
