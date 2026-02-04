@@ -129,8 +129,8 @@ jobs:
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
-          PREFERRED_VERSION_rust-bin-native = "${RUST_VERSION}"
-          PREFERRED_VERSION_cargo-bin-native = "${RUST_VERSION}"
+          PREFERRED_VERSION_rust-bin-cross = "${RUST_VERSION}"
+          PREFERRED_VERSION_cargo-bin-cross = "${RUST_VERSION}"
           EOF
 
       - name: Parse recipes (validation)
@@ -289,8 +289,8 @@ jobs:
           # Kernel branch from os-matrix.toml
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
-          PREFERRED_VERSION_rust-bin-native = "${RUST_VERSION}"
-          PREFERRED_VERSION_cargo-bin-native = "${RUST_VERSION}"
+          PREFERRED_VERSION_rust-bin-cross = "${RUST_VERSION}"
+          PREFERRED_VERSION_cargo-bin-cross = "${RUST_VERSION}"
           EOF
 
       - name: Build image
