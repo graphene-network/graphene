@@ -31,7 +31,7 @@ GRAPHENE_PLATFORM_ID ?= "graphene-os-${PV}"
 GRAPHENE_BUILD_TIME ?= ""
 
 # Pass attestation values to cargo
-CARGO_BUILD_FLAGS = "--release --package monad_node --bin graphene-node"
+CARGO_BUILD_FLAGS = "--release --package monad_node --bin graphene-worker"
 
 # Enable network access for do_compile (required for cargo to fetch dependencies)
 # See: https://github.com/rust-embedded/meta-rust-bin#use-with-yocto-release-40-kirkstone-and-above
@@ -48,7 +48,8 @@ do_compile:prepend() {
 
 do_install() {
     install -d ${D}${bindir}
-    install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/graphene-node ${D}${bindir}/graphene-node
+    # Binary is built as graphene-worker, install as graphene-node for consistency
+    install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/graphene-worker ${D}${bindir}/graphene-node
 
     # Install default configuration
     install -d ${D}${sysconfdir}/graphene
