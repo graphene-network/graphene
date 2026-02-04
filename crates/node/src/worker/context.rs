@@ -632,12 +632,7 @@ mod tests {
                 estimated_ingress_mb: None,
             },
             ticket: PaymentTicket::new([1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64]),
-            assets: JobAssets {
-                code_hash: Hash::from_bytes([0u8; 32]),
-                code_url: None,
-                input_hash: Hash::from_bytes([0u8; 32]),
-                input_url: None,
-            },
+            assets: JobAssets::blobs(Hash::from_bytes([0u8; 32]), None),
             ephemeral_pubkey: [0u8; 32],
             channel_pda: [0u8; 32],
             delivery_mode: ResultDeliveryMode::Sync,

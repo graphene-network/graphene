@@ -8,6 +8,113 @@ use iroh_blobs::Hash;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Default threshold for inline code (4 MB).
+/// Code larger than this will use blob mode in auto selection.
+pub const INLINE_CODE_THRESHOLD: usize = 4 * 1024 * 1024;
+
+/// Default threshold for inline input (8 MB).
+/// Input larger than this will use blob mode in auto selection.
+pub const INLINE_INPUT_THRESHOLD: usize = 8 * 1024 * 1024;
+
+/// Maximum message size for the wire protocol (16 MB).
+/// Inline assets must fit within this limit when combined.
+pub const MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
+
+/// Compression algorithm used for job assets.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Compression {
+    /// No compression applied.
+    #[default]
+    None,
+    /// Zstandard compression.
+    Zstd,
+}
+
+/// How a single asset is delivered (inline bytes or blob reference).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AssetData {
+    /// Asset data is included inline (encrypted bytes).
+    Inline {
+        /// The encrypted asset data.
+        data: Vec<u8>,
+    },
+    /// Asset data is referenced by blob hash.
+    Blob {
+        /// BLAKE3 hash of the encrypted blob.
+        hash: Hash,
+        /// Optional URL to fetch the blob from (fallback if not in Iroh).
+        url: Option<String>,
+    },
+}
+
+impl AssetData {
+    /// Creates an inline asset from encrypted data.
+    pub fn inline(data: Vec<u8>) -> Self {
+        Self::Inline { data }
+    }
+
+    /// Creates a blob reference asset.
+    pub fn blob(hash: Hash, url: Option<String>) -> Self {
+        Self::Blob { hash, url }
+    }
+
+    /// Returns true if this is an inline asset.
+    pub fn is_inline(&self) -> bool {
+        matches!(self, Self::Inline { .. })
+    }
+
+    /// Returns true if this is a blob reference.
+    pub fn is_blob(&self) -> bool {
+        matches!(self, Self::Blob { .. })
+    }
+
+    /// Returns the size of the asset data in bytes.
+    /// For inline assets, returns the data length.
+    /// For blob assets, returns 0 (size is unknown without fetching).
+    pub fn inline_size(&self) -> usize {
+        match self {
+            Self::Inline { data } => data.len(),
+            Self::Blob { .. } => 0,
+        }
+    }
+
+    /// Returns the blob hash if this is a blob reference.
+    pub fn blob_hash(&self) -> Option<&Hash> {
+        match self {
+            Self::Blob { hash, .. } => Some(hash),
+            Self::Inline { .. } => None,
+        }
+    }
+}
+
+/// A file to be made available in the unikernel filesystem.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobFile {
+    /// Destination path in the unikernel filesystem (e.g., "/data/model.bin").
+    pub path: String,
+    /// The file data (inline or blob reference).
+    pub data: AssetData,
+}
+
+impl JobFile {
+    /// Creates a new job file with inline data.
+    pub fn inline(path: impl Into<String>, data: Vec<u8>) -> Self {
+        Self {
+            path: path.into(),
+            data: AssetData::inline(data),
+        }
+    }
+
+    /// Creates a new job file with a blob reference.
+    pub fn blob(path: impl Into<String>, hash: Hash, url: Option<String>) -> Self {
+        Self {
+            path: path.into(),
+            data: AssetData::blob(hash, url),
+        }
+    }
+}
+
 /// Job submission request from client to worker.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobRequest {
@@ -35,20 +142,122 @@ pub struct JobRequest {
     pub delivery_mode: ResultDeliveryMode,
 }
 
-/// References to code and input blobs in Iroh.
+/// Code, input, and additional files for a job.
+///
+/// Assets can be delivered inline (embedded in the request) or via blob references.
+/// Inline delivery is faster for small payloads, while blob delivery is better for
+/// large files or when pre-staging/deduplication is needed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobAssets {
-    /// BLAKE3 hash of the encrypted code blob.
-    pub code_hash: Hash,
+    /// The code to execute (required).
+    pub code: AssetData,
 
-    /// Optional URL to fetch code from (fallback if not in Iroh).
-    pub code_url: Option<String>,
+    /// Optional input data.
+    #[serde(default)]
+    pub input: Option<AssetData>,
 
-    /// BLAKE3 hash of the encrypted input blob.
-    pub input_hash: Hash,
+    /// Additional files to make available in the unikernel filesystem.
+    #[serde(default)]
+    pub files: Vec<JobFile>,
 
-    /// Optional URL to fetch input from (fallback if not in Iroh).
-    pub input_url: Option<String>,
+    /// Compression algorithm applied to all assets (before encryption).
+    #[serde(default)]
+    pub compression: Compression,
+}
+
+impl JobAssets {
+    /// Creates a new JobAssets with blob references (legacy format).
+    ///
+    /// This is provided for backward compatibility with existing code.
+    pub fn from_blobs(
+        code_hash: Hash,
+        code_url: Option<String>,
+        input_hash: Hash,
+        input_url: Option<String>,
+    ) -> Self {
+        let input = if input_hash.as_bytes().iter().all(|&b| b == 0) {
+            None
+        } else {
+            Some(AssetData::blob(input_hash, input_url))
+        };
+
+        Self {
+            code: AssetData::blob(code_hash, code_url),
+            input,
+            files: Vec::new(),
+            compression: Compression::None,
+        }
+    }
+
+    /// Creates a new JobAssets with inline code and optional input.
+    pub fn inline(code: Vec<u8>, input: Option<Vec<u8>>) -> Self {
+        Self {
+            code: AssetData::inline(code),
+            input: input.map(AssetData::inline),
+            files: Vec::new(),
+            compression: Compression::None,
+        }
+    }
+
+    /// Creates a new JobAssets with blob references.
+    pub fn blobs(code_hash: Hash, input_hash: Option<Hash>) -> Self {
+        Self {
+            code: AssetData::blob(code_hash, None),
+            input: input_hash.map(|h| AssetData::blob(h, None)),
+            files: Vec::new(),
+            compression: Compression::None,
+        }
+    }
+
+    /// Sets the compression algorithm.
+    pub fn with_compression(mut self, compression: Compression) -> Self {
+        self.compression = compression;
+        self
+    }
+
+    /// Adds additional files to the job.
+    pub fn with_files(mut self, files: Vec<JobFile>) -> Self {
+        self.files = files;
+        self
+    }
+
+    /// Returns the total inline size of all assets.
+    pub fn total_inline_size(&self) -> usize {
+        let code_size = self.code.inline_size();
+        let input_size = self.input.as_ref().map(|a| a.inline_size()).unwrap_or(0);
+        let files_size: usize = self.files.iter().map(|f| f.data.inline_size()).sum();
+        code_size + input_size + files_size
+    }
+
+    /// Returns true if all assets are inline.
+    pub fn is_all_inline(&self) -> bool {
+        self.code.is_inline()
+            && self.input.as_ref().map(|a| a.is_inline()).unwrap_or(true)
+            && self.files.iter().all(|f| f.data.is_inline())
+    }
+
+    /// Returns true if all assets are blob references.
+    pub fn is_all_blob(&self) -> bool {
+        self.code.is_blob()
+            && self.input.as_ref().map(|a| a.is_blob()).unwrap_or(true)
+            && self.files.iter().all(|f| f.data.is_blob())
+    }
+
+    // Legacy accessor methods for backward compatibility
+
+    /// Returns the code blob hash if code is a blob reference.
+    ///
+    /// This is a compatibility method for existing code that expects blob hashes.
+    pub fn code_hash(&self) -> Option<&Hash> {
+        self.code.blob_hash()
+    }
+
+    /// Returns the input blob hash if input is a blob reference.
+    ///
+    /// This is a compatibility method for existing code that expects blob hashes.
+    pub fn input_hash(&self) -> Option<&Hash> {
+        self.input.as_ref().and_then(|a| a.blob_hash())
+    }
 }
 
 /// Response to a job request.
@@ -139,6 +348,9 @@ pub enum RejectReason {
     /// Code or input blob could not be fetched.
     AssetUnavailable,
 
+    /// Inline asset exceeds maximum allowed size.
+    InlineTooLarge,
+
     /// Generic internal error.
     InternalError,
 }
@@ -156,6 +368,7 @@ impl std::fmt::Display for RejectReason {
             RejectReason::InvalidEnvName => write!(f, "invalid environment variable name"),
             RejectReason::ReservedEnvPrefix => write!(f, "reserved GRAPHENE_* prefix"),
             RejectReason::AssetUnavailable => write!(f, "code or input unavailable"),
+            RejectReason::InlineTooLarge => write!(f, "inline asset exceeds size limit"),
             RejectReason::InternalError => write!(f, "internal error"),
         }
     }
@@ -293,15 +506,55 @@ mod tests {
 
     #[test]
     fn test_job_assets_bincode() {
-        let assets = JobAssets {
-            code_hash: Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: Hash::from_bytes([2u8; 32]),
-            input_url: None,
-        };
+        let assets = JobAssets::blobs(
+            Hash::from_bytes([1u8; 32]),
+            Some(Hash::from_bytes([2u8; 32])),
+        );
         let encoded = bincode::serialize(&assets).expect("assets serialize failed");
         let _decoded: JobAssets =
             bincode::deserialize(&encoded).expect("assets deserialize failed");
+    }
+
+    #[test]
+    fn test_job_assets_inline() {
+        let assets = JobAssets::inline(b"print('hello')".to_vec(), Some(b"input data".to_vec()));
+        assert!(assets.code.is_inline());
+        assert!(assets.input.as_ref().unwrap().is_inline());
+        assert!(assets.is_all_inline());
+        assert!(!assets.is_all_blob());
+    }
+
+    #[test]
+    fn test_job_assets_total_inline_size() {
+        let assets = JobAssets::inline(vec![0u8; 100], Some(vec![0u8; 50]));
+        assert_eq!(assets.total_inline_size(), 150);
+    }
+
+    #[test]
+    fn test_asset_data_helpers() {
+        let inline = AssetData::inline(b"code".to_vec());
+        assert!(inline.is_inline());
+        assert!(!inline.is_blob());
+        assert_eq!(inline.inline_size(), 4);
+        assert!(inline.blob_hash().is_none());
+
+        let blob = AssetData::blob(Hash::from_bytes([1u8; 32]), None);
+        assert!(!blob.is_inline());
+        assert!(blob.is_blob());
+        assert_eq!(blob.inline_size(), 0);
+        assert!(blob.blob_hash().is_some());
+    }
+
+    #[test]
+    fn test_compression_default() {
+        assert_eq!(Compression::default(), Compression::None);
+    }
+
+    #[test]
+    fn test_job_file() {
+        let file = JobFile::inline("/data/model.bin", vec![1, 2, 3, 4]);
+        assert_eq!(file.path, "/data/model.bin");
+        assert!(file.data.is_inline());
     }
 
     #[test]
@@ -347,12 +600,7 @@ mod tests {
             ticket: crate::ticket::PaymentTicket::new(
                 [1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64],
             ),
-            assets: JobAssets {
-                code_hash: Hash::from_bytes([0u8; 32]),
-                code_url: None,
-                input_hash: Hash::from_bytes([0u8; 32]),
-                input_url: None,
-            },
+            assets: JobAssets::blobs(Hash::from_bytes([0u8; 32]), None),
             ephemeral_pubkey: [0u8; 32],
             channel_pda: [0u8; 32],
             delivery_mode: ResultDeliveryMode::Sync,

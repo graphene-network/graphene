@@ -393,7 +393,14 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
             return Err(RejectReason::ResourcesExceedLimits);
         }
 
-        // 5. Validate payment ticket
+        // 5. Validate inline asset sizes
+        use crate::p2p::protocol::types::MAX_MESSAGE_SIZE;
+        let total_inline_size = request.assets.total_inline_size();
+        if total_inline_size > MAX_MESSAGE_SIZE {
+            return Err(RejectReason::InlineTooLarge);
+        }
+
+        // 6. Validate payment ticket
         self.validate_ticket(&request.ticket).await?;
 
         Ok(())
@@ -627,12 +634,7 @@ mod tests {
                 estimated_ingress_mb: None,
             },
             ticket: PaymentTicket::new([1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64]),
-            assets: JobAssets {
-                code_hash: Hash::from_bytes([0u8; 32]),
-                code_url: None,
-                input_hash: Hash::from_bytes([0u8; 32]),
-                input_url: None,
-            },
+            assets: JobAssets::blobs(Hash::from_bytes([0u8; 32]), None),
             ephemeral_pubkey: [0u8; 32],
             channel_pda: [0u8; 32],
             delivery_mode: ResultDeliveryMode::Sync,

@@ -701,6 +701,8 @@ pub enum RejectReason {
     ReservedEnvPrefix,
     /// Code or input blob could not be fetched.
     AssetUnavailable,
+    /// Inline asset exceeds maximum allowed size.
+    InlineTooLarge,
     /// Generic internal error.
     InternalError,
 }
@@ -789,12 +791,18 @@ pub fn serialize_job_request(request: JobRequest) -> Result<Buffer> {
     let code_hash_arr: [u8; 32] = request.assets.code_hash.as_ref().try_into().unwrap();
     let input_hash_arr: [u8; 32] = request.assets.input_hash.as_ref().try_into().unwrap();
 
-    let assets = RustJobAssets {
-        code_hash: Hash::from_bytes(code_hash_arr),
-        code_url: request.assets.code_url,
-        input_hash: Hash::from_bytes(input_hash_arr),
-        input_url: request.assets.input_url,
+    // Build JobAssets using the new blob-based constructor
+    let input_hash = if input_hash_arr.iter().all(|&b| b == 0) {
+        None
+    } else {
+        Some(Hash::from_bytes(input_hash_arr))
     };
+    let assets = RustJobAssets::from_blobs(
+        Hash::from_bytes(code_hash_arr),
+        request.assets.code_url,
+        input_hash.unwrap_or_else(|| Hash::from_bytes([0u8; 32])),
+        request.assets.input_url,
+    );
 
     // Convert ephemeral_pubkey and channel_pda
     if request.ephemeral_pubkey.len() != 32 {
@@ -876,6 +884,7 @@ pub fn deserialize_job_response(data: Buffer) -> Result<JobResponse> {
                 RustRejectReason::InvalidEnvName => "InvalidEnvName",
                 RustRejectReason::ReservedEnvPrefix => "ReservedEnvPrefix",
                 RustRejectReason::AssetUnavailable => "AssetUnavailable",
+                RustRejectReason::InlineTooLarge => "InlineTooLarge",
                 RustRejectReason::InternalError => "InternalError",
             };
             ("Rejected".to_string(), Some(reason_str.to_string()))
@@ -1481,12 +1490,7 @@ impl GrapheneClient {
             estimated_ingress_mb,
         };
 
-        let assets = RustJobAssets {
-            code_hash,
-            code_url: None,
-            input_hash,
-            input_url: None,
-        };
+        let assets = RustJobAssets::blobs(code_hash, Some(input_hash));
 
         let request = RustJobRequest {
             job_id,

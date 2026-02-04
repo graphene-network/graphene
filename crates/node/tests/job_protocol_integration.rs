@@ -160,12 +160,10 @@ fn create_test_request(channel_id: [u8; 32], ticket: PaymentTicket) -> JobReques
             estimated_ingress_mb: None,
         },
         ticket,
-        assets: JobAssets {
-            code_hash: iroh_blobs::Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: iroh_blobs::Hash::from_bytes([2u8; 32]),
-            input_url: None,
-        },
+        assets: JobAssets::blobs(
+            iroh_blobs::Hash::from_bytes([1u8; 32]),
+            Some(iroh_blobs::Hash::from_bytes([2u8; 32])),
+        ),
         ephemeral_pubkey: [0u8; 32],
         channel_pda: channel_id,
         delivery_mode: ResultDeliveryMode::Sync,

@@ -17,7 +17,7 @@ use uuid::Uuid;
 use monad_node::executor::{MockExecutorBehavior, MockJobExecutor};
 use monad_node::job::JobState;
 use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode, WorkerCapabilities};
-use monad_node::p2p::protocol::types::JobAssets;
+use monad_node::p2p::protocol::types::{AssetData, Compression, JobAssets};
 use monad_node::p2p::protocol::{JobContext, JobRequest};
 use monad_node::result::mock::MockDeliveryBehavior;
 use monad_node::result::MockResultDelivery;
@@ -177,10 +177,16 @@ fn make_test_request(delivery_mode: ResultDeliveryMode) -> JobRequest {
         },
         ticket: PaymentTicket::new([1u8; 32], 1_000_000, 1, 1700000000, [0u8; 64]),
         assets: JobAssets {
-            code_hash: iroh_blobs::Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: iroh_blobs::Hash::from_bytes([2u8; 32]),
-            input_url: None,
+            code: AssetData::Blob {
+                hash: iroh_blobs::Hash::from_bytes([1u8; 32]),
+                url: None,
+            },
+            input: Some(AssetData::Blob {
+                hash: iroh_blobs::Hash::from_bytes([2u8; 32]),
+                url: None,
+            }),
+            files: vec![],
+            compression: Compression::None,
         },
         ephemeral_pubkey: [0u8; 32],
         channel_pda: [1u8; 32],

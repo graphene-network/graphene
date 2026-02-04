@@ -311,12 +311,10 @@ mod tests {
     }
 
     fn make_test_assets() -> JobAssets {
-        JobAssets {
-            code_hash: Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: Hash::from_bytes([2u8; 32]),
-            input_url: None,
-        }
+        JobAssets::blobs(
+            Hash::from_bytes([1u8; 32]),
+            Some(Hash::from_bytes([2u8; 32])),
+        )
     }
 
     #[test]

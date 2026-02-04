@@ -185,6 +185,47 @@ Iroh provides the peer-to-peer networking layer:
 
 Data flows directly between user and worker. The blockchain never sees job payloads.
 
+#### Inline vs Blob Asset Delivery
+
+Job assets (code, input, additional files) can be delivered in two modes:
+
+**Inline Mode:**
+- Encrypted asset bytes embedded directly in the job request
+- Zero additional network round-trips
+- Best for small payloads (<4MB code, <8MB input)
+- Limited by 16MB total message size
+
+**Blob Mode:**
+- Asset uploaded to Iroh as content-addressed blob
+- Worker downloads from DHT or client node
+- Required for large payloads
+- Enables deduplication and pre-staging
+
+**Asset Structure:**
+```rust
+enum AssetData {
+    Inline { data: Vec<u8> },                  // Encrypted bytes
+    Blob { hash: Hash, url: Option<String> },  // Blob reference
+}
+
+struct JobAssets {
+    code: AssetData,                // Required: application code
+    input: Option<AssetData>,       // Optional: job input data
+    files: Vec<JobFile>,            // Additional file attachments
+    compression: Compression,       // None or Zstd
+}
+```
+
+**Mode Selection:**
+
+| Mode | Behavior |
+|------|----------|
+| `auto` (default) | Inline if payload < threshold, blob otherwise |
+| `inline` | Always embed, error if > 16MB |
+| `blob` | Always upload to Iroh |
+
+SDKs default to `auto` mode, automatically selecting the optimal delivery method based on payload size.
+
 ### 4.4 Layer 4: Economic Plane (Payment Channels)
 
 Zero-latency payments via unidirectional state channels:
@@ -260,8 +301,10 @@ User sends job via Iroh direct connection:
     "signature": "ed25519:..."
   },
   "assets": {
-    "code_url": "iroh:blob/abc123",
-    "input_url": "iroh:blob/def456"
+    "code": { "inline": "<encrypted-base64>" },
+    "input": { "blob": { "hash": "blake3:def456...", "url": "iroh:blob/def456" } },
+    "files": [],
+    "compression": "none"
   }
 }
 ```
@@ -274,14 +317,24 @@ Worker validates locally (<5ms):
 
 **Double-Spend Prevention:** Ticket acceptance is first-come-first-served. Workers gossip accepted tickets on a high-priority subchannel. If a worker receives a ticket with nonce N, and later sees another worker accepted the same nonce N, the second acceptance is invalid—but the first worker keeps the payment. Race condition window is ~50-200ms (gossip propagation). Users who double-submit risk losing payment to multiple workers.
 
-**Step 4: Execution**
+**Step 4: Asset Retrieval**
+Worker retrieves code and input assets based on delivery mode:
+
+| Mode | Behavior | Latency |
+|------|----------|---------|
+| Inline | Decrypt from request payload directly | <1ms |
+| Blob | Download from Iroh DHT or client node | 50-500ms |
+
+For small payloads (code <4MB, input <8MB), inline delivery eliminates blob download overhead. Larger payloads automatically use blob references.
+
+**Step 5: Execution**
 Worker assembles and boots MicroVM:
 - Check L2 cache for dependencies (instant if hit)
 - If miss, build in Ephemeral Builder VM
 - Mount kernel + deps + code as block devices
 - Boot Firecracker, run entrypoint
 
-**Step 5: Result Delivery**
+**Step 6: Result Delivery**
 Worker creates result blob and notifies user:
 
 ```json
@@ -340,18 +393,21 @@ Anchor program verifies signature via Ed25519 introspection and transfers funds.
    │                 │    ticket sig    │                   │
    │                 │    (local, <1ms) │                   │
    │                 │                  │                   │
-   │                 │    5. Check      │                   │
+   │                 │    5. Get assets │                   │
+   │                 │    (inline/blob) │                   │
+   │                 │                  │                   │
+   │                 │    6. Check      │                   │
    │                 │    cache (L2)    │                   │
    │                 │                  │                   │
-   │                 │    6. Boot VM    │                   │
+   │                 │    7. Boot VM    │                   │
    │                 │    + Execute     │                   │
    │                 │                  │                   │
-   │  7. Stream Result                  │                   │
+   │  8. Stream Result                  │                   │
    │◀─────────────────────────────────────                  │
    │                 │                  │                   │
-   │        [... repeat jobs 3-7 ...]   │                   │
+   │        [... repeat jobs 3-8 ...]   │                   │
    │                 │                  │                   │
-   │                 │  8. Settle (batch, async)            │
+   │                 │  9. Settle (batch, async)            │
    │                 │                  │──────────────────▶│
    │                 │                  │   Verify sig      │
    │                 │                  │   Transfer funds  │
@@ -2157,7 +2213,14 @@ const result = await client.run({
     }
   `,
   input: { x: 42 },
-  resources: { vcpu: 1, memoryMb: 512 }
+  resources: { vcpu: 1, memoryMb: 512 },
+  // Asset delivery options (optional)
+  assets: {
+    mode: 'auto',              // 'auto' | 'inline' | 'blob'
+    compress: true,            // Enable zstd compression
+    inlineCodeThreshold: 4_000_000,  // 4MB (default)
+    inlineInputThreshold: 8_000_000, // 8MB (default)
+  }
 });
 
 console.log(result.output); // { squared: 1764 }
@@ -2299,12 +2362,22 @@ See [ADR-0001](./adr/ADR-0001-sdk-discovery-architecture.md) for detailed archit
     "webhook_url": null
   },
   "assets": {
-    "requirements_hash": "blake3:abc...",
-    "requirements_url": "iroh:blob/abc...",
-    "code_hash": "blake3:def...",
-    "code_url": "iroh:blob/def...",
-    "input_hash": "blake3:ghi...",
-    "input_url": "iroh:blob/ghi..."
+    "code": {
+      "inline": "<encrypted-base64>"
+    },
+    "input": {
+      "blob": {
+        "hash": "blake3:ghi...",
+        "url": "iroh:blob/ghi..."
+      }
+    },
+    "files": [
+      {
+        "path": "/data/model.bin",
+        "data": { "blob": { "hash": "blake3:jkl...", "url": "iroh:blob/jkl..." } }
+      }
+    ],
+    "compression": "none"
   }
 }
 ```
