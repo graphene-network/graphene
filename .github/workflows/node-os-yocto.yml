@@ -35,7 +35,7 @@ on:
         default: false
 
 env:
-  YOCTO_RELEASE: "scarthgap"
+  # Versions are read from node-os/os-matrix.toml in the load-config step
   SSTATE_BUCKET: "graphene-sstate"
   BUILD_DIR: "/tmp/yocto-build"
 
@@ -46,6 +46,17 @@ jobs:
     runs-on: ubicloud-standard-8
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load config from os-matrix.toml
+        id: config
+        run: |
+          set -eo pipefail
+          # Parse os-matrix.toml and export as env vars
+          YOCTO_RELEASE=$(grep 'yocto_version' node-os/os-matrix.toml | cut -d'"' -f2)
+          KERNEL_BRANCH=$(grep 'linux_kernel_branch' node-os/os-matrix.toml | cut -d'"' -f2)
+          echo "YOCTO_RELEASE=$YOCTO_RELEASE" >> "$GITHUB_ENV"
+          echo "KERNEL_BRANCH=$KERNEL_BRANCH" >> "$GITHUB_ENV"
+          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH"
 
       - name: Install Yocto dependencies
         timeout-minutes: 10
@@ -106,6 +117,7 @@ jobs:
           EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
           EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
           SRCREV:pn-graphene-node = "${{ github.sha }}"
+          GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           EOF
 
       - name: Parse recipes (validation)
@@ -161,6 +173,17 @@ jobs:
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load config from os-matrix.toml
+        id: config
+        run: |
+          set -eo pipefail
+          # Parse os-matrix.toml and export as env vars
+          YOCTO_RELEASE=$(grep 'yocto_version' node-os/os-matrix.toml | cut -d'"' -f2)
+          KERNEL_BRANCH=$(grep 'linux_kernel_branch' node-os/os-matrix.toml | cut -d'"' -f2)
+          echo "YOCTO_RELEASE=$YOCTO_RELEASE" >> "$GITHUB_ENV"
+          echo "KERNEL_BRANCH=$KERNEL_BRANCH" >> "$GITHUB_ENV"
+          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH"
 
       - name: Install Yocto dependencies
         timeout-minutes: 10
@@ -240,6 +263,8 @@ jobs:
           # Override SRCREV to prevent BitBake from querying the git remote
           # (AUTOREV triggers git ls-remote which fails without credentials)
           SRCREV:pn-graphene-node = "${{ github.sha }}"
+          # Kernel branch from os-matrix.toml
+          GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           EOF
 
       - name: Build image
@@ -354,6 +379,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load config from os-matrix.toml
+        run: |
+          YOCTO_RELEASE=$(grep 'yocto_version' node-os/os-matrix.toml | cut -d'"' -f2)
+          echo "YOCTO_RELEASE=$YOCTO_RELEASE" >> "$GITHUB_ENV"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4

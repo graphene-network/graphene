@@ -10,7 +10,8 @@ yocto_version = "scarthgap"
 # Component versions
 node_binary = "0.1.0"
 firecracker = "1.11.0"
-linux_kernel = "6.6.70"
+linux_kernel = "6.6"
+linux_kernel_branch = "v6.6/standard/base"
 
 [defaults]
 # Security defaults

@@ -12,9 +12,11 @@ COMPATIBLE_MACHINE:graphene-node-aarch64 = "graphene-node-aarch64"
 KMACHINE:graphene-node-x86_64 = "intel-corei7-64"
 KMACHINE:graphene-node-aarch64 = "qemuarm64"
 
-# Use standard kernel branch matching Scarthgap's linux-yocto 6.6
-KBRANCH:graphene-node-x86_64 = "v6.6/standard/base"
-KBRANCH:graphene-node-aarch64 = "v6.6/standard/base"
+# Kernel branch - set via GRAPHENE_KERNEL_BRANCH in local.conf or use default
+# Default matches Scarthgap's linux-yocto 6.6 (see node-os/os-matrix.toml)
+GRAPHENE_KERNEL_BRANCH ?= "v6.6/standard/base"
+KBRANCH:graphene-node-x86_64 = "${GRAPHENE_KERNEL_BRANCH}"
+KBRANCH:graphene-node-aarch64 = "${GRAPHENE_KERNEL_BRANCH}"
 
 # Add our defconfig and configuration fragments
 SRC_URI:append = " \
