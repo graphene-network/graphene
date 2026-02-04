@@ -18,7 +18,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-2
     outputs:
       kernel_hash: ${{ steps.hash.outputs.hash }}
     steps:
@@ -53,7 +53,7 @@ jobs:
           retention-days: 90
 
   build-rootfs:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-2
     outputs:
       rootfs_hash: ${{ steps.hash.outputs.hash }}
     steps:
