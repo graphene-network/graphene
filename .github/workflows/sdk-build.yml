@@ -85,14 +85,43 @@ jobs:
           pip3 install ziglang
           ZIG_PATH=$(python3 -c "import ziglang; print(ziglang.__file__.replace('__init__.py', 'zig'))")
           mkdir -p ~/.local/bin
-          # Create wrapper scripts for zig cc/c++ with absolute path
+          # Create wrapper scripts that filter out --target args (cc-rs adds incompatible format)
+          # and use the correct zig target format (x86_64-linux-musl, not x86_64-unknown-linux-musl)
           cat > ~/.local/bin/zigcc << ZIGCC
           #!/bin/sh
-          exec "$ZIG_PATH" cc -target x86_64-linux-musl "\$@"
+          # Filter out --target args since we provide our own
+          args=""
+          skip_next=0
+          for arg in "\$@"; do
+            if [ \$skip_next -eq 1 ]; then
+              skip_next=0
+              continue
+            fi
+            case "\$arg" in
+              --target=*) continue ;;
+              -target) skip_next=1; continue ;;
+              *) args="\$args \$arg" ;;
+            esac
+          done
+          exec "$ZIG_PATH" cc -target x86_64-linux-musl \$args
           ZIGCC
           cat > ~/.local/bin/zigcxx << ZIGCXX
           #!/bin/sh
-          exec "$ZIG_PATH" c++ -target x86_64-linux-musl "\$@"
+          # Filter out --target args since we provide our own
+          args=""
+          skip_next=0
+          for arg in "\$@"; do
+            if [ \$skip_next -eq 1 ]; then
+              skip_next=0
+              continue
+            fi
+            case "\$arg" in
+              --target=*) continue ;;
+              -target) skip_next=1; continue ;;
+              *) args="\$args \$arg" ;;
+            esac
+          done
+          exec "$ZIG_PATH" c++ -target x86_64-linux-musl \$args
           ZIGCXX
           chmod +x ~/.local/bin/zigcc ~/.local/bin/zigcxx
           echo "$HOME/.local/bin" >> $GITHUB_PATH
