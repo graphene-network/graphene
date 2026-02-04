@@ -140,14 +140,13 @@ jobs:
       - name: Run all E2E Tests
         working-directory: sdks/node
         run: |
+          export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
+          echo "Kernel cache path: $GRAPHENE_KERNEL_CACHE"
+          ls -la "$GRAPHENE_KERNEL_CACHE" || echo "Kernel cache directory is empty or doesn't exist"
           bun test ./tests/*.e2e.test.ts --timeout ${{ inputs.timeout_seconds }}000
         env:
-          # Use release binary for faster startup
           GRAPHENE_WORKER_BINARY: ${{ github.workspace }}/target/release/graphene-worker
-          # Pass KVM availability to tests for conditional behavior
           KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
-          # Path to pre-built kernels
-          GRAPHENE_KERNEL_CACHE: ${{ env.HOME }}/.graphene/cache/kernels
 
       - name: Upload test artifacts on failure
         if: failure()
