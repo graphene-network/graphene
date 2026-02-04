@@ -46,11 +46,11 @@ use uuid::Uuid;
 
 use async_trait::async_trait;
 
-use crate::executor::{ExecutionRequest, ExecutionResult, JobExecutor};
+use crate::executor::{ExecutionError, ExecutionRequest, ExecutionResult, JobExecutor};
 use crate::job::{exit_code, Job, JobState};
 use crate::p2p::messages::{ResultDeliveryMode, WorkerCapabilities};
 use crate::p2p::protocol::handler::JobContext;
-use crate::p2p::protocol::types::{JobRequest, RejectReason};
+use crate::p2p::protocol::types::{JobRequest, JobStatus, RejectReason};
 use crate::result::{EncryptedResult, ResultDelivery};
 use crate::ticket::{ChannelState, ChannelStateManager};
 
@@ -463,6 +463,118 @@ where
             debug!(job_id = %job_id_str, "Execution task completed");
             // SlotGuard is dropped here, releasing the slot
         });
+    }
+
+    async fn execute_job_sync(
+        &self,
+        job_id: Uuid,
+        request: &JobRequest,
+    ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
+        let job_id_str = job_id.to_string();
+        info!(job_id = %job_id_str, "Job accepted (sync mode), starting execution");
+
+        // 1. Reserve slot via WorkerStateMachine
+        let slot_guard = self.state_machine.try_reserve_slot().map_err(|e| {
+            error!(job_id = %job_id_str, error = %e, "Failed to reserve slot");
+            ExecutionError::vmm(format!("Failed to reserve slot: {}", e))
+        })?;
+
+        // 2. Get payer pubkey for execution request
+        let payer_pubkey = self
+            .get_payer_pubkey(&request.ticket.channel_id)
+            .await
+            .ok_or_else(|| {
+                error!(job_id = %job_id_str, "Payer pubkey not found for channel");
+                ExecutionError::vmm("Payer pubkey not found for channel")
+            })?;
+
+        // 3. Create Job in Pending state, transition to Accepted
+        let mut job = Job::with_delivery_mode(job_id_str.clone(), request.delivery_mode);
+        if let Err(e) = job.transition(JobState::Accepted) {
+            error!(job_id = %job_id_str, error = %e, "Failed to transition to Accepted");
+            return Err(ExecutionError::vmm(format!(
+                "Failed to transition to Accepted: {}",
+                e
+            )));
+        }
+        self.job_store.insert(job).await;
+
+        // 4. Create execution request
+        let execution_request = Self::make_execution_request(request, payer_pubkey);
+
+        debug!(job_id = %job_id_str, "Sync execution task started");
+
+        // TODO(#149): Executor should update job store with Building/Cached/Running states
+        // since it knows when those phases actually happen. Currently skipped in sync mode.
+
+        // 5. Execute the job synchronously (await, not spawn)
+        let exec_result = self.executor.execute(execution_request).await;
+
+        // Drop slot guard to release the slot
+        drop(slot_guard);
+
+        match exec_result {
+            Ok(result) => {
+                let exit_code = Self::exit_code_from_result(&result);
+                let final_state = Self::state_from_result(&result);
+                let status = match final_state {
+                    JobState::Succeeded => JobStatus::Succeeded,
+                    JobState::Timeout => JobStatus::Timeout,
+                    _ => JobStatus::Failed,
+                };
+
+                info!(
+                    job_id = %job_id_str,
+                    exit_code = exit_code,
+                    duration_ms = result.duration_ms(),
+                    "Job execution completed (sync mode)"
+                );
+
+                // Update job state
+                if !self
+                    .job_store
+                    .update_state_with_exit_code(&job_id_str, final_state, exit_code)
+                    .await
+                {
+                    error!(job_id = %job_id_str, "Failed to transition to {}", final_state);
+                }
+
+                // Mark as delivered since we're returning result directly
+                if !self
+                    .job_store
+                    .update_state(&job_id_str, JobState::Delivered)
+                    .await
+                {
+                    error!(job_id = %job_id_str, "Failed to transition to Delivered");
+                }
+
+                debug!(job_id = %job_id_str, "Sync execution task completed");
+                Ok((result, status))
+            }
+            Err(e) => {
+                error!(job_id = %job_id_str, error = %e, "Job execution failed (sync mode)");
+
+                // Determine exit code based on error type
+                let exit_code = if e.is_worker_fault() {
+                    exit_code::WORKER_CRASH
+                } else if e.is_user_fault() {
+                    exit_code::BUILD_FAILURE
+                } else {
+                    exit_code::WORKER_CRASH
+                };
+
+                // Transition to Failed
+                if !self
+                    .job_store
+                    .update_state_with_exit_code(&job_id_str, JobState::Failed, exit_code)
+                    .await
+                {
+                    error!(job_id = %job_id_str, "Failed to transition to Failed");
+                }
+
+                Err(e)
+            }
+        }
     }
 
     async fn on_job_rejected(&self, job_id: Uuid, reason: RejectReason) {
