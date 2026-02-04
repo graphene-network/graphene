@@ -43,6 +43,7 @@ use super::types::{ExecutionError, ExecutionRequest, ExecutionResult};
 use super::JobExecutor;
 use crate::cache::BuildCache;
 use crate::crypto::{ChannelKeys, CryptoProvider, EncryptedBlob, EncryptionDirection};
+use crate::p2p::protocol::types::{AssetData, Compression};
 use crate::p2p::P2PNetwork;
 
 /// Default boot arguments for unikernels.
@@ -205,23 +206,47 @@ where
     }
 
     /// Fetch a blob from the P2P network.
-    async fn fetch_blob(&self, hash: Hash) -> Result<Vec<u8>, ExecutionError> {
-        self.network.download_blob(hash, None).await.map_err(|e| {
+    ///
+    /// If `client_node_id` is provided, attempts to download directly from the client.
+    async fn fetch_blob(
+        &self,
+        hash: Hash,
+        client_node_id: Option<&[u8; 32]>,
+    ) -> Result<Vec<u8>, ExecutionError> {
+        // Convert client node ID to EndpointAddr if provided
+        let from = client_node_id.and_then(|id| {
+            iroh::PublicKey::try_from(id.as_slice())
+                .ok()
+                .map(iroh::EndpointAddr::new)
+        });
+
+        self.network.download_blob(hash, from).await.map_err(|e| {
             ExecutionError::asset_fetch(format!("Failed to fetch blob {}: {}", hash, e))
         })
     }
 
-    /// Fetch and decrypt a blob.
-    async fn fetch_and_decrypt(
+    /// Fetch and decrypt an asset, handling both inline and blob modes.
+    ///
+    /// For inline assets, the data is already present and just needs decryption.
+    /// For blob assets, fetches from the P2P network first.
+    async fn fetch_asset(
         &self,
-        hash: &Hash,
+        asset: &AssetData,
         channel_keys: &ChannelKeys,
         job_id: &str,
+        client_node_id: Option<&[u8; 32]>,
+        compression: Compression,
     ) -> Result<Vec<u8>, ExecutionError> {
-        debug!(blob = %hash, job_id, "Fetching blob");
-
-        // Fetch encrypted blob from P2P network
-        let encrypted_bytes = self.fetch_blob(*hash).await?;
+        let encrypted_bytes = match asset {
+            AssetData::Inline { data } => {
+                debug!(job_id, size = data.len(), "Using inline asset data");
+                data.clone()
+            }
+            AssetData::Blob { hash, .. } => {
+                debug!(job_id, blob = %hash, "Fetching blob asset");
+                self.fetch_blob(*hash, client_node_id).await?
+            }
+        };
 
         // Parse encrypted blob format
         let encrypted = EncryptedBlob::from_bytes(&encrypted_bytes).map_err(|e| {
@@ -234,14 +259,42 @@ where
             .decrypt_job_blob(&encrypted, channel_keys, job_id, EncryptionDirection::Input)
             .map_err(|e| ExecutionError::decryption(format!("Decryption failed: {}", e)))?;
 
+        // Decompress if needed
+        let result = self.decompress(decrypted, compression)?;
+
         debug!(
-            blob = %hash,
             job_id,
-            decrypted_size = decrypted.len(),
-            "Blob decrypted successfully"
+            decrypted_size = result.len(),
+            compression = ?compression,
+            "Asset fetched and decrypted successfully"
         );
 
-        Ok(decrypted)
+        Ok(result)
+    }
+
+    /// Decompress data if compression is enabled.
+    fn decompress(
+        &self,
+        data: Vec<u8>,
+        compression: Compression,
+    ) -> Result<Vec<u8>, ExecutionError> {
+        match compression {
+            Compression::None => Ok(data),
+            Compression::Zstd => zstd::decode_all(data.as_slice()).map_err(|e| {
+                ExecutionError::decryption(format!("Zstd decompression failed: {}", e))
+            }),
+        }
+    }
+
+    /// Compute a cache key hash for the code asset.
+    ///
+    /// For inline assets, computes a hash of the data.
+    /// For blob assets, uses the existing blob hash.
+    fn compute_code_hash(&self, asset: &AssetData) -> [u8; 32] {
+        match asset {
+            AssetData::Inline { data } => *blake3::hash(data).as_bytes(),
+            AssetData::Blob { hash, .. } => *hash.as_bytes(),
+        }
     }
 
     /// Look up or build the kernel for the request.
@@ -250,7 +303,7 @@ where
         request: &ExecutionRequest,
     ) -> Result<std::path::PathBuf, ExecutionError> {
         let kernel_spec = &request.manifest.kernel;
-        let code_hash_bytes: [u8; 32] = *request.assets.code_hash.as_bytes();
+        let code_hash_bytes: [u8; 32] = self.compute_code_hash(&request.assets.code);
 
         // For now, we don't parse requirements from the code blob
         // TODO(#42): Extract requirements.txt from code blob for proper L3 cache key
@@ -423,26 +476,40 @@ where
         let channel_keys = self.derive_channel_keys(request)?;
         debug!(job_id, "Channel keys derived");
 
-        // Phase 2: Fetch and decrypt code blob
+        // Phase 2: Fetch and decrypt code asset
         self.check_cancelled(handle)?;
+        let client_node_id = request.client_node_id.as_ref();
+        let compression = request.assets.compression;
         let code = self
-            .fetch_and_decrypt(&request.assets.code_hash, &channel_keys, job_id)
+            .fetch_asset(
+                &request.assets.code,
+                &channel_keys,
+                job_id,
+                client_node_id,
+                compression,
+            )
             .await?;
         info!(
             job_id,
             code_size = code.len(),
-            "Code blob fetched and decrypted"
+            "Code asset fetched and decrypted"
         );
 
-        // Phase 3: Fetch and decrypt input blob (if present)
+        // Phase 3: Fetch and decrypt input asset (if present)
         self.check_cancelled(handle)?;
-        let input = if !request.assets.input_hash.as_bytes().iter().all(|&b| b == 0) {
+        let input = if let Some(ref input_asset) = request.assets.input {
             Some(
-                self.fetch_and_decrypt(&request.assets.input_hash, &channel_keys, job_id)
-                    .await?,
+                self.fetch_asset(
+                    input_asset,
+                    &channel_keys,
+                    job_id,
+                    client_node_id,
+                    compression,
+                )
+                .await?,
             )
         } else {
-            debug!(job_id, "No input blob specified");
+            debug!(job_id, "No input asset specified");
             None
         };
 
@@ -737,12 +804,7 @@ mod tests {
                 estimated_egress_mb: None,
                 estimated_ingress_mb: None,
             },
-            JobAssets {
-                code_hash: Hash::from_bytes([1u8; 32]),
-                code_url: None,
-                input_hash: Hash::from_bytes([0u8; 32]), // Empty hash = no input
-                input_url: None,
-            },
+            JobAssets::blobs(Hash::from_bytes([1u8; 32]), None),
             [0u8; 32],
             [0u8; 32],
             [0u8; 32],
@@ -827,12 +889,7 @@ mod tests {
                 estimated_egress_mb: None,
                 estimated_ingress_mb: None,
             },
-            JobAssets {
-                code_hash: Hash::from_bytes([1u8; 32]),
-                code_url: None,
-                input_hash: Hash::from_bytes([0u8; 32]),
-                input_url: None,
-            },
+            JobAssets::blobs(Hash::from_bytes([1u8; 32]), None),
             [0u8; 32],
             [0u8; 32],
             [0u8; 32],

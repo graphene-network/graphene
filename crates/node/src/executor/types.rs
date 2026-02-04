@@ -70,6 +70,10 @@ pub struct ExecutionRequest {
     /// Maximum cost estimate for this job (locked before execution).
     /// Used for cost settlement after completion.
     pub max_cost: Option<JobCostEstimate>,
+
+    /// Client's node ID (Ed25519 public key) for downloading blobs.
+    /// The executor uses this to download code/input blobs from the client.
+    pub client_node_id: Option<[u8; 32]>,
 }
 
 impl ExecutionRequest {
@@ -93,6 +97,7 @@ impl ExecutionRequest {
             payer_pubkey,
             delivery_mode,
             max_cost: None,
+            client_node_id: None,
         }
     }
 
@@ -117,7 +122,14 @@ impl ExecutionRequest {
             payer_pubkey,
             delivery_mode,
             max_cost: Some(max_cost),
+            client_node_id: None,
         }
+    }
+
+    /// Sets the client node ID for blob downloads.
+    pub fn with_client_node_id(mut self, client_node_id: [u8; 32]) -> Self {
+        self.client_node_id = Some(client_node_id);
+        self
     }
 
     /// Returns the timeout duration from the manifest.
@@ -299,12 +311,10 @@ mod tests {
     }
 
     fn make_test_assets() -> JobAssets {
-        JobAssets {
-            code_hash: Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: Hash::from_bytes([2u8; 32]),
-            input_url: None,
-        }
+        JobAssets::blobs(
+            Hash::from_bytes([1u8; 32]),
+            Some(Hash::from_bytes([2u8; 32])),
+        )
     }
 
     #[test]

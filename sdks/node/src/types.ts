@@ -75,6 +75,63 @@ export interface NetworkingOptions {
 }
 
 /**
+ * Asset delivery mode.
+ *
+ * - `auto` (default): Inline if under threshold, blob if over
+ * - `inline`: Always inline, reject if over message limit (16 MB)
+ * - `blob`: Always upload to Iroh first (for pre-staging, deduplication)
+ */
+export type AssetMode = 'auto' | 'inline' | 'blob';
+
+/**
+ * Options for asset delivery.
+ */
+export interface AssetOptions {
+  /**
+   * Delivery mode for assets.
+   * - `auto` (default): Inline if under threshold, blob if over
+   * - `inline`: Always inline, reject if over 16 MB message limit
+   * - `blob`: Always upload to Iroh (for pre-staging, deduplication)
+   */
+  mode?: AssetMode;
+
+  /**
+   * Threshold for inline code in bytes (only for 'auto' mode).
+   * Code larger than this will use blob mode.
+   * @default 4194304 (4 MB)
+   */
+  inlineCodeThreshold?: number;
+
+  /**
+   * Threshold for inline input in bytes (only for 'auto' mode).
+   * Input larger than this will use blob mode.
+   * @default 8388608 (8 MB)
+   */
+  inlineInputThreshold?: number;
+
+  /**
+   * Enable zstd compression for assets before encryption.
+   * Reduces payload size for compressible data.
+   * @default false
+   */
+  compress?: boolean;
+
+  /**
+   * Additional files to include in the job.
+   * Maps destination paths in the unikernel filesystem to local source paths.
+   *
+   * @example
+   * ```typescript
+   * files: {
+   *   '/data/model.bin': './model.bin',
+   *   '/config/settings.json': './config.json'
+   * }
+   * ```
+   */
+  files?: Record<string, string>;
+}
+
+/**
  * Options for running a job.
  */
 export interface RunOptions {
@@ -86,6 +143,8 @@ export interface RunOptions {
   resources?: ResourceOptions;
   /** Networking options (egress allowlist, bandwidth estimates) */
   networking?: NetworkingOptions;
+  /** Asset delivery options (mode, compression, files) */
+  assets?: AssetOptions;
   /** Execution timeout in milliseconds (default: 30000) */
   timeoutMs?: number;
   /** Kernel image to use (default: "python:3.12") */

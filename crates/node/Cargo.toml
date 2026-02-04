@@ -69,6 +69,9 @@ zeroize = { version = "1.7", features = ["derive"] }
 # System info
 num_cpus = "1.16"
 
+# Compression for inline job assets
+zstd = "0.13"
+
 # Solana integration
 solana-sdk = "2.1"
 solana-client = "2.1"

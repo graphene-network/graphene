@@ -77,7 +77,12 @@ impl JobContext for TestWorkerContext {
         self.payer_pubkeys.read().await.get(channel_id).copied()
     }
 
-    async fn on_job_accepted(&self, job_id: Uuid, _request: &JobRequest) {
+    async fn on_job_accepted(
+        &self,
+        job_id: Uuid,
+        _request: &JobRequest,
+        _client_node_id: [u8; 32],
+    ) {
         self.accepted_jobs.write().await.push(job_id);
         let mut slots = self.available_slots.write().await;
         if *slots > 0 {
@@ -89,6 +94,7 @@ impl JobContext for TestWorkerContext {
         &self,
         job_id: Uuid,
         _request: &JobRequest,
+        _client_node_id: [u8; 32],
     ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
         // Reserve slot
         {
@@ -154,12 +160,10 @@ fn create_test_request(channel_id: [u8; 32], ticket: PaymentTicket) -> JobReques
             estimated_ingress_mb: None,
         },
         ticket,
-        assets: JobAssets {
-            code_hash: iroh_blobs::Hash::from_bytes([1u8; 32]),
-            code_url: None,
-            input_hash: iroh_blobs::Hash::from_bytes([2u8; 32]),
-            input_url: None,
-        },
+        assets: JobAssets::blobs(
+            iroh_blobs::Hash::from_bytes([1u8; 32]),
+            Some(iroh_blobs::Hash::from_bytes([2u8; 32])),
+        ),
         ephemeral_pubkey: [0u8; 32],
         channel_pda: channel_id,
         delivery_mode: ResultDeliveryMode::Sync,
@@ -282,7 +286,9 @@ async fn run_job_submission(
                             .await
                         {
                             Ok(()) => {
-                                context.on_job_accepted(request.job_id, &request).await;
+                                context
+                                    .on_job_accepted(request.job_id, &request, [0u8; 32])
+                                    .await;
                                 (JobStatus::Accepted, MessageType::JobAccepted)
                             }
                             Err(_) => {
