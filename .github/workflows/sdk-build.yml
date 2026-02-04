@@ -81,11 +81,20 @@ jobs:
       - name: Install cross-compilation tools (Linux x86_64 musl)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          # Download musl cross-compiler with libgcc_s support
-          wget -q https://musl.cc/x86_64-linux-musl-native.tgz
-          tar -xf x86_64-linux-musl-native.tgz
-          sudo mv x86_64-linux-musl-native /opt/
-          echo "/opt/x86_64-linux-musl-native/bin" >> $GITHUB_PATH
+          # Use zig as a cross-compiler for reliable musl builds
+          pip3 install ziglang
+          mkdir -p ~/.local/bin
+          # Create wrapper scripts for zig cc/c++
+          cat > ~/.local/bin/zigcc << 'ZIGCC'
+          #!/bin/sh
+          zig cc -target x86_64-linux-musl "$@"
+          ZIGCC
+          cat > ~/.local/bin/zigcxx << 'ZIGCXX'
+          #!/bin/sh
+          zig c++ -target x86_64-linux-musl "$@"
+          ZIGCXX
+          chmod +x ~/.local/bin/zigcc ~/.local/bin/zigcxx
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install cross-compilation tools (Linux ARM64 musl)
         if: matrix.target == 'aarch64-unknown-linux-musl'
@@ -113,11 +122,12 @@ jobs:
         env:
           # Set linker for cross-compilation
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: x86_64-linux-musl-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: zigcc
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
           # Set CC for vendored OpenSSL cross-compilation
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CC_x86_64_unknown_linux_musl: x86_64-linux-musl-gcc
+          CC_x86_64_unknown_linux_musl: zigcc
+          CXX_x86_64_unknown_linux_musl: zigcxx
           CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
         run: |
           bun run build -- --target ${{ matrix.target }}
