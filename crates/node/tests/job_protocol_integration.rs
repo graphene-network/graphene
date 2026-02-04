@@ -77,7 +77,12 @@ impl JobContext for TestWorkerContext {
         self.payer_pubkeys.read().await.get(channel_id).copied()
     }
 
-    async fn on_job_accepted(&self, job_id: Uuid, _request: &JobRequest) {
+    async fn on_job_accepted(
+        &self,
+        job_id: Uuid,
+        _request: &JobRequest,
+        _client_node_id: [u8; 32],
+    ) {
         self.accepted_jobs.write().await.push(job_id);
         let mut slots = self.available_slots.write().await;
         if *slots > 0 {
@@ -89,6 +94,7 @@ impl JobContext for TestWorkerContext {
         &self,
         job_id: Uuid,
         _request: &JobRequest,
+        _client_node_id: [u8; 32],
     ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
         // Reserve slot
         {
@@ -282,7 +288,9 @@ async fn run_job_submission(
                             .await
                         {
                             Ok(()) => {
-                                context.on_job_accepted(request.job_id, &request).await;
+                                context
+                                    .on_job_accepted(request.job_id, &request, [0u8; 32])
+                                    .await;
                                 (JobStatus::Accepted, MessageType::JobAccepted)
                             }
                             Err(_) => {

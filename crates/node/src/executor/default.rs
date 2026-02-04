@@ -205,8 +205,21 @@ where
     }
 
     /// Fetch a blob from the P2P network.
-    async fn fetch_blob(&self, hash: Hash) -> Result<Vec<u8>, ExecutionError> {
-        self.network.download_blob(hash, None).await.map_err(|e| {
+    ///
+    /// If `client_node_id` is provided, attempts to download directly from the client.
+    async fn fetch_blob(
+        &self,
+        hash: Hash,
+        client_node_id: Option<&[u8; 32]>,
+    ) -> Result<Vec<u8>, ExecutionError> {
+        // Convert client node ID to EndpointAddr if provided
+        let from = client_node_id.and_then(|id| {
+            iroh::PublicKey::try_from(id.as_slice())
+                .ok()
+                .map(iroh::EndpointAddr::new)
+        });
+
+        self.network.download_blob(hash, from).await.map_err(|e| {
             ExecutionError::asset_fetch(format!("Failed to fetch blob {}: {}", hash, e))
         })
     }
@@ -217,11 +230,12 @@ where
         hash: &Hash,
         channel_keys: &ChannelKeys,
         job_id: &str,
+        client_node_id: Option<&[u8; 32]>,
     ) -> Result<Vec<u8>, ExecutionError> {
         debug!(blob = %hash, job_id, "Fetching blob");
 
         // Fetch encrypted blob from P2P network
-        let encrypted_bytes = self.fetch_blob(*hash).await?;
+        let encrypted_bytes = self.fetch_blob(*hash, client_node_id).await?;
 
         // Parse encrypted blob format
         let encrypted = EncryptedBlob::from_bytes(&encrypted_bytes).map_err(|e| {
@@ -425,8 +439,14 @@ where
 
         // Phase 2: Fetch and decrypt code blob
         self.check_cancelled(handle)?;
+        let client_node_id = request.client_node_id.as_ref();
         let code = self
-            .fetch_and_decrypt(&request.assets.code_hash, &channel_keys, job_id)
+            .fetch_and_decrypt(
+                &request.assets.code_hash,
+                &channel_keys,
+                job_id,
+                client_node_id,
+            )
             .await?;
         info!(
             job_id,
@@ -438,8 +458,13 @@ where
         self.check_cancelled(handle)?;
         let input = if !request.assets.input_hash.as_bytes().iter().all(|&b| b == 0) {
             Some(
-                self.fetch_and_decrypt(&request.assets.input_hash, &channel_keys, job_id)
-                    .await?,
+                self.fetch_and_decrypt(
+                    &request.assets.input_hash,
+                    &channel_keys,
+                    job_id,
+                    client_node_id,
+                )
+                .await?,
             )
         } else {
             debug!(job_id, "No input blob specified");

@@ -264,7 +264,7 @@ async fn test_e2e_job_submission_to_delivery() {
     let job_id_str = job_id.to_string();
 
     // Accept the job
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Wait for terminal state
     let final_state = wait_for_terminal(&job_store, &job_id_str, 2000)
@@ -336,7 +336,7 @@ async fn test_e2e_slot_release_after_completion() {
     let job_id_str = job_id.to_string();
 
     // Accept the job
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Give the spawned task time to reserve the slot
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -376,7 +376,7 @@ async fn test_e2e_job_failure_user_error() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Wait for terminal state
     let final_state = wait_for_terminal(&job_store, &job_id_str, 2000)
@@ -408,7 +408,7 @@ async fn test_e2e_job_failure_executor_error() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Wait for the job to reach a terminal/error state
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -433,7 +433,7 @@ async fn test_e2e_job_timeout_flow() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Wait for the job to fail due to timeout
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -464,7 +464,7 @@ async fn test_e2e_delivery_failure() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Wait for the job to reach a state
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -499,7 +499,7 @@ async fn test_e2e_concurrent_jobs() {
         let request = make_test_request(ResultDeliveryMode::Async);
         let job_id = request.job_id;
         job_ids.push(job_id.to_string());
-        context.on_job_accepted(job_id, &request).await;
+        context.on_job_accepted(job_id, &request, [0u8; 32]).await;
     }
 
     // Give time for all jobs to start
@@ -551,7 +551,7 @@ async fn test_e2e_state_transition_order() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Observe state transitions
     let states = observe_states(&job_store, &job_id_str, 3000)
@@ -600,7 +600,7 @@ async fn test_e2e_job_store_tracking() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     // Give the spawned task time to create the job
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -628,7 +628,7 @@ async fn test_e2e_job_metrics() {
     let job_id = request.job_id;
     let job_id_str = job_id.to_string();
 
-    context.on_job_accepted(job_id, &request).await;
+    context.on_job_accepted(job_id, &request, [0u8; 32]).await;
 
     wait_for_terminal(&job_store, &job_id_str, 3000)
         .await

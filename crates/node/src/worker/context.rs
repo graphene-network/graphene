@@ -240,8 +240,12 @@ where
     }
 
     /// Converts a JobRequest to an ExecutionRequest.
-    fn make_execution_request(request: &JobRequest, payer_pubkey: [u8; 32]) -> ExecutionRequest {
-        ExecutionRequest::new(
+    fn make_execution_request(
+        request: &JobRequest,
+        payer_pubkey: [u8; 32],
+        client_node_id: Option<[u8; 32]>,
+    ) -> ExecutionRequest {
+        let mut exec_request = ExecutionRequest::new(
             request.job_id.to_string(),
             request.manifest.clone(),
             request.assets.clone(),
@@ -249,7 +253,9 @@ where
             request.channel_pda,
             payer_pubkey,
             request.delivery_mode,
-        )
+        );
+        exec_request.client_node_id = client_node_id;
+        exec_request
     }
 
     /// Determines the exit code from an execution result.
@@ -306,7 +312,7 @@ where
             .map(|state| state.user)
     }
 
-    async fn on_job_accepted(&self, job_id: Uuid, request: &JobRequest) {
+    async fn on_job_accepted(&self, job_id: Uuid, request: &JobRequest, client_node_id: [u8; 32]) {
         let job_id_str = job_id.to_string();
         info!(job_id = %job_id_str, "Job accepted, starting execution");
 
@@ -342,7 +348,8 @@ where
         let executor = Arc::clone(&self.executor);
         let delivery = Arc::clone(&self.delivery);
         let job_store = Arc::clone(&self.job_store);
-        let execution_request = Self::make_execution_request(request, payer_pubkey);
+        let execution_request =
+            Self::make_execution_request(request, payer_pubkey, Some(client_node_id));
         let delivery_mode = request.delivery_mode;
 
         // 5. Spawn execution task
@@ -469,6 +476,7 @@ where
         &self,
         job_id: Uuid,
         request: &JobRequest,
+        client_node_id: [u8; 32],
     ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
         let job_id_str = job_id.to_string();
         info!(job_id = %job_id_str, "Job accepted (sync mode), starting execution");
@@ -500,7 +508,8 @@ where
         self.job_store.insert(job).await;
 
         // 4. Create execution request
-        let execution_request = Self::make_execution_request(request, payer_pubkey);
+        let execution_request =
+            Self::make_execution_request(request, payer_pubkey, Some(client_node_id));
 
         debug!(job_id = %job_id_str, "Sync execution task started");
 
@@ -787,8 +796,11 @@ mod tests {
         let request = make_test_request();
         let job_id = request.job_id;
 
-        // Accept the job
-        context.on_job_accepted(job_id, &request).await;
+        // Accept the job (use dummy client node ID for tests)
+        let client_node_id = [0u8; 32];
+        context
+            .on_job_accepted(job_id, &request, client_node_id)
+            .await;
 
         // Give the spawned task a moment to start
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -806,8 +818,11 @@ mod tests {
         let request = make_test_request();
         let job_id = request.job_id;
 
-        // Accept the job
-        context.on_job_accepted(job_id, &request).await;
+        // Accept the job (use dummy client node ID for tests)
+        let client_node_id = [0u8; 32];
+        context
+            .on_job_accepted(job_id, &request, client_node_id)
+            .await;
 
         // Give the spawned task a moment to start
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -835,17 +850,21 @@ mod tests {
     async fn test_make_execution_request() {
         let request = make_test_request();
         let payer_pubkey = [42u8; 32];
+        let client_node_id = [99u8; 32];
 
         let exec_request = WorkerJobContext::<
             MockJobExecutor,
             MockResultDelivery,
             DefaultChannelStateManager,
-        >::make_execution_request(&request, payer_pubkey);
+        >::make_execution_request(
+            &request, payer_pubkey, Some(client_node_id)
+        );
 
         assert_eq!(exec_request.job_id, request.job_id.to_string());
         assert_eq!(exec_request.manifest.vcpu, request.manifest.vcpu);
         assert_eq!(exec_request.payer_pubkey, payer_pubkey);
         assert_eq!(exec_request.delivery_mode, request.delivery_mode);
+        assert_eq!(exec_request.client_node_id, Some(client_node_id));
     }
 
     #[tokio::test]
@@ -896,8 +915,11 @@ mod tests {
         request.delivery_mode = ResultDeliveryMode::Async;
         let job_id = request.job_id;
 
-        // Accept the job
-        context.on_job_accepted(job_id, &request).await;
+        // Accept the job (use dummy client node ID for tests)
+        let client_node_id = [0u8; 32];
+        context
+            .on_job_accepted(job_id, &request, client_node_id)
+            .await;
 
         // Wait for execution to complete (mock executor is fast)
         // The spawned task needs time to complete the full execution cycle

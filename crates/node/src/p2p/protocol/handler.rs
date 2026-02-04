@@ -76,15 +76,18 @@ pub trait JobContext: Send + Sync {
 
     /// Called when a job is accepted - should reserve a slot.
     /// Used for async delivery mode where execution is spawned in background.
-    async fn on_job_accepted(&self, job_id: Uuid, request: &JobRequest);
+    /// The `client_node_id` is the client's Ed25519 public key for blob downloads.
+    async fn on_job_accepted(&self, job_id: Uuid, request: &JobRequest, client_node_id: [u8; 32]);
 
     /// Execute a job synchronously, returning the result directly.
     /// Used for sync delivery mode where result is sent on the same stream.
     /// Returns the execution result and job status for wire protocol.
+    /// The `client_node_id` is the client's Ed25519 public key for blob downloads.
     async fn execute_job_sync(
         &self,
         job_id: Uuid,
         request: &JobRequest,
+        client_node_id: [u8; 32],
     ) -> Result<(ExecutionResult, JobStatus), ExecutionError>;
 
     /// Called when a job is rejected.
@@ -157,7 +160,10 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                         }
 
                         let request: JobRequest = decode_payload(&payload)?;
-                        return self.process_request(request, &mut send).await;
+                        let client_node_id: [u8; 32] = *remote_id.as_bytes();
+                        return self
+                            .process_request(request, &mut send, client_node_id)
+                            .await;
                     }
                     return Err(ProtocolError::StreamClosed);
                 }
@@ -176,7 +182,10 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 }
 
                 let request: JobRequest = decode_payload(&payload)?;
-                return self.process_request(request, &mut send).await;
+                let client_node_id: [u8; 32] = *remote_id.as_bytes();
+                return self
+                    .process_request(request, &mut send, client_node_id)
+                    .await;
             }
 
             // Need more data - grow buffer if needed
@@ -191,6 +200,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         &self,
         request: JobRequest,
         send: &mut (impl AsyncWriteExt + Unpin),
+        client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         let job_id = request.job_id;
         info!("Processing job request: {}", job_id);
@@ -202,11 +212,13 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 match request.delivery_mode {
                     ResultDeliveryMode::Sync => {
                         // Sync mode: keep stream open, execute job, send result on same stream
-                        self.process_sync_job(job_id, &request, send).await
+                        self.process_sync_job(job_id, &request, send, client_node_id)
+                            .await
                     }
                     ResultDeliveryMode::Async => {
                         // Async mode: spawn background execution, close stream after JobAccepted
-                        self.process_async_job(job_id, &request, send).await
+                        self.process_async_job(job_id, &request, send, client_node_id)
+                            .await
                     }
                 }
             }
@@ -241,6 +253,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         job_id: Uuid,
         request: &JobRequest,
         send: &mut (impl AsyncWriteExt + Unpin),
+        client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         // Send JobAccepted first (but don't close stream)
         let accepted_response = JobResponse {
@@ -258,7 +271,11 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         info!("Job {} accepted (sync mode), executing...", job_id);
 
         // Execute job synchronously (blocks until complete)
-        match self.context.execute_job_sync(job_id, request).await {
+        match self
+            .context
+            .execute_job_sync(job_id, request, client_node_id)
+            .await
+        {
             Ok((exec_result, status)) => {
                 // Build JobResult from ExecutionResult
                 let job_result = JobResult {
@@ -311,9 +328,12 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         job_id: Uuid,
         request: &JobRequest,
         send: &mut (impl AsyncWriteExt + Unpin),
+        client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         // Accept the job (spawns background execution)
-        self.context.on_job_accepted(job_id, request).await;
+        self.context
+            .on_job_accepted(job_id, request, client_node_id)
+            .await;
 
         let response = JobResponse {
             job_id,
@@ -530,7 +550,12 @@ pub mod mock {
             self.payer_pubkeys.read().await.get(channel_id).copied()
         }
 
-        async fn on_job_accepted(&self, job_id: Uuid, _request: &JobRequest) {
+        async fn on_job_accepted(
+            &self,
+            job_id: Uuid,
+            _request: &JobRequest,
+            _client_node_id: [u8; 32],
+        ) {
             self.accepted_jobs.write().await.push(job_id);
             let mut slots = self.available_slots.write().await;
             if *slots > 0 {
@@ -542,6 +567,7 @@ pub mod mock {
             &self,
             job_id: Uuid,
             _request: &JobRequest,
+            _client_node_id: [u8; 32],
         ) -> Result<(ExecutionResult, JobStatus), ExecutionError> {
             // Reserve slot
             {
