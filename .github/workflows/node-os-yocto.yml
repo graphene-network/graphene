@@ -54,9 +54,11 @@ jobs:
           # Parse os-matrix.toml and export as env vars
           YOCTO_RELEASE=$(grep 'yocto_version' node-os/os-matrix.toml | cut -d'"' -f2)
           KERNEL_BRANCH=$(grep 'linux_kernel_branch' node-os/os-matrix.toml | cut -d'"' -f2)
+          RUST_VERSION=$(grep '^rust = ' node-os/os-matrix.toml | cut -d'"' -f2)
           echo "YOCTO_RELEASE=$YOCTO_RELEASE" >> "$GITHUB_ENV"
           echo "KERNEL_BRANCH=$KERNEL_BRANCH" >> "$GITHUB_ENV"
-          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH"
+          echo "RUST_VERSION=$RUST_VERSION" >> "$GITHUB_ENV"
+          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH, RUST_VERSION=$RUST_VERSION"
 
       - name: Install Yocto dependencies
         timeout-minutes: 10
@@ -87,6 +89,13 @@ jobs:
           git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
             https://git.yoctoproject.org/poky poky
 
+      - name: Clone meta-rust-bin (prebuilt Rust toolchain)
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://github.com/rust-embedded/meta-rust-bin.git meta-rust-bin
+
       - name: Configure build environment
         timeout-minutes: 5
         run: |
@@ -102,6 +111,7 @@ jobs:
               ${{ github.workspace }}/poky/meta \\
               ${{ github.workspace }}/poky/meta-poky \\
               ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/meta-rust-bin \\
               ${{ github.workspace }}/node-os/yocto/meta-graphene \\
           "
           EOF
@@ -118,6 +128,8 @@ jobs:
           EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}"
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
+          # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
+          RUST_VERSION = "${RUST_VERSION}"
           EOF
 
       - name: Parse recipes (validation)
@@ -181,9 +193,11 @@ jobs:
           # Parse os-matrix.toml and export as env vars
           YOCTO_RELEASE=$(grep 'yocto_version' node-os/os-matrix.toml | cut -d'"' -f2)
           KERNEL_BRANCH=$(grep 'linux_kernel_branch' node-os/os-matrix.toml | cut -d'"' -f2)
+          RUST_VERSION=$(grep '^rust = ' node-os/os-matrix.toml | cut -d'"' -f2)
           echo "YOCTO_RELEASE=$YOCTO_RELEASE" >> "$GITHUB_ENV"
           echo "KERNEL_BRANCH=$KERNEL_BRANCH" >> "$GITHUB_ENV"
-          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH"
+          echo "RUST_VERSION=$RUST_VERSION" >> "$GITHUB_ENV"
+          echo "Loaded: YOCTO_RELEASE=$YOCTO_RELEASE, KERNEL_BRANCH=$KERNEL_BRANCH, RUST_VERSION=$RUST_VERSION"
 
       - name: Install Yocto dependencies
         timeout-minutes: 10
@@ -216,6 +230,13 @@ jobs:
           git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
             https://git.yoctoproject.org/poky poky
 
+      - name: Clone meta-rust-bin (prebuilt Rust toolchain)
+        timeout-minutes: 2
+        run: |
+          set -eo pipefail
+          git clone --depth 1 --branch ${{ env.YOCTO_RELEASE }} \
+            https://github.com/rust-embedded/meta-rust-bin.git meta-rust-bin
+
       - name: Configure S3 sstate cache
         if: ${{ !inputs.skip_cache }}
         timeout-minutes: 2
@@ -241,6 +262,7 @@ jobs:
               ${{ github.workspace }}/poky/meta \\
               ${{ github.workspace }}/poky/meta-poky \\
               ${{ github.workspace }}/poky/meta-yocto-bsp \\
+              ${{ github.workspace }}/meta-rust-bin \\
               ${{ github.workspace }}/node-os/yocto/meta-graphene \\
           "
           EOF
@@ -265,6 +287,8 @@ jobs:
           SRCREV:pn-graphene-node = "${{ github.sha }}"
           # Kernel branch from os-matrix.toml
           GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
+          # Use prebuilt Rust from meta-rust-bin (version from os-matrix.toml)
+          RUST_VERSION = "${RUST_VERSION}"
           EOF
 
       - name: Build image

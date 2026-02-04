@@ -12,6 +12,7 @@ node_binary = "0.1.0"
 firecracker = "1.11.0"
 linux_kernel = "6.6"
 linux_kernel_branch = "v6.6/standard/base"
+rust = "1.93.0"  # Requires meta-rust-bin layer; must support Cargo.lock v4 (1.78+)
 
 [defaults]
 # Security defaults
