@@ -1,0 +1,177 @@
+# Lima VM configuration for Graphene development
+# Usage: limactl start lima.yaml
+
+name: graphene-dev
+
+# VM resources
+cpus: 4
+memory: 8GiB
+disk: 50GiB
+
+# Use Ubuntu 24.04 LTS (x86_64 only - Solana/Anchor don't have arm64 binaries)
+images:
+  - location: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img
+    arch: x86_64
+
+# Force x86_64 architecture (required for Solana/Anchor/Firecracker)
+arch: x86_64
+
+# Mount the project directory
+mounts:
+  - location: "~"
+    writable: true
+
+# Enable SSH agent forwarding
+ssh:
+  forwardAgent: true
+
+# QEMU required for x86_64 emulation on Apple Silicon
+# vmType: qemu
+# Nested virtualization for Firecracker (only works on Intel/Linux with KVM)
+nestedVirtualization: true
+
+# Environment variables
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: monad_node=info,graphene_worker=info
+  FIRECRACKER_VERSION: "1.11.0"
+
+# System-level provisioning (runs as root)
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+
+      # Update and install system dependencies
+      apt-get update
+      apt-get install -y \
+        build-essential \
+        pkg-config \
+        libssl-dev \
+        e2fsprogs \
+        libudev-dev \
+        curl \
+        git \
+        unzip
+
+      # Setup KVM permissions
+      echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | tee /etc/udev/rules.d/99-kvm4all.rules
+      udevadm control --reload-rules
+      udevadm trigger --name-match=kvm
+
+      # Install Firecracker
+      FIRECRACKER_VERSION="1.11.0"
+      curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-$(uname -m).tgz" -o /tmp/firecracker.tgz
+      tar -xzf /tmp/firecracker.tgz -C /tmp
+      mv /tmp/release-v${FIRECRACKER_VERSION}-$(uname -m)/firecracker-v${FIRECRACKER_VERSION}-$(uname -m) /usr/local/bin/firecracker
+      chmod +x /usr/local/bin/firecracker
+      rm -rf /tmp/firecracker.tgz /tmp/release-v${FIRECRACKER_VERSION}-*
+
+  # User-level provisioning (runs as default user)
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux
+
+      # Install Rust
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.84.0
+      source "$HOME/.cargo/env"
+
+      # Install Bun
+      curl -fsSL https://bun.sh/install | bash
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+
+      # Install Solana CLI
+      sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+      export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+
+      # Setup Solana keypair
+      mkdir -p ~/.config/solana
+      solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
+      solana config set --url http://localhost:8899
+
+      # Install Anchor CLI
+      cargo install --git https://github.com/coral-xyz/anchor --tag v0.32.1 anchor-cli
+
+      # Install Kraft CLI (for building unikernels)
+      curl --proto '=https' --tlsv1.2 -sSf https://get.kraftkit.sh | sh
+
+      # Add to shell profile
+      cat >> ~/.bashrc << 'EOF'
+
+      # Rust
+      source "$HOME/.cargo/env"
+
+      # Bun
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+
+      # Solana
+      export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+
+      # Graphene
+      export RUST_LOG=monad_node=info,graphene_worker=info
+      EOF
+
+# Probes to verify services are ready
+probes:
+  - description: "Rust is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      source ~/.cargo/env
+      rustc --version
+    hint: "Waiting for Rust installation..."
+
+  - description: "Bun is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun --version
+    hint: "Waiting for Bun installation..."
+
+  - description: "Solana CLI is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      test -x "$HOME/.local/share/solana/install/active_release/bin/solana"
+    hint: "Waiting for Solana CLI installation..."
+
+  - description: "Anchor CLI is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      source ~/.cargo/env
+      anchor --version
+    hint: "Waiting for Anchor CLI installation..."
+
+  - description: "Firecracker is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      firecracker --version
+    hint: "Waiting for Firecracker installation..."
+
+  - description: "Kraft CLI is installed"
+    script: |
+      #!/bin/bash
+      set -eux
+      kraft --version
+    hint: "Waiting for Kraft CLI installation..."
+
+# Message shown after VM starts
+message: |
+  Graphene development VM is ready!
+
+  Usage:
+    limactl shell lima.yaml
+
+  KVM status:
+    ls -la /dev/kvm 2>/dev/null || echo "KVM not available"
+
+  Run E2E tests:
+    cd ~/Git/monad
+    bun test:sdk:e2e
