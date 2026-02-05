@@ -360,6 +360,24 @@ impl VmmRunner for FirecrackerRunner {
             .runtime_dir
             .join(format!("fc-{}.log", instance_id));
 
+        // Ensure runtime and log directories exist.
+        if let Err(e) = std::fs::create_dir_all(&self.config.runtime_dir) {
+            return Err(RunnerError::ConfigurationFailed(format!(
+                "Failed to create runtime dir {}: {}",
+                self.config.runtime_dir.display(),
+                e
+            )));
+        }
+        if let Some(parent) = log_path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                return Err(RunnerError::ConfigurationFailed(format!(
+                    "Failed to create log dir {}: {}",
+                    parent.display(),
+                    e
+                )));
+            }
+        }
+
         info!(
             "Starting VM execution: {} vCPUs, {} MB RAM, timeout {}ms",
             manifest.vcpu, manifest.memory_mb, manifest.timeout_ms
