@@ -119,3 +119,169 @@ async fn executor_uses_cached_kernel_when_available() {
         .unwrap();
     assert_eq!(decrypted, plaintext_code);
 }
+
+#[tokio::test]
+async fn executor_cache_miss_returns_build_error() {
+    let user_secret = [11u8; 32];
+    let worker_secret = [22u8; 32];
+    let channel_pda = [33u8; 32];
+
+    let user_signing = SigningKey::from_bytes(&user_secret);
+    let worker_signing = SigningKey::from_bytes(&worker_secret);
+    let user_public = user_signing.verifying_key().to_bytes();
+    let worker_public = worker_signing.verifying_key().to_bytes();
+
+    let user_keys = ChannelKeys::derive(&user_secret, &worker_public, &channel_pda).unwrap();
+
+    let crypto = Arc::new(MockCryptoProvider::working());
+    let job_id = "cache-miss-job";
+    let plaintext_code = b"print('cache miss')";
+    let encrypted_blob = crypto
+        .encrypt_job_blob(
+            plaintext_code,
+            &user_keys,
+            job_id,
+            EncryptionDirection::Input,
+        )
+        .unwrap();
+    let encrypted_code = encrypted_blob.to_bytes();
+
+    let cache = Arc::new(MockBuildCache::new());
+    let drive_builder = Arc::new(MockDriveBuilder::new());
+    let runner = Arc::new(MockRunner::success());
+    let output = Arc::new(MockOutputProcessor::working());
+    let network = Arc::new(MockGrapheneNode::new());
+
+    let executor = DefaultJobExecutor::new(
+        drive_builder,
+        runner,
+        output,
+        crypto,
+        network,
+        cache,
+        worker_secret,
+    );
+
+    let manifest = JobManifest {
+        vcpu: 1,
+        memory_mb: 256,
+        timeout_ms: 5_000,
+        kernel: "cache-test:1".to_string(),
+        egress_allowlist: vec![],
+        env: HashMap::new(),
+        estimated_egress_mb: None,
+        estimated_ingress_mb: None,
+    };
+
+    let assets = JobAssets::inline(encrypted_code, None);
+    let request = ExecutionRequest::new(
+        job_id,
+        manifest,
+        assets,
+        [0u8; 32],
+        channel_pda,
+        user_public,
+        ResultDeliveryMode::Sync,
+    );
+
+    let result = executor.execute(request).await;
+    assert!(matches!(
+        result,
+        Err(monad_node::executor::ExecutionError::BuildFailed(_))
+    ));
+}
+
+#[tokio::test]
+async fn executor_cache_key_changes_when_code_hash_changes() {
+    let user_secret = [4u8; 32];
+    let worker_secret = [5u8; 32];
+    let channel_pda = [6u8; 32];
+
+    let user_signing = SigningKey::from_bytes(&user_secret);
+    let worker_signing = SigningKey::from_bytes(&worker_secret);
+    let user_public = user_signing.verifying_key().to_bytes();
+    let worker_public = worker_signing.verifying_key().to_bytes();
+
+    let user_keys = ChannelKeys::derive(&user_secret, &worker_public, &channel_pda).unwrap();
+
+    let crypto = Arc::new(MockCryptoProvider::working());
+    let cache = Arc::new(MockBuildCache::new());
+
+    // Store a cached kernel for code A.
+    let job_id_a = "cache-key-a";
+    let encrypted_a = crypto
+        .encrypt_job_blob(
+            b"print('code A')",
+            &user_keys,
+            job_id_a,
+            EncryptionDirection::Input,
+        )
+        .unwrap()
+        .to_bytes();
+    let code_hash_a = blake3::hash(&encrypted_a);
+    cache
+        .store(
+            "cache-test:2",
+            &[],
+            code_hash_a.as_bytes(),
+            std::env::temp_dir().join("cached-kernel-A.unik"),
+        )
+        .await
+        .unwrap();
+
+    // Build an execution request with different code (code B).
+    let job_id_b = "cache-key-b";
+    let encrypted_b = crypto
+        .encrypt_job_blob(
+            b"print('code B')",
+            &user_keys,
+            job_id_b,
+            EncryptionDirection::Input,
+        )
+        .unwrap()
+        .to_bytes();
+
+    let drive_builder = Arc::new(MockDriveBuilder::new());
+    let runner = Arc::new(MockRunner::success());
+    let output = Arc::new(MockOutputProcessor::working());
+    let network = Arc::new(MockGrapheneNode::new());
+
+    let executor = DefaultJobExecutor::new(
+        drive_builder,
+        runner,
+        output,
+        crypto,
+        network,
+        cache.clone(),
+        worker_secret,
+    );
+
+    let manifest = JobManifest {
+        vcpu: 1,
+        memory_mb: 256,
+        timeout_ms: 5_000,
+        kernel: "cache-test:2".to_string(),
+        egress_allowlist: vec![],
+        env: HashMap::new(),
+        estimated_egress_mb: None,
+        estimated_ingress_mb: None,
+    };
+
+    let assets = JobAssets::inline(encrypted_b, None);
+    let request = ExecutionRequest::new(
+        job_id_b,
+        manifest,
+        assets,
+        [0u8; 32],
+        channel_pda,
+        user_public,
+        ResultDeliveryMode::Sync,
+    );
+
+    let result = executor.execute(request).await;
+    assert!(matches!(
+        result,
+        Err(monad_node::executor::ExecutionError::BuildFailed(_))
+    ));
+    assert_eq!(cache.entry_count(), 1);
+}

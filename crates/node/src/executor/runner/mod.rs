@@ -31,7 +31,10 @@ use crate::ephemeral::NetworkStats;
 use crate::p2p::messages::JobManifest;
 use crate::vmm::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer, VmmError};
 use async_trait::async_trait;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::fs;
@@ -263,19 +266,48 @@ impl FirecrackerRunnerConfig {
 /// This runner creates a new Firecracker MicroVM for each job execution,
 /// configures it according to the job manifest, and captures the serial
 /// console output.
+type VirtualizerFactory = Arc<
+    dyn Fn(
+            FirecrackerConfig,
+        ) -> Pin<Box<dyn Future<Output = Result<Box<dyn Virtualizer>, VmmError>> + Send>>
+        + Send
+        + Sync,
+>;
+
 pub struct FirecrackerRunner {
     config: FirecrackerRunnerConfig,
+    factory: VirtualizerFactory,
 }
 
 impl FirecrackerRunner {
     /// Creates a new Firecracker runner with the given configuration.
     pub fn new(config: FirecrackerRunnerConfig) -> Self {
-        Self { config }
+        Self::with_virtualizer_factory(config, |config| async move {
+            FirecrackerVirtualizer::new(config).await
+        })
     }
 
     /// Creates a new Firecracker runner with default configuration.
     pub fn with_defaults() -> Self {
         Self::new(FirecrackerRunnerConfig::default())
+    }
+
+    /// Creates a new Firecracker runner with a custom virtualizer factory.
+    pub fn with_virtualizer_factory<F, Fut, V>(config: FirecrackerRunnerConfig, factory: F) -> Self
+    where
+        F: Fn(FirecrackerConfig) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<V, VmmError>> + Send + 'static,
+        V: Virtualizer + 'static,
+    {
+        let factory: VirtualizerFactory = Arc::new(move |config: FirecrackerConfig| {
+            let fut = factory(config);
+            Box::pin(async move {
+                let vmm = fut.await?;
+                Ok(Box::new(vmm) as Box<dyn Virtualizer>)
+            })
+        });
+
+        Self { config, factory }
     }
 
     /// Reads the serial log file and returns its contents.
@@ -400,7 +432,7 @@ impl VmmRunner for FirecrackerRunner {
             .with_execution_timeout(Duration::from_millis(manifest.timeout_ms));
 
         // Create the virtualizer
-        let mut vmm = FirecrackerVirtualizer::new(fc_config)
+        let mut vmm = (self.factory)(fc_config)
             .await
             .map_err(|e| RunnerError::ConfigurationFailed(e.to_string()))?;
 

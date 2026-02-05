@@ -578,6 +578,32 @@ async fn test_job_submission_rejected_reserved_env_prefix() {
 }
 
 #[tokio::test]
+async fn test_job_submission_rejected_resources_exceed_limits() {
+    let worker_endpoint = create_test_endpoint().await;
+    let client_endpoint = create_test_endpoint().await;
+
+    let channel_id = [42u8; 32];
+    let context = Arc::new(TestWorkerContext::new(create_test_capabilities(), 2));
+    context.set_payer_pubkey(channel_id, [99u8; 32]).await;
+
+    let validator = Arc::new(MockTicketValidator::new(MockValidatorBehavior::AlwaysValid));
+    let handler = Arc::new(JobProtocolHandler::new(validator, context.clone()));
+
+    let ticket = PaymentTicket::new(channel_id, 1_000_000, 1, 1700000000, [0u8; 64]);
+    let mut request = create_test_request(channel_id, ticket);
+    request.manifest.vcpu = 8; // exceeds max_vcpu = 4
+
+    let (response, msg_type) =
+        run_job_submission(worker_endpoint, client_endpoint, handler, request).await;
+
+    assert_eq!(msg_type, MessageType::JobRejected);
+    assert_eq!(
+        response.status,
+        JobStatus::Rejected(RejectReason::ResourcesExceedLimits)
+    );
+}
+
+#[tokio::test]
 async fn test_job_submission_with_env_vars() {
     // Create endpoints
     let worker_endpoint = create_test_endpoint().await;

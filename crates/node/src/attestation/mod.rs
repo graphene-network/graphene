@@ -49,3 +49,16 @@ pub use tpm::TpmAttestor;
 
 pub use mock::MockAttestor;
 pub use verity::VerityVerifier;
+
+/// Enforce platform attestation before worker startup.
+pub async fn enforce_attestation(
+    attestor: &dyn PlatformAttestor,
+) -> Result<PlatformIdentity, AttestationError> {
+    if !attestor.is_supported() {
+        return Err(AttestationError::TpmNotAvailable(
+            "Attestation not supported on this platform".to_string(),
+        ));
+    }
+
+    attestor.verify_platform().await
+}
