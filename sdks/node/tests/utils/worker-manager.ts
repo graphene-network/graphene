@@ -9,6 +9,8 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+const VERBOSE_WORKER_LOGS = process.env.GRAPHENE_E2E_VERBOSE_WORKER === '1';
+
 export interface WorkerConfig {
   /** Path to the worker binary (default: cargo run --bin server) */
   binaryPath?: string;
@@ -112,6 +114,10 @@ export class WorkerManager {
         const text = data.toString();
         stdout += text;
 
+        if (VERBOSE_WORKER_LOGS) {
+          process.stdout.write(`[worker stdout] ${text}`);
+        }
+
         // Parse node ID from "workerNodeId: ..." line
         const nodeIdMatch = text.match(/workerNodeId:\s*"([a-f0-9]{64})"/i);
         if (nodeIdMatch) {
@@ -145,6 +151,10 @@ export class WorkerManager {
       proc.stderr?.on('data', (data: Buffer) => {
         const text = data.toString();
         stderr += text;
+
+        if (VERBOSE_WORKER_LOGS) {
+          process.stdout.write(`[worker stderr] ${text}`);
+        }
 
         // Also check stderr for tracing output
         const nodeIdMatch = text.match(/workerNodeId:\s*"([a-f0-9]{64})"/i);

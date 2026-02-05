@@ -106,10 +106,6 @@ async fn main() -> Result<()> {
     std::fs::create_dir_all(&cache_path)?;
     std::fs::create_dir_all(&drives_path)?;
 
-    // Generate or load worker secret key
-    let worker_secret = load_or_generate_worker_secret(&base_path)?;
-    info!("🔑 Worker secret key loaded");
-
     // Create P2P configuration
     let config = P2PConfig {
         storage_path: p2p_path,
@@ -120,6 +116,14 @@ async fn main() -> Result<()> {
     let node = Arc::new(GrapheneNode::new(config).await?);
     let node_id = node.node_id();
     info!("🆔 Worker Node ID: {}", node_id);
+
+    // Use the same long-term identity for payment-channel crypto. This fixes
+    // a mismatch where job encryption/decryption derived channel keys from a
+    // randomly generated worker secret that was *different* from the node's
+    // identity key. The SDK uses workerNodeId (derived from the node identity)
+    // to derive channel keys, so the worker must use the same secret to avoid
+    // authentication tag mismatches.
+    let worker_secret: [u8; 32] = node.secret_key_bytes();
 
     // Print node address for SDK connection
     let node_addr = node.node_addr().await?;

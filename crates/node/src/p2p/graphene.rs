@@ -126,6 +126,17 @@ impl GrapheneNode {
         })
     }
 
+    /// Get the node's secret key bytes (Ed25519, 32 bytes).
+    ///
+    /// Exposed for components (e.g., payment-channel crypto) that need to
+    /// derive shared keys using the worker's long-term identity. The identity
+    /// is already persisted alongside other P2P state, so using it keeps the
+    /// SDK-facing `workerNodeId` in sync with the secret material used for
+    /// channel key derivation.
+    pub fn secret_key_bytes(&self) -> [u8; 32] {
+        self.secret_key.to_bytes()
+    }
+
     /// Load identity from disk or generate a new one.
     fn load_or_generate_identity(storage_path: &Path) -> Result<SecretKey, P2PError> {
         let identity_path = storage_path.join("identity.key");
