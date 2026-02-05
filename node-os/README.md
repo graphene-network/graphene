@@ -17,7 +17,7 @@ Graphene Node OS is built with Yocto for production-quality images with SBOM gen
 
 ```bash
 # Clone Poky
-git clone -b kirkstone https://git.yoctoproject.org/poky
+git clone -b whinlatter https://git.yoctoproject.org/poky
 cd poky
 
 # Setup environment

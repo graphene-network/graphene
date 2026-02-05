@@ -13,8 +13,8 @@ KMACHINE:graphene-node-x86_64 = "intel-corei7-64"
 KMACHINE:graphene-node-aarch64 = "qemuarm64"
 
 # Kernel branch - set via GRAPHENE_KERNEL_BRANCH in local.conf or use default
-# Default matches Scarthgap's linux-yocto 6.6 (see node-os/os-matrix.toml)
-GRAPHENE_KERNEL_BRANCH ?= "v6.6/standard/base"
+# Default matches Whinlatter's linux-yocto 6.16 (see node-os/os-matrix.toml)
+GRAPHENE_KERNEL_BRANCH ?= "v6.16/standard/base"
 KBRANCH:graphene-node-x86_64 = "${GRAPHENE_KERNEL_BRANCH}"
 KBRANCH:graphene-node-aarch64 = "${GRAPHENE_KERNEL_BRANCH}"
 
