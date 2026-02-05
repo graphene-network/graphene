@@ -555,8 +555,9 @@ use monad_node::p2p::messages::{
 use monad_node::p2p::protocol::{
     wire::{decode_message as wire_decode, encode_message as wire_encode, MessageType},
     AssetData, Compression, JobAssets as RustJobAssets, JobRequest as RustJobRequest,
-    JobResponse as RustJobResponse, JobStatus as RustJobStatus, RejectReason as RustRejectReason,
-    INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD, MAX_MESSAGE_SIZE,
+    JobResponse as RustJobResponse, JobResult as RustJobResult, JobStatus as RustJobStatus,
+    RejectReason as RustRejectReason, INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD,
+    MAX_MESSAGE_SIZE,
 };
 use std::collections::HashMap;
 
@@ -1766,11 +1767,25 @@ impl GrapheneClient {
             .result
             .ok_or_else(|| napi::Error::from_reason("No result in response"))?;
 
-        // Download and decrypt output
-        let encrypted_output = node
-            .download_blob(result.result_hash, Some(addr.clone()))
-            .await
-            .map_err(|e| napi::Error::from_reason(format!("Failed to download output: {}", e)))?;
+        let RustJobResult {
+            result_hash,
+            encrypted_result,
+            exit_code,
+            duration_ms,
+            metrics,
+            ..
+        } = result;
+
+        // Use inline payload for sync delivery when available, otherwise fall back to blob download.
+        let encrypted_output = match encrypted_result {
+            Some(inline) => inline,
+            None => node
+                .download_blob(result_hash, Some(addr.clone()))
+                .await
+                .map_err(|e| {
+                    napi::Error::from_reason(format!("Failed to download output: {}", e))
+                })?,
+        };
 
         let encrypted_blob = RustEncryptedBlob::from_bytes(&encrypted_output)
             .map_err(|e| napi::Error::from_reason(format!("Invalid encrypted output: {}", e)))?;
@@ -1785,18 +1800,18 @@ impl GrapheneClient {
             .map_err(|e| napi::Error::from_reason(format!("Failed to decrypt output: {}", e)))?;
 
         Ok(NativeJobResult {
-            exit_code: result.exit_code,
+            exit_code,
             output: Buffer::from(decrypted_output),
-            duration_ms: BigInt::from(result.duration_ms),
+            duration_ms: BigInt::from(duration_ms),
             metrics: JobMetrics {
-                peak_memory_bytes: BigInt::from(result.metrics.peak_memory_bytes),
-                cpu_time_ms: BigInt::from(result.metrics.cpu_time_ms),
-                network_rx_bytes: BigInt::from(result.metrics.network_rx_bytes),
-                network_tx_bytes: BigInt::from(result.metrics.network_tx_bytes),
-                total_cost_micros: BigInt::from(result.metrics.total_cost_micros),
-                cpu_cost_micros: BigInt::from(result.metrics.cpu_cost_micros),
-                memory_cost_micros: BigInt::from(result.metrics.memory_cost_micros),
-                egress_cost_micros: BigInt::from(result.metrics.egress_cost_micros),
+                peak_memory_bytes: BigInt::from(metrics.peak_memory_bytes),
+                cpu_time_ms: BigInt::from(metrics.cpu_time_ms),
+                network_rx_bytes: BigInt::from(metrics.network_rx_bytes),
+                network_tx_bytes: BigInt::from(metrics.network_tx_bytes),
+                total_cost_micros: BigInt::from(metrics.total_cost_micros),
+                cpu_cost_micros: BigInt::from(metrics.cpu_cost_micros),
+                memory_cost_micros: BigInt::from(metrics.memory_cost_micros),
+                egress_cost_micros: BigInt::from(metrics.egress_cost_micros),
             },
         })
     }

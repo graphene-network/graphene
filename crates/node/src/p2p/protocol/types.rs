@@ -395,6 +395,10 @@ pub struct JobResult {
     /// Worker's Ed25519 signature over the result.
     /// Signs: job_id || result_hash || exit_code || duration_ms
     pub worker_signature: Signature64,
+
+    /// Inline encrypted result payload (sync delivery only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encrypted_result: Option<Vec<u8>>,
 }
 
 /// Resource usage metrics for a completed job.

@@ -278,6 +278,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 let job_result = JobResult {
                     result_hash: exec_result.result_hash,
                     result_url: None, // Sync mode doesn't use URLs
+                    encrypted_result: Some(exec_result.encrypted_result.clone()),
                     exit_code: exec_result.exit_code,
                     duration_ms: exec_result.duration_ms(),
                     metrics: JobMetrics::default(),
@@ -299,6 +300,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 let job_result = JobResult {
                     result_hash: iroh_blobs::Hash::from_bytes([0u8; 32]),
                     result_url: None,
+                    encrypted_result: None,
                     exit_code: -1,
                     duration_ms: 0,
                     metrics: JobMetrics::default(),
