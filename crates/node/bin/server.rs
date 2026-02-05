@@ -66,32 +66,43 @@ use monad_node::worker::{WorkerEvent, WorkerJobContext, WorkerStateMachine};
 /// Default number of concurrent job slots.
 const DEFAULT_SLOTS: u32 = 4;
 
-/// Load supported kernels from environment.
-///
-/// Set `GRAPHENE_KERNELS` to a comma- or space-separated list, e.g.
-/// `python:3.12,node:21`.
-fn load_capabilities_from_env() -> Result<WorkerCapabilities> {
-    let kernels_raw = std::env::var("GRAPHENE_KERNELS").map_err(|_| {
-        anyhow::anyhow!("GRAPHENE_KERNELS must be set (e.g. \"python:3.12,node:21\")")
-    })?;
+/// Static kernel catalog (runtime, versions, entrypoint).
+struct KernelConfig {
+    runtime: &'static str,
+    versions: &'static [&'static str],
+    entrypoint: &'static str,
+}
 
-    let kernels: Vec<String> = kernels_raw
-        .split([',', ' '])
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+const SUPPORTED_KERNELS: &[KernelConfig] = &[
+    KernelConfig {
+        runtime: "python",
+        versions: &["3.12"],
+        entrypoint: "/usr/bin/python3 /app/main.py",
+    },
+    KernelConfig {
+        runtime: "node",
+        versions: &["21"],
+        entrypoint: "/usr/bin/node /app/index.js",
+    },
+];
+
+fn load_capabilities_from_catalog() -> WorkerCapabilities {
+    let kernels: Vec<String> = SUPPORTED_KERNELS
+        .iter()
+        .flat_map(|k| {
+            k.versions
+                .iter()
+                .map(move |v| format!("{}:{}", k.runtime, v))
+        })
         .collect();
 
-    if kernels.is_empty() {
-        anyhow::bail!("GRAPHENE_KERNELS is set but empty");
-    }
-
-    Ok(WorkerCapabilities {
+    WorkerCapabilities {
         max_vcpu: 4,
         max_memory_mb: 4096,
         kernels,
         disk: None,
         gpus: vec![],
-    })
+    }
 }
 
 #[tokio::main]
@@ -260,7 +271,7 @@ async fn main() -> Result<()> {
 
     // 5. Create WorkerJobContext combining all components
     let worker_pubkey: [u8; 32] = *node_id.as_bytes();
-    let capabilities = load_capabilities_from_env()?;
+    let capabilities = load_capabilities_from_catalog();
 
     let context = Arc::new(WorkerJobContext::new(
         state_machine.clone(),
