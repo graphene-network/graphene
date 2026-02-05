@@ -81,7 +81,16 @@ graphene_hardenrootfs() {
     install -d ${IMAGE_ROOTFS}/etc/graphene
     install -d ${IMAGE_ROOTFS}/var/lib/graphene
     install -d ${IMAGE_ROOTFS}/var/lib/firecracker
-    install -d ${IMAGE_ROOTFS}/var/log/graphene
+    # /var/log may be a symlink (e.g. to /var/volatile/log); resolve safely.
+    log_target="${IMAGE_ROOTFS}/var/log"
+    if [ -L "${IMAGE_ROOTFS}/var/log" ]; then
+        log_link="$(readlink "${IMAGE_ROOTFS}/var/log")"
+        case "${log_link}" in
+            /*) log_target="${IMAGE_ROOTFS}${log_link}" ;;
+            *)  log_target="${IMAGE_ROOTFS}/var/${log_link}" ;;
+        esac
+    fi
+    install -d "${log_target}/graphene"
 
     # Set restrictive permissions
     chmod 700 ${IMAGE_ROOTFS}/etc/graphene
