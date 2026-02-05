@@ -29,7 +29,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use rand::RngCore;
 #[cfg(not(target_os = "linux"))]
 use tracing::warn;
 use tracing::{error, info};
@@ -67,15 +66,32 @@ use monad_node::worker::{WorkerEvent, WorkerJobContext, WorkerStateMachine};
 /// Default number of concurrent job slots.
 const DEFAULT_SLOTS: u32 = 4;
 
-/// Worker capabilities advertised to clients.
-fn default_capabilities() -> WorkerCapabilities {
-    WorkerCapabilities {
+/// Load supported kernels from environment.
+///
+/// Set `GRAPHENE_KERNELS` to a comma- or space-separated list, e.g.
+/// `python:3.12,node:21`.
+fn load_capabilities_from_env() -> Result<WorkerCapabilities> {
+    let kernels_raw = std::env::var("GRAPHENE_KERNELS").map_err(|_| {
+        anyhow::anyhow!("GRAPHENE_KERNELS must be set (e.g. \"python:3.12,node:21\")")
+    })?;
+
+    let kernels: Vec<String> = kernels_raw
+        .split([',', ' '])
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    if kernels.is_empty() {
+        anyhow::bail!("GRAPHENE_KERNELS is set but empty");
+    }
+
+    Ok(WorkerCapabilities {
         max_vcpu: 4,
         max_memory_mb: 4096,
-        kernels: vec!["python:3.12".to_string(), "node:20".to_string()],
+        kernels,
         disk: None,
         gpus: vec![],
-    }
+    })
 }
 
 #[tokio::main]
@@ -244,12 +260,14 @@ async fn main() -> Result<()> {
 
     // 5. Create WorkerJobContext combining all components
     let worker_pubkey: [u8; 32] = *node_id.as_bytes();
+    let capabilities = load_capabilities_from_env()?;
+
     let context = Arc::new(WorkerJobContext::new(
         state_machine.clone(),
         executor,
         delivery,
         channel_manager,
-        default_capabilities(),
+        capabilities.clone(),
         worker_pubkey,
     ));
 
@@ -257,7 +275,7 @@ async fn main() -> Result<()> {
     let handler = Arc::new(JobProtocolHandler::new(ticket_validator, context));
 
     info!("🎯 Worker ready to accept jobs");
-    info!("   Supported kernels: python:3.12, node:20");
+    info!("   Supported kernels: {}", capabilities.kernels.join(", "));
     info!("   Max vCPU: 4, Max Memory: 4096 MB");
     info!("   Available slots: {}", state_machine.available_slots());
 
@@ -291,30 +309,4 @@ async fn main() -> Result<()> {
     node_for_shutdown.shutdown().await?;
 
     Ok(())
-}
-
-/// Load worker secret key from disk, or generate a new one.
-fn load_or_generate_worker_secret(base_path: &std::path::Path) -> Result<[u8; 32]> {
-    let secret_path = base_path.join("worker_secret.key");
-
-    if secret_path.exists() {
-        // Load existing key
-        let bytes = std::fs::read(&secret_path)?;
-        if bytes.len() != 32 {
-            anyhow::bail!(
-                "Invalid worker secret key length: expected 32, got {}",
-                bytes.len()
-            );
-        }
-        let mut key = [0u8; 32];
-        key.copy_from_slice(&bytes);
-        Ok(key)
-    } else {
-        // Generate new key
-        let mut key = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut key);
-        std::fs::write(&secret_path, key)?;
-        info!("🔐 Generated new worker secret key at {:?}", secret_path);
-        Ok(key)
-    }
 }

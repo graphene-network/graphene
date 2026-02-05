@@ -69,7 +69,7 @@ describe('Wire Protocol: Job Request Serialization', () => {
         vcpu: 2,
         memoryMb: 512,
         timeoutMs: BigInt(60000),
-        kernel: 'node:20',
+        kernel: 'node:21',
         egressAllowlist: [{ host: 'api.example.com', port: 443, protocol: 'tcp' }],
         env: { NODE_ENV: 'production' },
       },

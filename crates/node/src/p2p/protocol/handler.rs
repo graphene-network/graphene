@@ -645,7 +645,7 @@ mod tests {
         let capabilities = WorkerCapabilities {
             max_vcpu: 4,
             max_memory_mb: 4096,
-            kernels: vec!["python:3.12".to_string(), "node:20".to_string()],
+            kernels: vec!["python:3.12".to_string(), "node:21".to_string()],
             disk: None,
             gpus: vec![],
         };

@@ -302,7 +302,7 @@ where
         &self,
         request: &ExecutionRequest,
     ) -> Result<std::path::PathBuf, ExecutionError> {
-        let kernel_spec = &request.manifest.kernel;
+        let kernel_spec = request.manifest.kernel.clone();
         let code_hash_bytes: [u8; 32] = self.compute_code_hash(&request.assets.code);
 
         // For now, we don't parse requirements from the code blob
@@ -312,7 +312,7 @@ where
         // Check cache
         match self
             .cache
-            .lookup(kernel_spec, &requirements, &code_hash_bytes)
+            .lookup(&kernel_spec, &requirements, &code_hash_bytes)
             .await
         {
             Ok(Some(result)) => {
@@ -336,7 +336,7 @@ where
 
         // Check for pre-built kernel at known paths
         // This supports CI/testing scenarios where kernels are pre-built but not in the cache
-        if let Some(kernel_path) = self.find_prebuilt_kernel(kernel_spec) {
+        if let Some(kernel_path) = self.find_prebuilt_kernel(&kernel_spec) {
             info!(kernel = kernel_spec, path = ?kernel_path, "Found pre-built kernel");
             return Ok(kernel_path);
         }

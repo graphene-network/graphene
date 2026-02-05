@@ -99,7 +99,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'console.log("Hello from Node!")',
-          kernel: 'node:20',
+          kernel: 'node:21',
           timeoutMs: 30_000,
         });
 
