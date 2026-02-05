@@ -6,7 +6,9 @@ MACHINE="${1:-graphene-node-x86_64}"
 ensure_build_dirs
 
 cd "$REPO_ROOT/poky"
+set +u
 source oe-init-build-env "$BUILD_DIR"
+set -u
 
 cat > conf/bblayers.conf <<EOF
 POKY_BBLAYERS_CONF_VERSION = "2"
