@@ -377,6 +377,14 @@ impl VmmRunner for FirecrackerRunner {
                 )));
             }
         }
+        // Touch the log file to ensure it exists (Firecracker fails if the path is missing).
+        if let Err(e) = std::fs::File::create(&log_path) {
+            return Err(RunnerError::ConfigurationFailed(format!(
+                "Failed to create log file {}: {}",
+                log_path.display(),
+                e
+            )));
+        }
 
         info!(
             "Starting VM execution: {} vCPUs, {} MB RAM, timeout {}ms",
