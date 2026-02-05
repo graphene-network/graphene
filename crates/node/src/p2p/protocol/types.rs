@@ -397,8 +397,16 @@ pub struct JobResult {
     pub worker_signature: Signature64,
 
     /// Inline encrypted result payload (sync delivery only).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub encrypted_result: Option<Vec<u8>>,
+    #[serde(default)]
+    pub encrypted_result: Option<serde_bytes::ByteBuf>,
+
+    /// Inline encrypted stdout payload (sync delivery only).
+    #[serde(default)]
+    pub encrypted_stdout: Option<serde_bytes::ByteBuf>,
+
+    /// Inline encrypted stderr payload (sync delivery only).
+    #[serde(default)]
+    pub encrypted_stderr: Option<serde_bytes::ByteBuf>,
 }
 
 /// Resource usage metrics for a completed job.

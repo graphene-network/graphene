@@ -3695,6 +3695,7 @@ dependencies = [
  "reqwest 0.11.27",
  "schemars",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sha2 0.10.9",
  "solana-client",

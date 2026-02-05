@@ -14,6 +14,7 @@ tpm2-tools = []  # Enable TPM2 command-line tool fallback for attestation
 [dependencies]
 # Binary serialization for payment tickets
 bincode = "1.3"
+serde_bytes = "0.11"
 
 # The official AWS Firecracker SDK.
 # Note: Ensure you have the firecracker binary (v1.7+) installed globally or in path.

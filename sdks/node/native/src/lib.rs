@@ -1770,6 +1770,7 @@ impl GrapheneClient {
         let RustJobResult {
             result_hash,
             encrypted_result,
+            encrypted_stdout,
             exit_code,
             duration_ms,
             metrics,
@@ -1777,14 +1778,16 @@ impl GrapheneClient {
         } = result;
 
         // Use inline payload for sync delivery when available, otherwise fall back to blob download.
-        let encrypted_output = match encrypted_result {
-            Some(inline) => inline,
-            None => node
-                .download_blob(result_hash, Some(addr.clone()))
+        let encrypted_output = if let Some(inline_stdout) = encrypted_stdout {
+            inline_stdout.into_vec()
+        } else if let Some(inline_result) = encrypted_result {
+            inline_result.into_vec()
+        } else {
+            node.download_blob(result_hash, Some(addr.clone()))
                 .await
                 .map_err(|e| {
                     napi::Error::from_reason(format!("Failed to download output: {}", e))
-                })?,
+                })?
         };
 
         let encrypted_blob = RustEncryptedBlob::from_bytes(&encrypted_output)
