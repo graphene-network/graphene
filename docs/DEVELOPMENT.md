@@ -18,8 +18,22 @@ The E2E tests need:
 On Linux with KVM support:
 
 ```bash
-# Install dependencies
-sudo apt-get install -y e2fsprogs
+# Install system dependencies (including OpenSSL for Rust builds)
+sudo apt-get update
+sudo apt-get install -y \
+    e2fsprogs \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    curl
+
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc
 
 # Install Firecracker
 curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v1.11.0/firecracker-v1.11.0-x86_64.tgz" -o firecracker.tgz
@@ -32,7 +46,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://get.kraftkit.sh | sh
 
 # Install Solana CLI
 sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+echo 'export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 
 # Generate keypair for program deployment
 solana-keygen new --no-bip39-passphrase
