@@ -70,19 +70,16 @@ const DEFAULT_SLOTS: u32 = 4;
 struct KernelConfig {
     runtime: &'static str,
     versions: &'static [&'static str],
-    entrypoint: &'static str,
 }
 
 const SUPPORTED_KERNELS: &[KernelConfig] = &[
     KernelConfig {
         runtime: "python",
         versions: &["3.12"],
-        entrypoint: "/usr/bin/python3 /app/main.py",
     },
     KernelConfig {
         runtime: "node",
         versions: &["21"],
-        entrypoint: "/usr/bin/node /app/index.js",
     },
 ];
 
