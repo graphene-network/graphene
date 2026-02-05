@@ -230,6 +230,11 @@ pub mod linux {
             let is_gzip = data.len() > 2 && data[0] == 0x1F && data[1] == 0x8B;
 
             if is_gzip {
+                tracing::debug!(
+                    dest = %dest.display(),
+                    size = data.len(),
+                    "Extracting gzip/tar asset to staging"
+                );
                 // Write tarball to temp file
                 let tar_path = dest.with_extension("tar.gz");
                 let mut file = std::fs::File::create(&tar_path).map_err(|e| {
@@ -265,6 +270,11 @@ pub mod linux {
             } else {
                 // Treat as raw single file
                 let file_path = dest.join(fallback_name);
+                tracing::debug!(
+                    dest = %file_path.display(),
+                    size = data.len(),
+                    "Writing raw asset to staging"
+                );
                 let mut file = std::fs::File::create(&file_path).map_err(|e| {
                     ExecutionError::drive(format!(
                         "failed to create raw asset file {}: {}",
