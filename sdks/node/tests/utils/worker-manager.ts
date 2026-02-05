@@ -9,7 +9,9 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-const VERBOSE_WORKER_LOGS = process.env.GRAPHENE_E2E_VERBOSE_WORKER === '1';
+// Pipe worker stdout/stderr into test output by default.
+// Set GRAPHENE_E2E_VERBOSE_WORKER=0 to silence.
+const VERBOSE_WORKER_LOGS = process.env.GRAPHENE_E2E_VERBOSE_WORKER !== '0';
 
 export interface WorkerConfig {
   /** Path to the worker binary (default: cargo run --bin server) */
