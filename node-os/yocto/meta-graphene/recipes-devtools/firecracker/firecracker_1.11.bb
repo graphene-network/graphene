@@ -23,8 +23,6 @@ SRC_URI[fc-aarch64.sha256sum] = "4b98f7cd669a772716fd1bef59c75188ba05a683bc0759e
 # Only supported on x86_64 and aarch64
 COMPATIBLE_HOST = "(x86_64|aarch64).*-linux"
 
-S = "${WORKDIR}"
-
 # Pre-built binaries, no compilation needed
 do_compile[noexec] = "1"
 
@@ -33,11 +31,11 @@ do_install() {
 
     # Install architecture-specific binaries
     if [ "${TARGET_ARCH}" = "x86_64" ]; then
-        install -m 0755 ${S}/release-v${PV}-x86_64/firecracker-v${PV}-x86_64 ${D}${bindir}/firecracker
-        install -m 0755 ${S}/release-v${PV}-x86_64/jailer-v${PV}-x86_64 ${D}${bindir}/jailer
+        install -m 0755 ${WORKDIR}/release-v${PV}-x86_64/firecracker-v${PV}-x86_64 ${D}${bindir}/firecracker
+        install -m 0755 ${WORKDIR}/release-v${PV}-x86_64/jailer-v${PV}-x86_64 ${D}${bindir}/jailer
     elif [ "${TARGET_ARCH}" = "aarch64" ]; then
-        install -m 0755 ${S}/release-v${PV}-aarch64/firecracker-v${PV}-aarch64 ${D}${bindir}/firecracker
-        install -m 0755 ${S}/release-v${PV}-aarch64/jailer-v${PV}-aarch64 ${D}${bindir}/jailer
+        install -m 0755 ${WORKDIR}/release-v${PV}-aarch64/firecracker-v${PV}-aarch64 ${D}${bindir}/firecracker
+        install -m 0755 ${WORKDIR}/release-v${PV}-aarch64/jailer-v${PV}-aarch64 ${D}${bindir}/jailer
     fi
 
 }
