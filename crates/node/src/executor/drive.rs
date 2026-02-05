@@ -275,6 +275,15 @@ pub mod linux {
                     size = data.len(),
                     "Writing raw asset to staging"
                 );
+                if let Some(parent) = file_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        ExecutionError::drive(format!(
+                            "failed to create parent dirs for {}: {}",
+                            file_path.display(),
+                            e
+                        ))
+                    })?;
+                }
                 let mut file = std::fs::File::create(&file_path).map_err(|e| {
                     ExecutionError::drive(format!(
                         "failed to create raw asset file {}: {}",
@@ -396,6 +405,13 @@ pub mod linux {
             } else {
                 "code"
             };
+            tracing::debug!(
+                job_id,
+                kernel = %manifest.kernel,
+                filename = code_filename,
+                staging = %app_dir.display(),
+                "Placing code asset"
+            );
 
             // Extract code asset to /app
             if let Err(e) = self.place_asset(code, &app_dir, code_filename) {
