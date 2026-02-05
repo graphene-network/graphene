@@ -340,9 +340,10 @@ impl SolanaChannelClient for DefaultSolanaChannelClient {
         channel_id: &[u8; 32],
     ) -> Result<Option<OnChainChannel>, SolanaClientError> {
         use solana_client::rpc_client::RpcClient;
+        use solana_sdk::commitment_config::CommitmentConfig;
         use solana_sdk::pubkey::Pubkey;
 
-        let client = RpcClient::new(&self.rpc_url);
+        let client = RpcClient::new_with_commitment(&self.rpc_url, CommitmentConfig::confirmed());
         let pubkey = Pubkey::new_from_array(*channel_id);
 
         // Use spawn_blocking since RpcClient is synchronous
@@ -374,13 +375,14 @@ impl SolanaChannelClient for DefaultSolanaChannelClient {
         channel_ids: &[[u8; 32]],
     ) -> Result<Vec<([u8; 32], Option<OnChainChannel>)>, SolanaClientError> {
         use solana_client::rpc_client::RpcClient;
+        use solana_sdk::commitment_config::CommitmentConfig;
         use solana_sdk::pubkey::Pubkey;
 
         if channel_ids.is_empty() {
             return Ok(Vec::new());
         }
 
-        let client = RpcClient::new(&self.rpc_url);
+        let client = RpcClient::new_with_commitment(&self.rpc_url, CommitmentConfig::confirmed());
         let pubkeys: Vec<Pubkey> = channel_ids
             .iter()
             .map(|id| Pubkey::new_from_array(*id))

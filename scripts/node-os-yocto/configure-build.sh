@@ -8,6 +8,8 @@ MACHINE="${1:-graphene-node-x86_64}"
 ensure_build_dirs
 
 cd "$REPO_ROOT/poky"
+export BBSERVER="${BBSERVER:-}"
+export ZSH_NAME="${ZSH_NAME:-}"
 source oe-init-build-env "$BUILD_DIR"
 set -u
 

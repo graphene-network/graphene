@@ -13,10 +13,9 @@ use crate::executor::{ExecutionError, ExecutionResult};
 use crate::p2p::messages::{ResultDeliveryMode, Signature64, WorkerCapabilities};
 use crate::ticket::{ChannelState, PaymentTicket, TicketError, TicketValidator};
 use async_trait::async_trait;
-use iroh::endpoint::Connection;
+use iroh::endpoint::{Connection, SendStream};
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::io::AsyncWriteExt;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -199,7 +198,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
     async fn process_request(
         &self,
         request: JobRequest,
-        send: &mut (impl AsyncWriteExt + Unpin),
+        send: &mut SendStream,
         client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         let job_id = request.job_id;
@@ -237,12 +236,10 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 send.write_all(&encoded)
                     .await
                     .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
-                send.shutdown().await.map_err(|e| {
-                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
-                })?;
+                self.finish_send(send).await?;
 
                 warn!("Job {} rejected: {}", job_id, reason);
-                Err(ProtocolError::JobRejected(reason))
+                Ok(())
             }
         }
     }
@@ -252,7 +249,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         &self,
         job_id: Uuid,
         request: &JobRequest,
-        send: &mut (impl AsyncWriteExt + Unpin),
+        send: &mut SendStream,
         client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         // Send JobAccepted first (but don't close stream)
@@ -290,10 +287,8 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
                 // Send JobResult
                 self.send_result(send, job_id, job_result, status).await?;
 
-                // Now close the stream
-                send.shutdown().await.map_err(|e| {
-                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
-                })?;
+                // Now finish the stream and wait for ack
+                self.finish_send(send).await?;
 
                 info!("Job {} completed (sync mode): {:?}", job_id, status);
                 Ok(())
@@ -312,9 +307,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
 
                 self.send_result(send, job_id, job_result, status).await?;
 
-                send.shutdown().await.map_err(|e| {
-                    ProtocolError::ConnectionError(format!("shutdown error: {}", e))
-                })?;
+                self.finish_send(send).await?;
 
                 warn!("Job {} failed (sync mode): {}", job_id, e);
                 Err(ProtocolError::InternalError(e.to_string()))
@@ -327,7 +320,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         &self,
         job_id: Uuid,
         request: &JobRequest,
-        send: &mut (impl AsyncWriteExt + Unpin),
+        send: &mut SendStream,
         client_node_id: [u8; 32],
     ) -> Result<(), ProtocolError> {
         // Accept the job (spawns background execution)
@@ -346,9 +339,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
         send.write_all(&encoded)
             .await
             .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
-        send.shutdown()
-            .await
-            .map_err(|e| ProtocolError::ConnectionError(format!("shutdown error: {}", e)))?;
+        self.finish_send(send).await?;
 
         info!("Job {} accepted (async mode)", job_id);
         Ok(())
@@ -440,7 +431,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
     /// Send a progress update on an existing stream.
     pub async fn send_progress(
         &self,
-        send: &mut (impl AsyncWriteExt + Unpin),
+        send: &mut SendStream,
         job_id: Uuid,
         kind: ProgressKind,
         percent: Option<u8>,
@@ -464,7 +455,7 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
     /// Send a job result on an existing stream.
     pub async fn send_result(
         &self,
-        send: &mut (impl AsyncWriteExt + Unpin),
+        send: &mut SendStream,
         job_id: Uuid,
         result: JobResult,
         status: JobStatus,
@@ -481,6 +472,15 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
             .await
             .map_err(|e| ProtocolError::ConnectionError(format!("write error: {}", e)))?;
 
+        Ok(())
+    }
+
+    async fn finish_send(&self, send: &mut SendStream) -> Result<(), ProtocolError> {
+        send.finish()
+            .map_err(|e| ProtocolError::ConnectionError(format!("finish error: {}", e)))?;
+        send.stopped()
+            .await
+            .map_err(|e| ProtocolError::ConnectionError(format!("stopped error: {}", e)))?;
         Ok(())
     }
 }

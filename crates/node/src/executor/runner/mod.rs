@@ -213,6 +213,21 @@ pub trait VmmRunner: Send + Sync {
     ) -> Result<VmmOutput, RunnerError>;
 }
 
+#[async_trait]
+impl VmmRunner for Arc<dyn VmmRunner> {
+    async fn run(
+        &self,
+        kernel_path: &Path,
+        drive_path: &Path,
+        manifest: &JobManifest,
+        boot_args: &str,
+    ) -> Result<VmmOutput, RunnerError> {
+        (**self)
+            .run(kernel_path, drive_path, manifest, boot_args)
+            .await
+    }
+}
+
 /// Configuration for the Firecracker-based VMM runner.
 #[derive(Debug, Clone)]
 pub struct FirecrackerRunnerConfig {

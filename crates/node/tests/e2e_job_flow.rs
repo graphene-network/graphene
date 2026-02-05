@@ -238,6 +238,7 @@ async fn make_test_context(
         executor,
         delivery,
         channel_manager,
+        None,
         job_store.clone(),
         make_test_capabilities(),
         [0u8; 32],

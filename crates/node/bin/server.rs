@@ -26,12 +26,15 @@
 //! ```
 
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
+#[cfg(target_os = "linux")]
+use std::{fs::OpenOptions, process::Command};
 
 use anyhow::Result;
-#[cfg(not(target_os = "linux"))]
-use tracing::warn;
-use tracing::{error, info};
+#[cfg(target_os = "linux")]
+use async_trait::async_trait;
+use tracing::{error, info, warn};
 
 use monad_node::cache::build::LayeredBuildCache;
 use monad_node::cache::iroh::IrohCache;
@@ -46,9 +49,11 @@ use monad_node::executor::drive::linux::LinuxDriveBuilder;
 use monad_node::executor::drive::mock::MockDriveBuilder;
 
 #[cfg(target_os = "linux")]
+use monad_node::executor::runner::VmmRunner;
+
+#[cfg(target_os = "linux")]
 use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
 
-#[cfg(not(target_os = "linux"))]
 use monad_node::executor::runner::MockRunner;
 
 use monad_node::executor::DefaultJobExecutor;
@@ -59,12 +64,16 @@ use monad_node::p2p::{P2PConfig, P2PNetwork};
 use monad_node::result::SyncDelivery;
 use monad_node::ticket::{
     ChannelConfig, ChannelLocalState, ChannelStateManager, DefaultChannelStateManager,
-    DefaultTicketValidator, OnChainChannelState,
+    DefaultSolanaChannelClient, DefaultTicketValidator, OnChainChannelState, SolanaChannelClient,
 };
 use monad_node::worker::{WorkerEvent, WorkerJobContext, WorkerStateMachine};
 
+use solana_sdk::pubkey::Pubkey;
+
 /// Default number of concurrent job slots.
 const DEFAULT_SLOTS: u32 = 4;
+/// Default Solana program ID for Graphene.
+const DEFAULT_SOLANA_PROGRAM_ID: &str = "3yErVeGSU3LHZzTnKjkoV5fPkcFQxyjeroLRo5VtSvEf";
 
 /// Static kernel catalog (runtime, versions, entrypoint).
 struct KernelConfig {
@@ -82,6 +91,87 @@ const SUPPORTED_KERNELS: &[KernelConfig] = &[
         versions: &["21"],
     },
 ];
+
+#[cfg(target_os = "linux")]
+fn env_truthy(key: &str) -> bool {
+    match std::env::var(key) {
+        Ok(value) => matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn firecracker_available() -> bool {
+    Command::new("firecracker")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn kvm_available() -> bool {
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/kvm")
+        .is_ok()
+}
+
+#[cfg(target_os = "linux")]
+fn should_use_mock_runner() -> bool {
+    if env_truthy("GRAPHENE_FORCE_MOCK_RUNNER") {
+        warn!("GRAPHENE_FORCE_MOCK_RUNNER set; using MockRunner");
+        return true;
+    }
+
+    if !firecracker_available() {
+        warn!("Firecracker binary not available; using MockRunner");
+        return true;
+    }
+
+    if !kvm_available() {
+        warn!("KVM not accessible (/dev/kvm); using MockRunner");
+        return true;
+    }
+
+    false
+}
+
+#[cfg(target_os = "linux")]
+enum RunnerKind {
+    Firecracker(FirecrackerRunner),
+    Mock(MockRunner),
+}
+
+#[cfg(target_os = "linux")]
+#[async_trait]
+impl VmmRunner for RunnerKind {
+    async fn run(
+        &self,
+        kernel_path: &std::path::Path,
+        drive_path: &std::path::Path,
+        manifest: &monad_node::p2p::messages::JobManifest,
+        boot_args: &str,
+    ) -> Result<monad_node::executor::runner::VmmOutput, monad_node::executor::runner::RunnerError>
+    {
+        match self {
+            RunnerKind::Firecracker(runner) => {
+                runner
+                    .run(kernel_path, drive_path, manifest, boot_args)
+                    .await
+            }
+            RunnerKind::Mock(runner) => {
+                runner
+                    .run(kernel_path, drive_path, manifest, boot_args)
+                    .await
+            }
+        }
+    }
+}
 
 fn load_capabilities_from_catalog() -> WorkerCapabilities {
     let kernels: Vec<String> = SUPPORTED_KERNELS
@@ -192,9 +282,15 @@ async fn main() -> Result<()> {
 
     // VMM runner for VM execution (platform-specific)
     #[cfg(target_os = "linux")]
-    let runner = {
+    let runner = if should_use_mock_runner() {
+        Arc::new(RunnerKind::Mock(MockRunner::new(
+            monad_node::executor::runner::MockRunnerBehavior::default(),
+        )))
+    } else {
         let runner_config = FirecrackerRunnerConfig::new().with_runtime_dir(drives_path.clone());
-        Arc::new(FirecrackerRunner::new(runner_config))
+        Arc::new(RunnerKind::Firecracker(FirecrackerRunner::new(
+            runner_config,
+        )))
     };
 
     #[cfg(not(target_os = "linux"))]
@@ -238,6 +334,32 @@ async fn main() -> Result<()> {
         ticket_validator.clone(),
     ));
 
+    // Optional Solana client for on-demand channel sync (enabled via env)
+    let solana_client: Option<Arc<dyn SolanaChannelClient>> =
+        std::env::var("GRAPHENE_SOLANA_RPC_URL")
+            .ok()
+            .and_then(|rpc_url| {
+                let ws_url =
+                    std::env::var("GRAPHENE_SOLANA_WS_URL").unwrap_or_else(|_| rpc_url.clone());
+                let program_id = std::env::var("GRAPHENE_SOLANA_PROGRAM_ID")
+                    .unwrap_or_else(|_| DEFAULT_SOLANA_PROGRAM_ID.to_string());
+                match Pubkey::from_str(&program_id) {
+                    Ok(pubkey) => Some(Arc::new(DefaultSolanaChannelClient::new(
+                        rpc_url,
+                        ws_url,
+                        pubkey.to_bytes(),
+                    )) as Arc<dyn SolanaChannelClient>),
+                    Err(_) => {
+                        warn!("Invalid GRAPHENE_SOLANA_PROGRAM_ID; skipping Solana client");
+                        None
+                    }
+                }
+            });
+
+    if solana_client.is_some() {
+        info!("🔗 Solana channel sync enabled (on-demand)");
+    }
+
     // Add a test channel for e2e testing
     // TODO(#141): Remove this when real channel registration is implemented
     let test_user_pubkey: [u8; 32] = match std::env::var("GRAPHENE_TEST_USER_PUBKEY") {
@@ -275,6 +397,7 @@ async fn main() -> Result<()> {
         executor,
         delivery,
         channel_manager,
+        solana_client.clone(),
         capabilities.clone(),
         worker_pubkey,
     ));

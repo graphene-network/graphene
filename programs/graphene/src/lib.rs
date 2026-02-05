@@ -8,7 +8,7 @@ pub mod utils;
 use instructions::*;
 use state::WorkerCapabilities;
 
-declare_id!("DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs");
+declare_id!("3yErVeGSU3LHZzTnKjkoV5fPkcFQxyjeroLRo5VtSvEf");
 
 #[program]
 pub mod graphene {

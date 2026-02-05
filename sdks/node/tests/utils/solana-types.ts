@@ -5,15 +5,38 @@
  * Anchor IDL, using raw instruction data and account parsing.
  */
 
-import { PublicKey, TransactionInstruction, SYSVAR_INSTRUCTIONS_PUBKEY } from '@solana/web3.js';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { Keypair, PublicKey, TransactionInstruction, SYSVAR_INSTRUCTIONS_PUBKEY } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { createHash } from 'crypto';
 
 // Ed25519 program for signature verification
 export const ED25519_PROGRAM_ID = new PublicKey('Ed25519SigVerify111111111111111111111111111');
 
-// Graphene program ID (from graphene-keypair.json)
-export const GRAPHENE_PROGRAM_ID = new PublicKey('DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs');
+// Graphene program ID (derived from graphene-keypair.json if available)
+const DEFAULT_GRAPHENE_PROGRAM_ID = new PublicKey('3yErVeGSU3LHZzTnKjkoV5fPkcFQxyjeroLRo5VtSvEf');
+
+function loadProgramId(): PublicKey {
+  try {
+    const currentDir = dirname(fileURLToPath(import.meta.url));
+    const keypairPath = join(
+      currentDir,
+      '../../../../programs/graphene/target/deploy/graphene-keypair.json'
+    );
+    const raw = JSON.parse(readFileSync(keypairPath, 'utf8')) as number[];
+    if (Array.isArray(raw) && raw.length >= 64) {
+      const secretKey = Uint8Array.from(raw);
+      return Keypair.fromSecretKey(secretKey).publicKey;
+    }
+  } catch {
+    // Fall back to the default ID below.
+  }
+  return DEFAULT_GRAPHENE_PROGRAM_ID;
+}
+
+export const GRAPHENE_PROGRAM_ID = loadProgramId();
 
 /**
  * Anchor discriminators (first 8 bytes of sha256("global:<method_name>"))

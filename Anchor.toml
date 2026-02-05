@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-graphene = "DHn6uXWDxnBJpkBhBFHiPoDe3S59EnrRQ9qb5rYUdHEs"
+graphene = "3yErVeGSU3LHZzTnKjkoV5fPkcFQxyjeroLRo5VtSvEf"
 
 [registry]
 url = "https://api.apr.dev"

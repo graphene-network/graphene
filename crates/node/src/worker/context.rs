@@ -52,7 +52,8 @@ use crate::p2p::messages::{ResultDeliveryMode, WorkerCapabilities};
 use crate::p2p::protocol::handler::JobContext;
 use crate::p2p::protocol::types::{JobRequest, JobStatus, RejectReason};
 use crate::result::{EncryptedResult, ResultDelivery};
-use crate::ticket::{ChannelState, ChannelStateManager};
+use crate::ticket::{ChannelLocalState, ChannelState, ChannelStateManager, SolanaChannelClient};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::state::WorkerStateMachine;
 
@@ -159,6 +160,9 @@ where
     /// Channel state manager for ticket validation.
     channel_manager: Arc<C>,
 
+    /// Optional Solana client for on-demand channel sync.
+    solana_client: Option<Arc<dyn SolanaChannelClient>>,
+
     /// Job store for tracking job state.
     job_store: Arc<JobStore>,
 
@@ -185,6 +189,7 @@ where
     /// * `executor` - Job executor for running jobs
     /// * `delivery` - Result delivery handler
     /// * `channel_manager` - Channel state manager for ticket validation
+    /// * `solana_client` - Optional Solana client for on-demand channel sync
     /// * `capabilities` - Worker capabilities to advertise
     /// * `worker_pubkey` - Worker's Ed25519 public key
     pub fn new(
@@ -192,6 +197,7 @@ where
         executor: Arc<E>,
         delivery: Arc<D>,
         channel_manager: Arc<C>,
+        solana_client: Option<Arc<dyn SolanaChannelClient>>,
         capabilities: WorkerCapabilities,
         worker_pubkey: [u8; 32],
     ) -> Self {
@@ -200,6 +206,7 @@ where
             executor,
             delivery,
             channel_manager,
+            solana_client,
             job_store: Arc::new(JobStore::new()),
             capabilities,
             worker_pubkey,
@@ -209,11 +216,13 @@ where
     /// Creates a new worker job context with an existing job store.
     ///
     /// Useful for testing or when sharing a job store between components.
+    #[allow(clippy::too_many_arguments)]
     pub fn with_job_store(
         state_machine: Arc<WorkerStateMachine>,
         executor: Arc<E>,
         delivery: Arc<D>,
         channel_manager: Arc<C>,
+        solana_client: Option<Arc<dyn SolanaChannelClient>>,
         job_store: Arc<JobStore>,
         capabilities: WorkerCapabilities,
         worker_pubkey: [u8; 32],
@@ -223,6 +232,7 @@ where
             executor,
             delivery,
             channel_manager,
+            solana_client,
             job_store,
             capabilities,
             worker_pubkey,
@@ -237,6 +247,47 @@ where
     /// Returns a reference to the worker state machine.
     pub fn state_machine(&self) -> &Arc<WorkerStateMachine> {
         &self.state_machine
+    }
+
+    async fn ensure_channel(&self, channel_id: &[u8; 32]) -> Option<ChannelLocalState> {
+        if let Some(state) = self.channel_manager.get_channel(channel_id).await {
+            return Some(state);
+        }
+
+        let solana = self.solana_client.as_ref()?;
+        let on_chain = match solana.fetch_channel(channel_id).await {
+            Ok(Some(channel)) => channel,
+            Ok(None) => {
+                warn!(channel_id = ?channel_id, "Solana channel not found");
+                return None;
+            }
+            Err(e) => {
+                warn!(channel_id = ?channel_id, error = %e, "Solana channel fetch failed");
+                return None;
+            }
+        };
+
+        let last_sync = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let local = ChannelLocalState {
+            channel_id: *channel_id,
+            user: on_chain.user,
+            worker: on_chain.worker,
+            on_chain_balance: on_chain.balance,
+            accepted_amount: on_chain.spent,
+            last_settled_amount: on_chain.spent,
+            last_nonce: on_chain.last_nonce,
+            last_sync,
+            highest_ticket: None,
+            on_chain_state: on_chain.state,
+            dispute_timeout: on_chain.timeout,
+        };
+
+        let _ = self.channel_manager.upsert_channel(local.clone()).await;
+        Some(local)
     }
 
     /// Converts a JobRequest to an ExecutionRequest.
@@ -302,12 +353,25 @@ where
     }
 
     async fn get_channel_state(&self, channel_id: &[u8; 32]) -> Option<ChannelState> {
-        self.channel_manager.get_validation_state(channel_id).await
+        if let Some(state) = self.channel_manager.get_validation_state(channel_id).await {
+            return Some(state);
+        }
+
+        self.ensure_channel(channel_id)
+            .await
+            .map(|state| ChannelState {
+                last_nonce: state.last_nonce,
+                last_amount: state.accepted_amount,
+                channel_balance: state.on_chain_balance,
+            })
     }
 
     async fn get_payer_pubkey(&self, channel_id: &[u8; 32]) -> Option<[u8; 32]> {
-        self.channel_manager
-            .get_channel(channel_id)
+        if let Some(state) = self.channel_manager.get_channel(channel_id).await {
+            return Some(state.user);
+        }
+
+        self.ensure_channel(channel_id)
             .await
             .map(|state| state.user)
     }
@@ -513,8 +577,25 @@ where
 
         debug!(job_id = %job_id_str, "Sync execution task started");
 
-        // TODO(#149): Executor should update job store with Building/Cached/Running states
-        // since it knows when those phases actually happen. Currently skipped in sync mode.
+        // Transition to Building (sync mode mirrors async progression for valid state updates)
+        if !self
+            .job_store
+            .update_state(&job_id_str, JobState::Building)
+            .await
+        {
+            error!(job_id = %job_id_str, "Failed to transition to Building");
+            return Err(ExecutionError::vmm("Failed to transition to Building"));
+        }
+
+        // Transition to Running
+        if !self
+            .job_store
+            .update_state(&job_id_str, JobState::Running)
+            .await
+        {
+            error!(job_id = %job_id_str, "Failed to transition to Running");
+            return Err(ExecutionError::vmm("Failed to transition to Running"));
+        }
 
         // 5. Execute the job synchronously (await, not spawn)
         let exec_result = self.executor.execute(execution_request).await;
@@ -676,6 +757,7 @@ mod tests {
             executor,
             delivery,
             channel_manager,
+            None,
             make_test_capabilities(),
             [0u8; 32],
         )
@@ -901,6 +983,7 @@ mod tests {
             executor,
             delivery,
             channel_manager,
+            None,
             make_test_capabilities(),
             [0u8; 32],
         );

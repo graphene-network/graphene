@@ -5,6 +5,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 set +u
 
 cd "$REPO_ROOT/poky"
+export BBSERVER="${BBSERVER:-}"
+export ZSH_NAME="${ZSH_NAME:-}"
 source oe-init-build-env "$BUILD_DIR"
 set -u
 

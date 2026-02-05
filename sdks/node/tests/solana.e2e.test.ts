@@ -20,9 +20,10 @@ import { WorkerManager, type WorkerInstance } from './utils/worker-manager.js';
 import { SolanaValidator, type ValidatorInstance } from './utils/solana-validator.js';
 import { setupTestChannel, getChannelState, type ChannelInfo } from './utils/channel-setup.js';
 import { generateTestKeypair, type TestKeypair } from './utils/test-keys.js';
+import { shouldUseMockRunner } from './utils/vmm-detection.js';
 
-// Platform detection
-const IS_MACOS = process.platform === 'darwin';
+// Runner detection for expected outputs
+const USE_MOCK_RUNNER = await shouldUseMockRunner();
 const MOCK_OUTPUT = 'Mock execution completed\n';
 
 // Test timeout (much longer for Solana setup)
@@ -105,7 +106,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
       rpcUrl: validatorInstance.rpcUrl,
       userKeypair: testKeypair,
       workerPubkeyHex: worker.nodeId,
-      initialBalance: 100,
+      initialBalance: 100_000_000,
     });
     console.log('Channel created');
   }, SETUP_TIMEOUT);
@@ -140,7 +141,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         expect(result.exitCode).toBe(0);
 
         const output = new TextDecoder().decode(result.output);
-        if (IS_MACOS) {
+        if (USE_MOCK_RUNNER) {
           expect(output).toBe(MOCK_OUTPUT);
         } else {
           expect(output).toContain('Validated with real Solana!');

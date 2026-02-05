@@ -1378,6 +1378,20 @@ impl GrapheneClient {
                     }
                 }
                 Err(e) => {
+                    if let Some((msg_type, _, consumed)) = try_read_message(&response_buf)
+                        .map_err(|err| napi::Error::from_reason(format!("Wire error: {}", err)))?
+                    {
+                        match msg_type {
+                            WireMessageType::JobResult | WireMessageType::JobRejected => {
+                                response_buf.truncate(consumed);
+                                break;
+                            }
+                            WireMessageType::JobAccepted => {
+                                response_buf.drain(..consumed);
+                            }
+                            _ => {}
+                        }
+                    }
                     return Err(napi::Error::from_reason(format!("Read failed: {}", e)));
                 }
             }
@@ -1710,7 +1724,23 @@ impl GrapheneClient {
                         }
                     }
                 }
-                Err(e) => return Err(napi::Error::from_reason(format!("Read failed: {}", e))),
+                Err(e) => {
+                    if let Some((msg_type, _, consumed)) = try_read_message(&response_buf)
+                        .map_err(|err| napi::Error::from_reason(format!("Wire error: {}", err)))?
+                    {
+                        match msg_type {
+                            WireMessageType::JobResult | WireMessageType::JobRejected => {
+                                response_buf.truncate(consumed);
+                                break;
+                            }
+                            WireMessageType::JobAccepted => {
+                                response_buf.drain(..consumed);
+                            }
+                            _ => {}
+                        }
+                    }
+                    return Err(napi::Error::from_reason(format!("Read failed: {}", e)));
+                }
             }
         }
 

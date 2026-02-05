@@ -12,7 +12,7 @@ set -u
 set +e
 bitbake graphene-node-image 2>&1 | tee "$BUILD_DIR/bitbake.log"
 bb_status=${PIPESTATUS[0]}
-tee_status=${PIPESTATUS[1]}
+tee_status=${PIPESTATUS[1]:-0}
 set -e
 
 if [[ $bb_status -ne 0 ]]; then
