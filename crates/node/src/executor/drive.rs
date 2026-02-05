@@ -388,8 +388,17 @@ pub mod linux {
                 ExecutionError::drive(format!("failed to create /etc/graphene: {}", e))
             })?;
 
+            // Choose filename based on kernel runtime
+            let code_filename = if manifest.kernel.starts_with("python") {
+                "main.py"
+            } else if manifest.kernel.starts_with("node") {
+                "index.js"
+            } else {
+                "code"
+            };
+
             // Extract code asset to /app
-            if let Err(e) = self.place_asset(code, &app_dir, "code") {
+            if let Err(e) = self.place_asset(code, &app_dir, code_filename) {
                 self.cleanup_staging(&staging_dir);
                 return Err(e);
             }
