@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set +u
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+set +u
 
 MACHINE="${1:-graphene-node-x86_64}"
 ensure_build_dirs
 
 cd "$REPO_ROOT/poky"
-set +u
 source oe-init-build-env "$BUILD_DIR"
 set -u
 

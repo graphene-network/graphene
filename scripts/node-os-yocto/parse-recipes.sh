@@ -2,6 +2,7 @@
 set -euo pipefail
 set +u
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+set +u
 
 cd "$REPO_ROOT/poky"
 source oe-init-build-env "$BUILD_DIR"
