@@ -214,41 +214,73 @@ pub mod linux {
             Self::new(DriveConfig::default())
         }
 
-        /// Extract a tarball to a directory.
-        fn extract_tarball(&self, tarball: &[u8], dest: &Path) -> Result<(), ExecutionError> {
+        /// Place asset contents into destination directory.
+        ///
+        /// - If bytes look like a gzip-compressed tar, extract it.
+        /// - Otherwise, treat as a raw single-file payload and write to `fallback_name`.
+        fn place_asset(
+            &self,
+            data: &[u8],
+            dest: &Path,
+            fallback_name: &str,
+        ) -> Result<(), ExecutionError> {
             use std::io::Write;
 
-            // Write tarball to temp file
-            let tar_path = dest.with_extension("tar.gz");
-            let mut file = std::fs::File::create(&tar_path).map_err(|e| {
-                ExecutionError::drive(format!("failed to create temp tarball: {}", e))
-            })?;
-            file.write_all(tarball)
-                .map_err(|e| ExecutionError::drive(format!("failed to write tarball: {}", e)))?;
-            drop(file);
+            // Quick gzip magic check (1F 8B)
+            let is_gzip = data.len() > 2 && data[0] == 0x1F && data[1] == 0x8B;
 
-            // Extract with tar
-            let status = Command::new("tar")
-                .args([
-                    "-xzf",
-                    &tar_path.display().to_string(),
-                    "-C",
-                    &dest.display().to_string(),
-                ])
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("tar extract failed: {}", e)))?;
+            if is_gzip {
+                // Write tarball to temp file
+                let tar_path = dest.with_extension("tar.gz");
+                let mut file = std::fs::File::create(&tar_path).map_err(|e| {
+                    ExecutionError::drive(format!("failed to create temp tarball: {}", e))
+                })?;
+                file.write_all(data).map_err(|e| {
+                    ExecutionError::drive(format!("failed to write tarball: {}", e))
+                })?;
+                drop(file);
 
-            // Clean up temp tarball
-            let _ = std::fs::remove_file(&tar_path);
+                // Extract with tar
+                let status = Command::new("tar")
+                    .args([
+                        "-xzf",
+                        &tar_path.display().to_string(),
+                        "-C",
+                        &dest.display().to_string(),
+                    ])
+                    .output()
+                    .map_err(|e| ExecutionError::drive(format!("tar extract failed: {}", e)))?;
 
-            if !status.status.success() {
-                return Err(ExecutionError::drive(format!(
-                    "tar extract failed: {}",
-                    String::from_utf8_lossy(&status.stderr)
-                )));
+                // Clean up temp tarball
+                let _ = std::fs::remove_file(&tar_path);
+
+                if !status.status.success() {
+                    return Err(ExecutionError::drive(format!(
+                        "tar extract failed: {}",
+                        String::from_utf8_lossy(&status.stderr)
+                    )));
+                }
+
+                Ok(())
+            } else {
+                // Treat as raw single file
+                let file_path = dest.join(fallback_name);
+                let mut file = std::fs::File::create(&file_path).map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to create raw asset file {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+                file.write_all(data).map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to write raw asset file {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+                Ok(())
             }
-
-            Ok(())
         }
 
         /// Create an ext4 image from a staging directory using mke2fs -d.
@@ -346,15 +378,15 @@ pub mod linux {
                 ExecutionError::drive(format!("failed to create /etc/graphene: {}", e))
             })?;
 
-            // Extract code tarball to /app
-            if let Err(e) = self.extract_tarball(code, &app_dir) {
+            // Extract code asset to /app
+            if let Err(e) = self.place_asset(code, &app_dir, "code") {
                 self.cleanup_staging(&staging_dir);
                 return Err(e);
             }
 
             // Extract input tarball to /input if provided
             if let Some(input_data) = input {
-                if let Err(e) = self.extract_tarball(input_data, &input_dir) {
+                if let Err(e) = self.place_asset(input_data, &input_dir, "input") {
                     self.cleanup_staging(&staging_dir);
                     return Err(e);
                 }
