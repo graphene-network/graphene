@@ -37,7 +37,12 @@ impl Virtualizer for MockVirtualizer {
         Ok(())
     }
 
-    async fn set_boot_source(&mut self, path: PathBuf, _args: String) -> Result<(), VmmError> {
+    async fn set_boot_source(
+        &mut self,
+        path: PathBuf,
+        _args: String,
+        _initrd_path: Option<PathBuf>,
+    ) -> Result<(), VmmError> {
         if !path.exists() {
             return Err(VmmError::ConfigError("Kernel path does not exist".into()));
         }

@@ -24,6 +24,39 @@ const MOCK_OUTPUT = 'Mock execution completed\n';
 // Test timeout (longer for worker startup)
 const TEST_TIMEOUT = 60_000;
 
+function readTarEntry(archive: Uint8Array, name: string): Uint8Array | null {
+  const decoder = new TextDecoder();
+  let offset = 0;
+
+  while (offset + 512 <= archive.length) {
+    const header = archive.subarray(offset, offset + 512);
+
+    let allZero = true;
+    for (let i = 0; i < header.length; i += 1) {
+      if (header[i] !== 0) {
+        allZero = false;
+        break;
+      }
+    }
+    if (allZero) break;
+
+    const fileName = decoder.decode(header.subarray(0, 100)).replace(/\0.*$/, '');
+    const sizeOctal = decoder.decode(header.subarray(124, 136)).replace(/\0.*$/, '').trim();
+    const size = sizeOctal ? parseInt(sizeOctal, 8) : 0;
+
+    offset += 512;
+    const fileData = archive.subarray(offset, offset + size);
+    const padding = (512 - (size % 512)) % 512;
+    offset += size + padding;
+
+    if (fileName === name) {
+      return fileData;
+    }
+  }
+
+  return null;
+}
+
 describe('E2E: Mock Channel Tests', () => {
   let workerManager: WorkerManager;
   let worker: WorkerInstance;
@@ -520,6 +553,117 @@ print(f"Received input: {input_data}")
         } else {
           expect(output).toContain('Received input: Hello from input data!');
         }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Inline Results And Streams', () => {
+    it('returns stderr when stdout is empty', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: `
+import sys
+sys.stderr.write("stderr-only\\n")
+`.trim(),
+          kernel: 'python:3.12',
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        const output = new TextDecoder().decode(result.output);
+
+        if (USE_MOCK_RUNNER) {
+          expect(output).toBe(MOCK_OUTPUT);
+        } else {
+          expect(output).toContain('stderr-only');
+        }
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+
+    it('returns inline result tarball when stdout/stderr are empty', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      try {
+        const result = await client.run({
+          code: `
+from pathlib import Path
+Path("/output/inline.txt").write_text("inline-result-ok")
+`.trim(),
+          kernel: 'python:3.12',
+          timeoutMs: 30_000,
+        });
+
+        expect(result.exitCode).toBe(0);
+
+        if (USE_MOCK_RUNNER) {
+          const output = new TextDecoder().decode(result.output);
+          expect(output).toBe(MOCK_OUTPUT);
+          return;
+        }
+
+        const entry = readTarEntry(result.output, 'inline.txt');
+        expect(entry).not.toBeNull();
+
+        const contents = new TextDecoder().decode(entry!);
+        expect(contents).toBe('inline-result-ok');
+      } finally {
+        await client.close();
+      }
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Benchmark', () => {
+    it('runs the same job twice and reports timings', async () => {
+      const client = await Client.create({
+        secretKey: testKeypair.secretKey,
+        channelPda: testChannelPda(),
+        workerNodeId: worker.nodeId,
+        relayUrl: worker.relayUrl ?? undefined,
+        storagePath: `.graphene-test-${Date.now()}`,
+      });
+
+      const job = {
+        code: 'print("benchmark-run")',
+        kernel: 'python:3.12',
+        timeoutMs: 30_000,
+      } as const;
+
+      try {
+        const startFirst = performance.now();
+        const first = await client.run(job);
+        const firstElapsedMs = performance.now() - startFirst;
+
+        const startSecond = performance.now();
+        const second = await client.run(job);
+        const secondElapsedMs = performance.now() - startSecond;
+
+        expect(first.exitCode).toBe(0);
+        expect(second.exitCode).toBe(0);
+
+        console.log(
+          `Benchmark timings (ms): first wall=${firstElapsedMs.toFixed(2)}, ` +
+          `second wall=${secondElapsedMs.toFixed(2)}, ` +
+          `first exec=${first.durationMs}, second exec=${second.durationMs}`
+        );
       } finally {
         await client.close();
       }

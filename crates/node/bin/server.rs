@@ -56,7 +56,7 @@ use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
 
 use monad_node::executor::runner::MockRunner;
 
-use monad_node::executor::DefaultJobExecutor;
+use monad_node::executor::{DefaultJobExecutor, ExecutorConfig};
 use monad_node::p2p::graphene::GrapheneNode;
 use monad_node::p2p::messages::WorkerCapabilities;
 use monad_node::p2p::protocol::handler::JobProtocolHandler;
@@ -221,8 +221,25 @@ async fn main() -> Result<()> {
     std::fs::create_dir_all(&drives_path)?;
 
     // Create P2P configuration
+    let bind_addr = std::env::var("GRAPHENE_P2P_BIND_ADDR")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let bind_port = std::env::var("GRAPHENE_P2P_BIND_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(0);
+
+    if bind_addr.is_some() || bind_port != 0 {
+        info!(
+            "🔌 P2P bind override: addr={:?}, port={}",
+            bind_addr, bind_port
+        );
+    }
+
     let config = P2PConfig {
         storage_path: p2p_path,
+        bind_addr,
+        bind_port,
         ..Default::default()
     };
 
@@ -310,8 +327,13 @@ async fn main() -> Result<()> {
         node.clone(),
     ));
 
+    let cleanup_drives = !env_truthy("GRAPHENE_KEEP_DRIVES");
+    if !cleanup_drives {
+        info!("🧪 GRAPHENE_KEEP_DRIVES enabled; execution drives will be preserved");
+    }
+
     // Create the full job executor
-    let executor = Arc::new(DefaultJobExecutor::new(
+    let executor = Arc::new(DefaultJobExecutor::with_config(
         drive_builder,
         runner,
         output_processor,
@@ -319,6 +341,10 @@ async fn main() -> Result<()> {
         node.clone(),
         build_cache,
         worker_secret,
+        ExecutorConfig {
+            cleanup_drives,
+            max_concurrent_jobs: 0,
+        },
     ));
     info!("⚙️  Job executor initialized (Firecracker + real crypto)");
 

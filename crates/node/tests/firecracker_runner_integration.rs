@@ -19,6 +19,7 @@ impl Virtualizer for TestVirtualizer {
         &mut self,
         _kernel_path: std::path::PathBuf,
         _boot_args: String,
+        _initrd_path: Option<std::path::PathBuf>,
     ) -> Result<(), VmmError> {
         Ok(())
     }

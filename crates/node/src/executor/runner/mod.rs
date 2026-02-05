@@ -406,6 +406,10 @@ impl VmmRunner for FirecrackerRunner {
             .config
             .runtime_dir
             .join(format!("fc-{}.log", instance_id));
+        let serial_path = self
+            .config
+            .runtime_dir
+            .join(format!("fc-{}.serial.log", instance_id));
 
         // Ensure runtime and log directories exist.
         if let Err(e) = std::fs::create_dir_all(&self.config.runtime_dir) {
@@ -432,6 +436,13 @@ impl VmmRunner for FirecrackerRunner {
                 e
             )));
         }
+        if let Err(e) = std::fs::File::create(&serial_path) {
+            return Err(RunnerError::ConfigurationFailed(format!(
+                "Failed to create serial log file {}: {}",
+                serial_path.display(),
+                e
+            )));
+        }
 
         info!(
             "Starting VM execution: {} vCPUs, {} MB RAM, timeout {}ms",
@@ -443,6 +454,7 @@ impl VmmRunner for FirecrackerRunner {
             .with_instance_id(&instance_id)
             .with_runtime_dir(&self.config.runtime_dir)
             .with_log_path(&log_path)
+            .with_serial_path(&serial_path)
             .with_shutdown_timeout(self.config.shutdown_timeout)
             .with_execution_timeout(Duration::from_millis(manifest.timeout_ms));
 
@@ -458,15 +470,20 @@ impl VmmRunner for FirecrackerRunner {
             .await
             .map_err(|e| RunnerError::ConfigurationFailed(e.to_string()))?;
 
-        // Set boot source
-        vmm.set_boot_source(kernel_path.to_path_buf(), boot_args.to_string())
-            .await
-            .map_err(|e| RunnerError::BootSourceFailed(e.to_string()))?;
+        // Initrd is the only supported rootfs path with Unikraft + Firecracker.
+        // Always pass the execution image as an initrd.
+        let initrd_path = Some(drive_path.to_path_buf());
 
-        // Attach the execution drive as root device
-        vmm.attach_drive("rootfs", drive_path.to_path_buf(), true, false)
-            .await
-            .map_err(|e| RunnerError::DriveAttachFailed(e.to_string()))?;
+        // Set boot source (optionally with initrd)
+        vmm.set_boot_source(
+            kernel_path.to_path_buf(),
+            boot_args.to_string(),
+            initrd_path,
+        )
+        .await
+        .map_err(|e| RunnerError::BootSourceFailed(e.to_string()))?;
+
+        // Initrd-only: do not attach a root drive.
 
         // Start execution with timeout
         let start_time = Instant::now();
@@ -493,15 +510,65 @@ impl VmmRunner for FirecrackerRunner {
         let duration = start_time.elapsed();
 
         // Read serial output
-        let serial_output = self.read_serial_log(&log_path).await.unwrap_or_else(|e| {
-            warn!("Failed to read serial log: {}", e);
-            Vec::new()
-        });
+        let serial_output = self
+            .read_serial_log(&serial_path)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("Failed to read serial log: {}", e);
+                Vec::new()
+            });
 
-        // Clean up log file
+        let log_to_stdout = std::env::var("GRAPHENE_SERIAL_LOG_STDOUT")
+            .ok()
+            .map(|value| value.to_ascii_lowercase())
+            .and_then(|value| match value.as_str() {
+                "1" | "true" | "yes" | "on" => Some(true),
+                "0" | "false" | "no" | "off" => Some(false),
+                _ => None,
+            })
+            .unwrap_or(false);
+
+        if log_to_stdout && !serial_output.is_empty() {
+            println!(
+                "--- Graphene serial log ({} bytes) ---\n{}",
+                serial_output.len(),
+                String::from_utf8_lossy(&serial_output)
+            );
+        }
+
+        let capture_path = std::env::var("GRAPHENE_SERIAL_LOG_PATH")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
+
+        if let Some(dest) = capture_path.as_deref() {
+            if let Err(e) = fs::copy(&serial_path, dest).await {
+                warn!(error = %e, log_path = %serial_path.display(), dest, "Failed to copy serial log");
+            } else {
+                info!(log_path = %serial_path.display(), dest, "Copied serial log");
+            }
+        }
+
+        let keep_serial_log = std::env::var("GRAPHENE_KEEP_SERIAL_LOG")
+            .ok()
+            .map(|value| value.to_ascii_lowercase())
+            .and_then(|value| match value.as_str() {
+                "1" | "true" | "yes" | "on" => Some(true),
+                "0" | "false" | "no" | "off" => Some(false),
+                _ => None,
+            })
+            .unwrap_or(true);
+
+        // Clean up log file unless we are keeping it for debugging
+        if serial_path.exists() {
+            if keep_serial_log {
+                info!(log_path = %serial_path.display(), "Keeping serial log");
+            } else if let Err(e) = fs::remove_file(&serial_path).await {
+                debug!("Failed to remove serial log file: {}", e);
+            }
+        }
         if log_path.exists() {
             if let Err(e) = fs::remove_file(&log_path).await {
-                debug!("Failed to remove log file: {}", e);
+                debug!("Failed to remove firecracker log file: {}", e);
             }
         }
 

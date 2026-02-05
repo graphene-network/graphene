@@ -64,6 +64,7 @@ pub trait Virtualizer: Send + Sync {
         &mut self,
         kernel_path: PathBuf,
         boot_args: String,
+        initrd_path: Option<PathBuf>,
     ) -> Result<(), VmmError>;
 
     /// Attach a block device (Layer 1, 2, or 3)

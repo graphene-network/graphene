@@ -1197,6 +1197,7 @@ impl GrapheneClient {
             },
             bootstrap_peers: Vec::new(),
             bind_port: config.bind_port.unwrap_or(0) as u16,
+            bind_addr: None,
         };
 
         let node = GrapheneNode::new(p2p_config)
@@ -1771,6 +1772,7 @@ impl GrapheneClient {
             result_hash,
             encrypted_result,
             encrypted_stdout,
+            encrypted_stderr,
             exit_code,
             duration_ms,
             metrics,
@@ -1778,10 +1780,21 @@ impl GrapheneClient {
         } = result;
 
         // Use inline payload for sync delivery when available, otherwise fall back to blob download.
-        let encrypted_output = if let Some(inline_stdout) = encrypted_stdout {
-            inline_stdout.into_vec()
-        } else if let Some(inline_result) = encrypted_result {
-            inline_result.into_vec()
+        let inline_present =
+            encrypted_stdout.is_some() || encrypted_stderr.is_some() || encrypted_result.is_some();
+
+        let encrypted_output = if let Some(inline_stdout) =
+            encrypted_stdout.as_ref().filter(|buf| !buf.is_empty())
+        {
+            inline_stdout.clone().into_vec()
+        } else if let Some(inline_stderr) = encrypted_stderr.as_ref().filter(|buf| !buf.is_empty())
+        {
+            inline_stderr.clone().into_vec()
+        } else if let Some(inline_result) = encrypted_result.as_ref().filter(|buf| !buf.is_empty())
+        {
+            inline_result.clone().into_vec()
+        } else if inline_present {
+            Vec::new()
         } else {
             node.download_blob(result_hash, Some(addr.clone()))
                 .await

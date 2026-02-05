@@ -21,6 +21,8 @@ pub struct FirecrackerConfig {
     pub instance_id: String,
     /// Optional path for serial console output.
     pub log_path: Option<PathBuf>,
+    /// Optional path for capturing VM stdout (serial console).
+    pub serial_path: Option<PathBuf>,
     /// Timeout for graceful shutdown before force kill. Defaults to 5 seconds.
     pub shutdown_timeout: Duration,
     /// Maximum execution time before timeout. Defaults to 300 seconds.
@@ -34,6 +36,7 @@ impl Default for FirecrackerConfig {
             runtime_dir: PathBuf::from("/tmp"),
             instance_id: Uuid::new_v4().to_string(),
             log_path: None,
+            serial_path: None,
             shutdown_timeout: Duration::from_secs(5),
             execution_timeout: Duration::from_secs(300),
         }
@@ -57,6 +60,11 @@ impl FirecrackerConfig {
 
     pub fn with_log_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.log_path = Some(path.into());
+        self
+    }
+
+    pub fn with_serial_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.serial_path = Some(path.into());
         self
     }
 
@@ -95,6 +103,7 @@ pub struct FirecrackerVirtualizer {
     socket_path: PathBuf,
     state: VmState,
     boot_source_set: bool,
+    initrd_set: bool,
     drives_attached: u32,
 }
 
@@ -127,6 +136,10 @@ impl FirecrackerVirtualizer {
         if let Some(ref log_path) = config.log_path {
             option.log_path(Some(log_path));
         }
+        // Capture VM stdout to serial path if configured.
+        if let Some(ref serial_path) = config.serial_path {
+            option.stdout(serial_path);
+        }
 
         let mut instance = option.build().map_err(|e| {
             VmmError::ProcessSpawnError(format!("Failed to build Firecracker instance: {}", e))
@@ -145,6 +158,7 @@ impl FirecrackerVirtualizer {
             socket_path,
             state: VmState::Created,
             boot_source_set: false,
+            initrd_set: false,
             drives_attached: 0,
         })
     }
@@ -181,7 +195,7 @@ impl FirecrackerVirtualizer {
     }
 
     fn update_boot_ready_state(&mut self) {
-        if self.boot_source_set && self.drives_attached > 0 {
+        if self.boot_source_set && (self.drives_attached > 0 || self.initrd_set) {
             self.state = VmState::BootReady;
         }
     }
@@ -228,11 +242,29 @@ impl FirecrackerVirtualizer {
         let start = std::time::Instant::now();
 
         while start.elapsed() < wait_timeout {
-            // Check if process is still running using kill(pid, 0)
-            let result = unsafe { libc::kill(pid as i32, 0) };
-            if result != 0 {
-                // Process has exited
-                return Ok(true);
+            #[cfg(target_os = "linux")]
+            {
+                let cmdline_path = format!("/proc/{}/cmdline", pid);
+                match std::fs::read_to_string(&cmdline_path) {
+                    Ok(cmdline) => {
+                        // /proc/<pid>/cmdline is NUL-separated
+                        if !cmdline.contains("firecracker") {
+                            return Ok(true);
+                        }
+                    }
+                    Err(_) => {
+                        return Ok(true);
+                    }
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                // Check if process is still running using kill(pid, 0)
+                let result = unsafe { libc::kill(pid as i32, 0) };
+                if result != 0 {
+                    // Process has exited
+                    return Ok(true);
+                }
             }
             sleep(poll_interval).await;
         }
@@ -287,6 +319,7 @@ impl Virtualizer for FirecrackerVirtualizer {
         &mut self,
         kernel_path: PathBuf,
         boot_args: String,
+        initrd_path: Option<PathBuf>,
     ) -> Result<(), VmmError> {
         self.validate_state(
             &[VmState::Configured, VmState::BootReady],
@@ -298,7 +331,7 @@ impl Virtualizer for FirecrackerVirtualizer {
         let boot_source = BootSource {
             kernel_image_path: kernel_path,
             boot_args: Some(boot_args),
-            initrd_path: None,
+            initrd_path: initrd_path.clone(),
         };
 
         self.instance_mut()?
@@ -307,6 +340,7 @@ impl Virtualizer for FirecrackerVirtualizer {
             .map_err(|e| VmmError::ApiError(format!("Failed to set boot source: {}", e)))?;
 
         self.boot_source_set = true;
+        self.initrd_set = initrd_path.is_some();
         self.update_boot_ready_state();
         debug!("Boot source set successfully");
 

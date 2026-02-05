@@ -166,6 +166,9 @@ pub struct P2PConfig {
 
     /// Port to bind to (0 for random available port).
     pub bind_port: u16,
+
+    /// Optional bind address (e.g. "127.0.0.1"). If set, binds only to this address.
+    pub bind_addr: Option<String>,
 }
 
 impl Default for P2PConfig {
@@ -175,6 +178,7 @@ impl Default for P2PConfig {
             relay_config: RelayConfig::Default,
             bootstrap_peers: Vec::new(),
             bind_port: 0,
+            bind_addr: None,
         }
     }
 }
@@ -209,6 +213,12 @@ impl P2PConfig {
     /// Set the bind port.
     pub fn with_port(mut self, port: u16) -> Self {
         self.bind_port = port;
+        self
+    }
+
+    /// Set the bind address.
+    pub fn with_bind_addr(mut self, addr: impl Into<String>) -> Self {
+        self.bind_addr = Some(addr.into());
         self
     }
 }

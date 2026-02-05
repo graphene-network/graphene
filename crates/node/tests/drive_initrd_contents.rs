@@ -5,40 +5,52 @@ use monad_node::executor::drive::DriveConfig;
 use monad_node::executor::drive::ExecutionDriveBuilder;
 use monad_node::p2p::messages::JobManifest;
 use std::collections::HashMap;
+use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 use tokio::runtime::Builder;
 
-fn ext4_cat(path: &std::path::Path, file: &str) -> String {
-    let out = Command::new("debugfs")
-        .args(["-R", &format!("cat {}", file), path.to_str().unwrap()])
+fn cpio_list(path: &Path) -> Vec<String> {
+    let out = Command::new("cpio")
+        .args(["-t", "--file", path.to_str().unwrap()])
         .output()
-        .expect("debugfs cat");
+        .expect("cpio list");
     assert!(
         out.status.success(),
-        "debugfs cat {} failed: {}",
+        "cpio list failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn cpio_cat(path: &Path, file: &str) -> String {
+    let out = Command::new("cpio")
+        .args(["-i", "--to-stdout", "--file", path.to_str().unwrap(), file])
+        .output()
+        .expect("cpio cat");
+    assert!(
+        out.status.success(),
+        "cpio cat {} failed: {}",
         file,
         String::from_utf8_lossy(&out.stderr)
     );
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-fn ext4_stat(path: &std::path::Path, file: &str) -> String {
-    let out = Command::new("debugfs")
-        .args(["-R", &format!("stat {}", file), path.to_str().unwrap()])
-        .output()
-        .expect("debugfs stat");
-    assert!(
-        out.status.success(),
-        "debugfs stat {} failed: {}",
-        file,
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8_lossy(&out.stdout).to_string()
+fn find_entry(entries: &[String], suffix: &str) -> String {
+    entries
+        .iter()
+        .find(|entry| entry.ends_with(suffix))
+        .cloned()
+        .unwrap_or_else(|| panic!("cpio entry not found: {}", suffix))
 }
 
 #[test]
-fn ext4_contains_main_py() {
+fn initrd_contains_main_py() {
     let work = tempdir().expect("tmpdir");
     let builder = LinuxDriveBuilder::new(DriveConfig {
         work_dir: work.path().to_path_buf(),
@@ -66,27 +78,9 @@ fn ext4_contains_main_py() {
         .block_on(builder.prepare("test-job", code, None, &manifest.env, &manifest))
         .expect("prepare drive");
 
-    // Use debugfs to verify /app/main.py exists and is non-empty
-    let stat = Command::new("debugfs")
-        .args(["-R", "stat /app/main.py", image_path.to_str().unwrap()])
-        .output()
-        .expect("debugfs");
-    assert!(
-        stat.status.success(),
-        "debugfs stat failed: {}",
-        String::from_utf8_lossy(&stat.stderr)
-    );
-
-    let cat = Command::new("debugfs")
-        .args(["-R", "cat /app/main.py", image_path.to_str().unwrap()])
-        .output()
-        .expect("debugfs cat");
-    assert!(
-        cat.status.success(),
-        "debugfs cat failed: {}",
-        String::from_utf8_lossy(&cat.stderr)
-    );
-    let contents = String::from_utf8_lossy(&cat.stdout);
+    let entries = cpio_list(&image_path);
+    let entry = find_entry(&entries, "app/main.py");
+    let contents = cpio_cat(&image_path, &entry);
     assert!(
         contents.contains("print('hello')"),
         "main.py contents not found: {}",
@@ -95,7 +89,7 @@ fn ext4_contains_main_py() {
 }
 
 #[test]
-fn ext4_contains_index_js() {
+fn initrd_contains_index_js() {
     let work = tempdir().expect("tmpdir");
     let builder = LinuxDriveBuilder::new(DriveConfig {
         work_dir: work.path().to_path_buf(),
@@ -123,26 +117,9 @@ fn ext4_contains_index_js() {
         .block_on(builder.prepare("test-job-node", code, None, &manifest.env, &manifest))
         .expect("prepare drive");
 
-    let stat = Command::new("debugfs")
-        .args(["-R", "stat /app/index.js", image_path.to_str().unwrap()])
-        .output()
-        .expect("debugfs");
-    assert!(
-        stat.status.success(),
-        "debugfs stat failed: {}",
-        String::from_utf8_lossy(&stat.stderr)
-    );
-
-    let cat = Command::new("debugfs")
-        .args(["-R", "cat /app/index.js", image_path.to_str().unwrap()])
-        .output()
-        .expect("debugfs cat");
-    assert!(
-        cat.status.success(),
-        "debugfs cat failed: {}",
-        String::from_utf8_lossy(&cat.stderr)
-    );
-    let contents = String::from_utf8_lossy(&cat.stdout);
+    let entries = cpio_list(&image_path);
+    let entry = find_entry(&entries, "app/index.js");
+    let contents = cpio_cat(&image_path, &entry);
     assert!(
         contents.contains("hello"),
         "index.js contents not found: {}",
@@ -184,7 +161,9 @@ fn env_json_has_reserved_vars() {
         .block_on(builder.prepare("env-test", b"print('hi')", None, &manifest.env, &manifest))
         .expect("prepare drive");
 
-    let env_json = ext4_cat(&image_path, "/etc/graphene/env.json");
+    let entries = cpio_list(&image_path);
+    let entry = find_entry(&entries, "etc/graphene/env.json");
+    let env_json = cpio_cat(&image_path, &entry);
     assert!(
         env_json.contains("\"GRAPHENE_JOB_ID\""),
         "env.json missing GRAPHENE_JOB_ID: {}",
@@ -242,12 +221,8 @@ fn input_inline_written_to_input_dir() {
         .block_on(builder.prepare("input-test", code, Some(input), &manifest.env, &manifest))
         .expect("prepare drive");
 
-    let stat = ext4_stat(&image_path, "/input/input");
-    assert!(
-        stat.contains("Size: 10"),
-        "input file size unexpected: {}",
-        stat
-    );
-    let contents = ext4_cat(&image_path, "/input/input");
+    let entries = cpio_list(&image_path);
+    let entry = find_entry(&entries, "input/input");
+    let contents = cpio_cat(&image_path, &entry);
     assert_eq!(contents, "INPUT_DATA", "input contents mismatch");
 }

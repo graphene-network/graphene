@@ -92,10 +92,28 @@ impl GrapheneNode {
             GRAPHENE_JOB_ALPN.to_vec(),
         ]);
 
+        if let Some(bind_addr) = &config.bind_addr {
+            let socket = format!("{}:{}", bind_addr, config.bind_port);
+            endpoint_builder = endpoint_builder
+                .clear_ip_transports()
+                .bind_addr(&socket)
+                .map_err(|e| {
+                    P2PError::InitError(format!("Invalid bind address {}: {}", socket, e))
+                })?;
+        } else if config.bind_port != 0 {
+            let socket = format!("0.0.0.0:{}", config.bind_port);
+            endpoint_builder = endpoint_builder
+                .clear_ip_transports()
+                .bind_addr(&socket)
+                .map_err(|e| {
+                    P2PError::InitError(format!("Invalid bind address {}: {}", socket, e))
+                })?;
+        }
+
         let endpoint = endpoint_builder
             .bind()
             .await
-            .map_err(|e| P2PError::InitError(format!("Failed to bind endpoint: {}", e)))?;
+            .map_err(|e| P2PError::InitError(format!("Failed to bind endpoint: {:?}", e)))?;
 
         info!("Endpoint bound");
 

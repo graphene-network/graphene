@@ -175,6 +175,7 @@ impl FirecrackerEphemeralBuilder {
                     .runtime_dir
                     .join(format!("{}.log", request.build_id)),
             ),
+            serial_path: None,
             shutdown_timeout: Duration::from_secs(10),
             execution_timeout: request.limits.timeout,
         };
@@ -191,7 +192,7 @@ impl FirecrackerEphemeralBuilder {
             "console=ttyS0 reboot=k panic=1 pci=off ip={}::{}:{}::eth0:off",
             tap_config.guest_ip, tap_config.gateway, tap_config.netmask
         );
-        vm.set_boot_source(self.config.kernel_path.clone(), boot_args)
+        vm.set_boot_source(self.config.kernel_path.clone(), boot_args, None)
             .await?;
 
         // Attach drives:

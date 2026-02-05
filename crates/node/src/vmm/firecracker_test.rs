@@ -146,7 +146,11 @@ async fn test_state_machine_invalid_transitions() {
 
     // Can't set boot source before configure
     let result = vmm
-        .set_boot_source(PathBuf::from("/tmp/kernel"), "console=ttyS0".to_string())
+        .set_boot_source(
+            PathBuf::from("/tmp/kernel"),
+            "console=ttyS0".to_string(),
+            None,
+        )
         .await;
     assert!(matches!(result, Err(VmmError::RuntimeError(_))));
 

@@ -1,14 +1,14 @@
 //! Execution drive builder for job execution.
 //!
-//! This module provides the infrastructure for creating ext4 disk images
+//! This module provides the infrastructure for creating CPIO initramfs images
 //! that contain the job code, input, and configuration. These images are
 //! used as the root filesystem for unikernel execution.
 //!
 //! # Implementation Notes
 //!
-//! The Linux implementation uses `mke2fs -d` to create populated ext4 images
-//! without requiring root privileges or mounting. This is critical for running
-//! in unprivileged environments like CI runners or cloud VPS instances.
+//! The Linux implementation uses `cpio` to create initramfs archives without
+//! requiring root privileges or mounting. This is critical for running in
+//! unprivileged environments like CI runners or cloud VPS instances.
 //!
 //! # Drive Layout
 //!
@@ -54,7 +54,7 @@ pub mod paths {
 pub struct DriveConfig {
     /// Base directory for temporary drive files.
     pub work_dir: PathBuf,
-    /// Size of the ext4 image in megabytes.
+    /// Size of the ext4 image in megabytes (legacy; initrd ignores this).
     pub image_size_mb: u32,
 }
 
@@ -70,7 +70,7 @@ impl Default for DriveConfig {
 /// Trait for building execution drives for job isolation.
 ///
 /// Implementations are responsible for:
-/// 1. Creating an ext4 filesystem image
+/// 1. Creating a CPIO initramfs image
 /// 2. Extracting code and input tarballs to the appropriate directories
 /// 3. Creating the output directory
 /// 4. Writing the merged environment variables to env.json
@@ -190,15 +190,16 @@ pub fn build_env_json(
 #[cfg(target_os = "linux")]
 pub mod linux {
     use super::*;
-    use std::process::Command;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
     use tokio::fs;
     use tracing::{debug, warn};
 
     /// Linux implementation of ExecutionDriveBuilder.
     ///
-    /// Uses `mke2fs -d` to create and populate ext4 filesystem images without
-    /// requiring root privileges or mounting. This is critical for running in
-    /// unprivileged environments like CI runners.
+    /// Uses `cpio` to create initramfs archives without requiring root
+    /// privileges or mounting. This is critical for running in unprivileged
+    /// environments like CI runners.
     pub struct LinuxDriveBuilder {
         config: DriveConfig,
     }
@@ -302,48 +303,118 @@ pub mod linux {
             }
         }
 
-        /// Create an ext4 image from a staging directory using mke2fs -d.
-        ///
-        /// This approach does not require root privileges or mounting, making it
-        /// suitable for unprivileged environments like CI runners.
-        fn create_image_from_dir(
+        /// Create a CPIO initramfs from a staging directory.
+        fn create_cpio_from_dir(
             &self,
-            image_path: &Path,
+            cpio_path: &Path,
             staging_dir: &Path,
-            size_mb: u32,
         ) -> Result<(), ExecutionError> {
             debug!(
-                image = %image_path.display(),
+                image = %cpio_path.display(),
                 staging = %staging_dir.display(),
-                size_mb,
-                "Creating ext4 image with mke2fs -d"
+                "Creating CPIO initramfs from staging directory"
             );
 
-            let output = Command::new("mke2fs")
-                .args([
-                    "-t",
-                    "ext4",
-                    "-d",
-                    &staging_dir.display().to_string(),
-                    // Set root ownership to uid/gid 0 (required since we're not root)
-                    "-E",
-                    "root_owner=0:0",
-                    // Force creation even if file doesn't exist
-                    "-F",
-                    // Quiet mode
-                    "-q",
-                    &image_path.display().to_string(),
-                    &format!("{}M", size_mb),
-                ])
-                .output()
-                .map_err(|e| ExecutionError::drive(format!("mke2fs failed to execute: {}", e)))?;
+            let output = std::fs::File::create(cpio_path).map_err(|e| {
+                ExecutionError::drive(format!(
+                    "failed to create cpio image {}: {}",
+                    cpio_path.display(),
+                    e
+                ))
+            })?;
 
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(ExecutionError::drive(format!("mke2fs failed: {}", stderr)));
+            let mut child = Command::new("cpio")
+                .args(["--null", "-ov", "--format=newc"])
+                .current_dir(staging_dir)
+                .stdin(Stdio::piped())
+                .stdout(output)
+                .spawn()
+                .map_err(|e| ExecutionError::drive(format!("cpio failed to spawn: {}", e)))?;
+
+            let mut stdin = child
+                .stdin
+                .take()
+                .ok_or_else(|| ExecutionError::drive("cpio stdin unavailable".to_string()))?;
+
+            let mut list = Vec::new();
+            list.extend_from_slice(b".\0");
+            self.append_cpio_paths(staging_dir, staging_dir, &mut list)?;
+
+            stdin
+                .write_all(&list)
+                .map_err(|e| ExecutionError::drive(format!("cpio stdin write failed: {}", e)))?;
+            drop(stdin);
+
+            let status = child
+                .wait()
+                .map_err(|e| ExecutionError::drive(format!("cpio wait failed: {}", e)))?;
+            if !status.success() {
+                return Err(ExecutionError::drive(format!(
+                    "cpio failed with status {}",
+                    status
+                )));
             }
 
-            debug!(image = %image_path.display(), "Successfully created ext4 image");
+            Ok(())
+        }
+
+        fn append_cpio_paths(
+            &self,
+            root: &Path,
+            dir: &Path,
+            out: &mut Vec<u8>,
+        ) -> Result<(), ExecutionError> {
+            let mut entries: Vec<_> = std::fs::read_dir(dir)
+                .map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to read staging dir {}: {}",
+                        dir.display(),
+                        e
+                    ))
+                })?
+                .collect();
+
+            entries.sort_by_key(|entry| {
+                entry
+                    .as_ref()
+                    .ok()
+                    .and_then(|e| e.file_name().into_string().ok())
+            });
+
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to read staging entry {}: {}",
+                        dir.display(),
+                        e
+                    ))
+                })?;
+                let path = entry.path();
+                let rel = path.strip_prefix(root).map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to relativize staging path {}: {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
+
+                let rel_str = rel.to_string_lossy();
+                out.extend_from_slice(b"./");
+                out.extend_from_slice(rel_str.as_bytes());
+                out.push(0);
+
+                let file_type = entry.file_type().map_err(|e| {
+                    ExecutionError::drive(format!(
+                        "failed to stat staging entry {}: {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
+                if file_type.is_dir() {
+                    self.append_cpio_paths(root, &path, out)?;
+                }
+            }
+
             Ok(())
         }
 
@@ -374,7 +445,9 @@ pub mod linux {
                 .await
                 .map_err(|e| ExecutionError::drive(format!("failed to create work dir: {}", e)))?;
 
-            let image_path = self.config.work_dir.join(format!("{}.ext4", job_id));
+            // Initrd is the only supported rootfs path with Unikraft + Firecracker.
+            // Always build a CPIO initramfs so the kernel can mount it via vfs.fstab.
+            let image_path = self.config.work_dir.join(format!("{}.cpio", job_id));
             let staging_dir = self.config.work_dir.join(format!("{}_staging", job_id));
 
             // Create staging directory structure mirroring the target filesystem
@@ -438,10 +511,8 @@ pub mod linux {
                 )));
             }
 
-            // Create the ext4 image from the staging directory
-            if let Err(e) =
-                self.create_image_from_dir(&image_path, &staging_dir, self.config.image_size_mb)
-            {
+            // Create the CPIO initramfs from the staging directory.
+            if let Err(e) = self.create_cpio_from_dir(&image_path, &staging_dir) {
                 self.cleanup_staging(&staging_dir);
                 return Err(e);
             }

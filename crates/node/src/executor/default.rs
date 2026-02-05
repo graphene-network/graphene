@@ -46,9 +46,6 @@ use crate::crypto::{ChannelKeys, CryptoProvider, EncryptedBlob, EncryptionDirect
 use crate::p2p::protocol::types::{AssetData, Compression};
 use crate::p2p::P2PNetwork;
 
-/// Default boot arguments for unikernels.
-const DEFAULT_BOOT_ARGS: &str = "console=ttyS0 quiet";
-
 /// Configuration for the default job executor.
 #[derive(Debug, Clone)]
 pub struct ExecutorConfig {
@@ -534,14 +531,22 @@ where
 
         // Phase 6: Run VM
         self.check_cancelled(handle)?;
+        let boot_args = if request.manifest.kernel.starts_with("python") {
+            // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
+            "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/python3 /app/main.py"
+                .to_string()
+        } else if request.manifest.kernel.starts_with("node") {
+            // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
+            "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/node /app/index.js"
+                .to_string()
+        } else {
+            // Default to mounting initrd even if no explicit command is known.
+            "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ]".to_string()
+        };
+
         let vmm_output = self
             .runner
-            .run(
-                &kernel_path,
-                &drive_path,
-                &request.manifest,
-                DEFAULT_BOOT_ARGS,
-            )
+            .run(&kernel_path, &drive_path, &request.manifest, &boot_args)
             .await
             .map_err(|e| match e {
                 RunnerError::Timeout(d) => ExecutionError::timeout(d),
