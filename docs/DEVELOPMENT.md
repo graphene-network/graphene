@@ -214,6 +214,85 @@ limactl stop graphene
 limactl delete graphene
 ```
 
+---
+
+## Building the Native Node SDK
+
+The `@graphene/sdk` package depends on `@graphene/sdk-native`, a Rust NAPI module providing cryptographic primitives and protocol serialization. Pre-built binaries are available for common platforms, but you may need to build from source for development or unsupported platforms.
+
+### Prerequisites
+
+- **Rust 1.70+** with the target platform toolchain
+- **Node.js 18+** or **Bun**
+- **Build dependencies** (already covered in E2E setup above):
+  - `build-essential` (Linux)
+  - `pkg-config` and `libssl-dev` (Linux)
+  - Xcode Command Line Tools (macOS)
+
+### Building from Source
+
+```bash
+cd sdks/node/native
+
+# Install NAPI CLI and dependencies
+bun install   # or: npm install
+
+# Build release binary (creates .node file for your platform)
+bun run build   # or: npm run build
+
+# Build debug binary (faster compilation, slower runtime)
+bun run build:debug
+```
+
+After building, the native module (e.g., `sdk-native.darwin-arm64.node`) will be created in the `sdks/node/native/` directory.
+
+### Running Native Module Tests
+
+```bash
+cd sdks/node/native
+bun run test   # or: npm test
+```
+
+### Cross-Compilation
+
+The native SDK uses `openssl = { features = ["vendored"] }` to compile OpenSSL from source, enabling cross-compilation without system OpenSSL headers.
+
+To build for a different target:
+
+```bash
+# Add the target toolchain
+rustup target add aarch64-unknown-linux-gnu
+
+# Build for that target
+bun run build -- --target aarch64-unknown-linux-gnu
+```
+
+### Troubleshooting Native Builds
+
+#### "error: linker `cc` not found"
+
+Install build essentials:
+```bash
+# Linux
+sudo apt-get install build-essential
+
+# macOS
+xcode-select --install
+```
+
+#### OpenSSL errors during build
+
+The native SDK vendors OpenSSL, but if you see errors, ensure `pkg-config` is installed:
+```bash
+sudo apt-get install pkg-config libssl-dev
+```
+
+#### NAPI version mismatch
+
+Ensure Node.js 18+ is installed. The native module requires NAPI version 9.
+
+---
+
 ### Environment Variables
 
 | Variable | Description | Default |
