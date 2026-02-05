@@ -44,3 +44,6 @@ kernels/**/build/
 assets/vm/vmlinux-*
 assets/vm/rootfs-*.ext4
 assets/vm/*.zst
+
+poky/
+meta-rust-bin/
