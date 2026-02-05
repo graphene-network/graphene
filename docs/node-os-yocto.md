@@ -27,6 +27,10 @@ scripts/node-os-yocto/clone-deps.sh
 # Configure the build for your target (default machine: graphene-node-x86_64)
 scripts/node-os-yocto/configure-build.sh graphene-node-x86_64
 
+# Build the graphene-worker binary that Yocto installs (externalsrc expects it in target/<rust-target>/release)
+# For x86_64 builds:
+cargo build --bin graphene-worker --release --target x86_64-unknown-linux-gnu
+
 # Optionally validate the recipes
 scripts/node-os-yocto/parse-recipes.sh
 
@@ -38,6 +42,9 @@ scripts/node-os-yocto/verify-shell-removal.sh
 scripts/node-os-yocto/check-image-size.sh
 scripts/node-os-yocto/generate-build-metadata.sh graphene-node-x86_64
 ```
+
+## Troubleshooting
+If you see `do_install` errors like `cannot stat .../target/x86_64-unknown-linux-gnu/release/graphene-worker`, the worker binary is missing from the externalsrc build directory. Rebuild it (command above) or force the Yocto recipe to recompile with `bitbake -c compile -f graphene-node`.
 
 ## Re-running for different machines
 Repeat the configure/build steps with another machine name. Existing downloads and sstate cache live under `$BUILD_DIR`, so they are shared, but you may want to clean (`rm -rf $BUILD_DIR/tmp`) if you change major settings.
