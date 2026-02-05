@@ -1101,6 +1101,20 @@ pub struct NativeJobResult {
     pub metrics: JobMetrics,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AutoAssetDecision {
+    Inline,
+    Blob,
+}
+
+fn auto_asset_decision(len: usize, threshold: usize) -> AutoAssetDecision {
+    if len <= threshold {
+        AutoAssetDecision::Inline
+    } else {
+        AutoAssetDecision::Blob
+    }
+}
+
 /// A native Graphene network client.
 ///
 /// Handles everything internally:
@@ -1510,13 +1524,14 @@ impl GrapheneClient {
             }
             _ => {
                 // "auto" mode - inline if under threshold, blob otherwise
-                if encrypted_code_bytes.len() <= code_threshold {
-                    AssetData::inline(encrypted_code_bytes.clone())
-                } else {
-                    let hash = node.upload_blob(&encrypted_code_bytes).await.map_err(|e| {
-                        napi::Error::from_reason(format!("Failed to upload code: {}", e))
-                    })?;
-                    AssetData::blob(hash, None)
+                match auto_asset_decision(encrypted_code_bytes.len(), code_threshold) {
+                    AutoAssetDecision::Inline => AssetData::inline(encrypted_code_bytes.clone()),
+                    AutoAssetDecision::Blob => {
+                        let hash = node.upload_blob(&encrypted_code_bytes).await.map_err(|e| {
+                            napi::Error::from_reason(format!("Failed to upload code: {}", e))
+                        })?;
+                        AssetData::blob(hash, None)
+                    }
                 }
             }
         };
@@ -1541,13 +1556,14 @@ impl GrapheneClient {
                 }
                 _ => {
                     // "auto" mode
-                    if input_bytes.len() <= input_threshold {
-                        AssetData::inline(input_bytes.clone())
-                    } else {
-                        let hash = node.upload_blob(input_bytes).await.map_err(|e| {
-                            napi::Error::from_reason(format!("Failed to upload input: {}", e))
-                        })?;
-                        AssetData::blob(hash, None)
+                    match auto_asset_decision(input_bytes.len(), input_threshold) {
+                        AutoAssetDecision::Inline => AssetData::inline(input_bytes.clone()),
+                        AutoAssetDecision::Blob => {
+                            let hash = node.upload_blob(input_bytes).await.map_err(|e| {
+                                napi::Error::from_reason(format!("Failed to upload input: {}", e))
+                            })?;
+                            AssetData::blob(hash, None)
+                        }
                     }
                 }
             };
@@ -1788,7 +1804,9 @@ impl GrapheneClient {
 // See crates/sdk/tests/ for Node.js integration tests.
 #[cfg(test)]
 mod tests {
+    use crate::{auto_asset_decision, AutoAssetDecision};
     use monad_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
+    use monad_node::p2p::protocol::{INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD};
 
     fn create_test_keypair(secret_bytes: [u8; 32]) -> ([u8; 32], [u8; 32]) {
         use ed25519_dalek::SigningKey;
@@ -1852,5 +1870,29 @@ mod tests {
             .unwrap();
 
         assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_auto_asset_decision_inline_at_threshold() {
+        assert_eq!(
+            auto_asset_decision(INLINE_CODE_THRESHOLD, INLINE_CODE_THRESHOLD),
+            AutoAssetDecision::Inline
+        );
+        assert_eq!(
+            auto_asset_decision(INLINE_INPUT_THRESHOLD - 1, INLINE_INPUT_THRESHOLD),
+            AutoAssetDecision::Inline
+        );
+    }
+
+    #[test]
+    fn test_auto_asset_decision_blob_over_threshold() {
+        assert_eq!(
+            auto_asset_decision(INLINE_CODE_THRESHOLD + 1, INLINE_CODE_THRESHOLD),
+            AutoAssetDecision::Blob
+        );
+        assert_eq!(
+            auto_asset_decision(INLINE_INPUT_THRESHOLD + 1, INLINE_INPUT_THRESHOLD),
+            AutoAssetDecision::Blob
+        );
     }
 }
