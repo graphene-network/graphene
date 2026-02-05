@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+
+if git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel >/dev/null 2>&1; then
+  REPO_ROOT="$(git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel)"
+else
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
 
 export REPO_ROOT
 export SSTATE_BUCKET="${SSTATE_BUCKET:-graphene-sstate}"
