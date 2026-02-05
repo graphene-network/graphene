@@ -10,6 +10,8 @@ set +u
 source oe-init-build-env "$BUILD_DIR"
 set -u
 
+TOPDIR="${TOPDIR:-$PWD}"
+
 cat > conf/bblayers.conf <<EOF
 POKY_BBLAYERS_CONF_VERSION = "2"
 BBPATH = "${TOPDIR}"
