@@ -4,10 +4,14 @@ set +u
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 set +u
 
-cd "$REPO_ROOT/poky"
+cd "$YOCTO_TOP"
 export BBSERVER="${BBSERVER:-}"
 export ZSH_NAME="${ZSH_NAME:-}"
-source oe-init-build-env "$BUILD_DIR"
+if [[ -n "${YOCTO_TEMPLATECONF}" ]]; then
+  TEMPLATECONF="${YOCTO_TEMPLATECONF}" source "${YOCTO_INIT_ENV}" "$BUILD_DIR"
+else
+  source "${YOCTO_INIT_ENV}" "$BUILD_DIR"
+fi
 set -u
 
 set -o pipefail

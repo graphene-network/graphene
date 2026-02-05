@@ -4,15 +4,48 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 cd "$REPO_ROOT"
 
-if [[ ! -d poky ]]; then
-  git clone --depth 1 --branch "$YOCTO_RELEASE" https://git.yoctoproject.org/poky poky
-else
-  if git -C poky diff --quiet && git -C poky diff --cached --quiet; then
-    git -C poky fetch --depth 1 origin "$YOCTO_RELEASE"
-    git -C poky checkout -B "$YOCTO_RELEASE" "origin/$YOCTO_RELEASE"
-  else
-    echo "poky has local changes; skipping branch update"
+function clone_or_update() {
+  local repo="$1"
+  local dir="$2"
+  local branch="$3"
+
+  if [[ ! -d "$dir/.git" ]]; then
+    git clone --depth 1 --branch "$branch" "$repo" "$dir"
+    return
   fi
+
+  if git -C "$dir" diff --quiet && git -C "$dir" diff --cached --quiet; then
+    git -C "$dir" fetch --depth 1 origin "$branch"
+    git -C "$dir" checkout -B "$branch" "origin/$branch"
+  else
+    echo "$dir has local changes; skipping branch update"
+  fi
+}
+
+function resolve_branch() {
+  local repo="$1"
+  local requested="$2"
+  local fallback="$3"
+
+  if git ls-remote --heads "$repo" "$requested" | rg -q "."; then
+    echo "$requested"
+    return
+  fi
+
+  echo "WARNING: Branch ${requested} not found in ${repo}; falling back to ${fallback}." >&2
+  echo "$fallback"
+}
+
+if [[ "$YOCTO_MODE" == "layers" ]]; then
+  mkdir -p "$YOCTO_LAYERS_DIR"
+  bitbake_branch=$(resolve_branch "https://git.openembedded.org/bitbake" "$YOCTO_BRANCH" "master")
+  oecore_branch=$(resolve_branch "https://git.openembedded.org/openembedded-core" "$YOCTO_BRANCH" "master")
+  metayocto_branch=$(resolve_branch "https://git.yoctoproject.org/meta-yocto" "$YOCTO_BRANCH" "master")
+  clone_or_update "https://git.openembedded.org/bitbake" "$YOCTO_LAYERS_DIR/bitbake" "$bitbake_branch"
+  clone_or_update "https://git.openembedded.org/openembedded-core" "$YOCTO_LAYERS_DIR/openembedded-core" "$oecore_branch"
+  clone_or_update "https://git.yoctoproject.org/meta-yocto" "$YOCTO_LAYERS_DIR/meta-yocto" "$metayocto_branch"
+else
+  clone_or_update "https://git.yoctoproject.org/poky" "$REPO_ROOT/poky" "$YOCTO_RELEASE"
 fi
 
 if [[ ! -d meta-rust-bin ]]; then

@@ -14,6 +14,12 @@ export REPO_ROOT
 export SSTATE_BUCKET="${SSTATE_BUCKET:-graphene-sstate}"
 export BUILD_DIR="${BUILD_DIR:-/tmp/yocto-build}"
 export NODE_OS_MATRIX="${NODE_OS_MATRIX:-$REPO_ROOT/node-os/os-matrix.toml}"
+export YOCTO_TOP="${YOCTO_TOP:-}"
+export YOCTO_LAYERS_DIR="${YOCTO_LAYERS_DIR:-}"
+export YOCTO_INIT_ENV="${YOCTO_INIT_ENV:-}"
+export YOCTO_TEMPLATECONF="${YOCTO_TEMPLATECONF:-}"
+export YOCTO_BRANCH="${YOCTO_BRANCH:-}"
+export YOCTO_MODE="${YOCTO_MODE:-}"
 
 function load_node_os_config() {
   if [[ ! -f "$NODE_OS_MATRIX" ]]; then
@@ -29,6 +35,31 @@ function load_node_os_config() {
 }
 
 load_node_os_config
+
+function configure_yocto_paths() {
+  case "${YOCTO_RELEASE}" in
+    whinlatter)
+      YOCTO_MODE="layers"
+      YOCTO_BRANCH="${YOCTO_BRANCH:-yocto-5.3}"
+      YOCTO_TOP="${YOCTO_TOP:-$REPO_ROOT/yocto}"
+      YOCTO_LAYERS_DIR="${YOCTO_LAYERS_DIR:-$YOCTO_TOP/layers}"
+      YOCTO_INIT_ENV="${YOCTO_INIT_ENV:-$YOCTO_LAYERS_DIR/openembedded-core/oe-init-build-env}"
+      YOCTO_TEMPLATECONF="${YOCTO_TEMPLATECONF:-$YOCTO_LAYERS_DIR/meta-yocto/meta-poky/conf/templates/default}"
+      ;;
+    *)
+      YOCTO_MODE="poky"
+      YOCTO_TOP="${YOCTO_TOP:-$REPO_ROOT/poky}"
+      YOCTO_LAYERS_DIR="${YOCTO_LAYERS_DIR:-$YOCTO_TOP}"
+      YOCTO_INIT_ENV="${YOCTO_INIT_ENV:-$YOCTO_TOP/oe-init-build-env}"
+      YOCTO_TEMPLATECONF="${YOCTO_TEMPLATECONF:-}"
+      YOCTO_BRANCH="${YOCTO_BRANCH:-$YOCTO_RELEASE}"
+      ;;
+  esac
+
+  export YOCTO_MODE YOCTO_BRANCH YOCTO_TOP YOCTO_LAYERS_DIR YOCTO_INIT_ENV YOCTO_TEMPLATECONF
+}
+
+configure_yocto_paths
 
 function ensure_build_dirs() {
   mkdir -p "$BUILD_DIR"/conf

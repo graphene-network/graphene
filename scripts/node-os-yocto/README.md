@@ -4,7 +4,7 @@ These scripts mirror the key steps of `.github/workflows/node-os-yocto.yml`, but
 
 ## Shared setup
 1. `source scripts/node-os-yocto/env.sh` (or run `./scripts/node-os-yocto/load-config.sh`) to export configuration variables such as `YOCTO_RELEASE` and `BUILD_DIR`. You can override defaults with environment variables like `BUILD_DIR=/tmp/custom-yocto`.
-2. Each script assumes `poky` and `meta-rust-bin` live under the repository root, so run `scripts/node-os-yocto/clone-deps.sh` before anything that touches Yocto.
+2. `clone-deps.sh` will fetch the required Yocto layers plus `meta-rust-bin`. For Scarthgap it uses `$REPO_ROOT/poky`; for Whinlatter it uses `$REPO_ROOT/yocto/layers`.
 3. `ensure_build_dirs` is invoked by `configure-build.sh`, but you can also call it manually (`source .../env.sh && ensure_build_dirs`).
 
 ## Common workflows

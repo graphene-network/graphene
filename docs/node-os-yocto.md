@@ -6,7 +6,7 @@ These scripts mirror the key steps of `.github/workflows/node-os-yocto.yml` but 
 ## Scripts overview
 - `scripts/node-os-yocto/env.sh`: load `node-os/os-matrix.toml`, export common variables like `YOCTO_RELEASE`, `BUILD_DIR`, and provide helpers such as `ensure_build_dirs`.
 - `install-deps.sh` & `enable-userns.sh`: install required Ubuntu packages and relax kernel restrictions for pseudo operations.
-- `clone-deps.sh`: fetch `poky` and `meta-rust-bin` sources next to the repository.
+- `clone-deps.sh`: fetch Yocto sources (`poky` for Scarthgap or `bitbake`/`openembedded-core`/`meta-yocto` for Whinlatter) plus `meta-rust-bin`.
 - `configure-build.sh`: initializes `conf/bblayers.conf` and `conf/local.conf` for a given machine, pointing BitBake at the checked-out repo (`EXTERNALSRC`).
 - `parse-recipes.sh`: runs `bitbake -p` and validates the `graphene-node-image` recipe.
 - `build-image.sh`: executes `bitbake graphene-node-image` and logs output for troubleshooting.

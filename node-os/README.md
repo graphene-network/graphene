@@ -16,12 +16,15 @@ This is the **HOST operating system** that runs on bare metal or VMs. It provide
 Graphene Node OS is built with Yocto for production-quality images with SBOM generation.
 
 ```bash
-# Clone Poky
-git clone -b whinlatter https://git.yoctoproject.org/poky
-cd poky
+# Clone Yocto layers (Whinlatter / Yocto 5.3)
+mkdir -p layers
+git clone -b yocto-5.3 https://git.openembedded.org/bitbake layers/bitbake
+git clone -b yocto-5.3 https://git.openembedded.org/openembedded-core layers/openembedded-core
+git clone -b yocto-5.3 https://git.yoctoproject.org/meta-yocto layers/meta-yocto
 
 # Setup environment
-source oe-init-build-env ../build
+TEMPLATECONF="$(pwd)/layers/meta-yocto/meta-poky/conf/templates/default" \
+  source layers/openembedded-core/oe-init-build-env ../build
 
 # Add meta-graphene layer
 bitbake-layers add-layer /path/to/node-os/yocto/meta-graphene
