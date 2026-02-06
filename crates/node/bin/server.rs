@@ -156,8 +156,10 @@ impl VmmRunner for RunnerKind {
         drive_path: &std::path::Path,
         manifest: &graphene_node::p2p::messages::JobManifest,
         boot_args: &str,
-    ) -> Result<graphene_node::executor::runner::VmmOutput, graphene_node::executor::runner::RunnerError>
-    {
+    ) -> Result<
+        graphene_node::executor::runner::VmmOutput,
+        graphene_node::executor::runner::RunnerError,
+    > {
         match self {
             RunnerKind::Firecracker(runner) => {
                 runner
