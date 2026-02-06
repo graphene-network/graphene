@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use monad_node::management::{ManagementRequest, ManagementResponse, NodeConfig};
+use graphene_node::management::{ManagementRequest, ManagementResponse, NodeConfig};
 use std::path::Path;
 
 /// Load and parse a NodeConfig from YAML content.

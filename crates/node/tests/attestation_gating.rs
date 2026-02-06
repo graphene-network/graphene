@@ -1,5 +1,5 @@
-use monad_node::attestation::mock::MockBehavior;
-use monad_node::attestation::{enforce_attestation, MockAttestor};
+use graphene_node::attestation::mock::MockBehavior;
+use graphene_node::attestation::{enforce_attestation, MockAttestor};
 
 #[tokio::test]
 async fn attestation_gating_allows_happy_path() {

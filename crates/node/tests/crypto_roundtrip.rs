@@ -1,4 +1,4 @@
-use monad_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
+use graphene_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
 use rand::RngCore;
 
 fn random_keypair() -> ([u8; 32], [u8; 32]) {

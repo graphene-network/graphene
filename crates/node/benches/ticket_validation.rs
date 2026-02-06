@@ -3,12 +3,12 @@
 //! Target: < 1ms per verification (issue #27 requirement).
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use monad_node::ticket::{
+use graphene_node::ticket::{
     ChannelState, DefaultTicketSigner, DefaultTicketValidator, TicketSigner, TicketValidator,
 };
 use tokio::runtime::Runtime;
 
-fn create_test_ticket(rt: &Runtime) -> (monad_node::ticket::PaymentTicket, [u8; 32]) {
+fn create_test_ticket(rt: &Runtime) -> (graphene_node::ticket::PaymentTicket, [u8; 32]) {
     let secret = [42u8; 32];
     let signer = DefaultTicketSigner::from_bytes(&secret);
 
@@ -76,7 +76,7 @@ fn bench_signature_verification_only(c: &mut Criterion) {
 }
 
 fn bench_payload_serialization(c: &mut Criterion) {
-    use monad_node::ticket::TicketPayload;
+    use graphene_node::ticket::TicketPayload;
 
     let payload = TicketPayload {
         channel_id: [42u8; 32],

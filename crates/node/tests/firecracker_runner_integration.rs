@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig, VmmRunner};
-use monad_node::p2p::messages::JobManifest;
-use monad_node::vmm::{FirecrackerConfig, Virtualizer, VmmError};
+use graphene_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig, VmmRunner};
+use graphene_node::p2p::messages::JobManifest;
+use graphene_node::vmm::{FirecrackerConfig, Virtualizer, VmmError};
 
 struct TestVirtualizer {
     socket_path: std::path::PathBuf,

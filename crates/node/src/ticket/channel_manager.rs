@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```text
-//! use monad_node::ticket::{
+//! use graphene_node::ticket::{
 //!     DefaultChannelStateManager, ChannelConfig, ChannelLocalState,
 //!     ChannelStateManager, OnChainChannelState,
 //! };

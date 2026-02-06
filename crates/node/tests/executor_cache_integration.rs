@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use ed25519_dalek::SigningKey;
-use monad_node::cache::{BuildCache, MockBuildCache};
-use monad_node::crypto::{ChannelKeys, CryptoProvider, EncryptionDirection, MockCryptoProvider};
-use monad_node::executor::drive::mock::MockDriveBuilder;
-use monad_node::executor::output::MockOutputProcessor;
-use monad_node::executor::runner::MockRunner;
-use monad_node::executor::{DefaultJobExecutor, ExecutionRequest, JobExecutor};
-use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode};
-use monad_node::p2p::mock::MockGrapheneNode;
-use monad_node::p2p::protocol::types::JobAssets;
+use graphene_node::cache::{BuildCache, MockBuildCache};
+use graphene_node::crypto::{ChannelKeys, CryptoProvider, EncryptionDirection, MockCryptoProvider};
+use graphene_node::executor::drive::mock::MockDriveBuilder;
+use graphene_node::executor::output::MockOutputProcessor;
+use graphene_node::executor::runner::MockRunner;
+use graphene_node::executor::{DefaultJobExecutor, ExecutionRequest, JobExecutor};
+use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode};
+use graphene_node::p2p::mock::MockGrapheneNode;
+use graphene_node::p2p::protocol::types::JobAssets;
 
 /// Verifies the executor pulls the kernel from the build cache and hands that
 /// path to the runner, covering the cache ↔ executor boundary described in the
@@ -187,7 +187,7 @@ async fn executor_cache_miss_returns_build_error() {
     let result = executor.execute(request).await;
     assert!(matches!(
         result,
-        Err(monad_node::executor::ExecutionError::BuildFailed(_))
+        Err(graphene_node::executor::ExecutionError::BuildFailed(_))
     ));
 }
 
@@ -281,7 +281,7 @@ async fn executor_cache_key_changes_when_code_hash_changes() {
     let result = executor.execute(request).await;
     assert!(matches!(
         result,
-        Err(monad_node::executor::ExecutionError::BuildFailed(_))
+        Err(graphene_node::executor::ExecutionError::BuildFailed(_))
     ));
     assert_eq!(cache.entry_count(), 1);
 }

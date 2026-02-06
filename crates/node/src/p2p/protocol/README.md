@@ -138,7 +138,7 @@ protocol/
 ### Worker Side (Handling Requests)
 
 ```rust
-use monad_node::p2p::protocol::{JobProtocolHandler, JobContext};
+use graphene_node::p2p::protocol::{JobProtocolHandler, JobContext};
 
 // Implement JobContext for your worker
 struct MyWorkerContext { /* ... */ }
@@ -164,7 +164,7 @@ if alpn == GRAPHENE_JOB_ALPN {
 ### Client Side (Submitting Jobs)
 
 ```rust
-use monad_node::p2p::protocol::{JobRequest, JobAssets, encode_message, MessageType};
+use graphene_node::p2p::protocol::{JobRequest, JobAssets, encode_message, MessageType};
 
 let request = JobRequest {
     job_id: Uuid::new_v4(),
@@ -202,6 +202,6 @@ The handler validates requests in this order (fast checks first):
 
 ## Related
 
-- [Issue #23](https://github.com/marcus-sa/monad/issues/23) - Job submission protocol spec
+- [Issue #23](https://github.com/marcus-sa/graphene/issues/23) - Job submission protocol spec
 - `crate::ticket` - Payment ticket validation
 - `crate::job::state` - Job lifecycle state machine

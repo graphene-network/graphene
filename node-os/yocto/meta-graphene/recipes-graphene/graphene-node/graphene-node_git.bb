@@ -6,10 +6,10 @@ HOMEPAGE = "https://graphene.network"
 LICENSE = "AGPL-3.0-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=eb1e647870add0502f8f010b19de32af"
 
-# Fetch from git - uses the monad repository
+# Fetch from git - uses the graphene repository
 # Branch can be overridden via GRAPHENE_GIT_BRANCH (e.g., for CI on PR branches)
 GRAPHENE_GIT_BRANCH ?= "main"
-SRC_URI = "git://github.com/marcus-sa/monad.git;protocol=https;branch=${GRAPHENE_GIT_BRANCH} \
+SRC_URI = "git://github.com/marcus-sa/graphene.git;protocol=https;branch=${GRAPHENE_GIT_BRANCH} \
            file://node-config.toml \
            "
 SRCREV = "${AUTOREV}"
@@ -29,7 +29,7 @@ GRAPHENE_PLATFORM_ID ?= "graphene-os-${PV}"
 GRAPHENE_BUILD_TIME ?= ""
 
 # Pass attestation values to cargo
-CARGO_BUILD_FLAGS = "--release --package monad_node --bin graphene-worker"
+CARGO_BUILD_FLAGS = "--release --package graphene_node --bin graphene-worker"
 
 # Enable network access for do_compile (required for cargo to fetch dependencies)
 # See: https://github.com/rust-embedded/meta-rust-bin#use-with-yocto-release-40-kirkstone-and-above

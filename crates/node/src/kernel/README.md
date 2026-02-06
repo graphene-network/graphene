@@ -41,8 +41,8 @@ Kernels are built from the [Unikraft Application Catalog](https://github.com/uni
 ## Usage
 
 ```rust
-use monad_node::kernel::{KernelRegistry, LocalKernelRegistry, KernelSpec};
-use monad_node::kernel::matrix::KernelMatrix;
+use graphene_node::kernel::{KernelRegistry, LocalKernelRegistry, KernelSpec};
+use graphene_node::kernel::matrix::KernelMatrix;
 
 // Load version matrix
 let matrix = KernelMatrix::from_file("kernels/kernel-matrix.toml")?;
@@ -89,7 +89,7 @@ Kernels are stored under `~/.graphene/kernels/`:
 The `MockKernelRegistry` supports configurable behaviors for comprehensive testing:
 
 ```rust
-use monad_node::kernel::mock::{MockKernelRegistry, MockBehavior};
+use graphene_node::kernel::mock::{MockKernelRegistry, MockBehavior};
 
 // Test happy path
 let registry = MockKernelRegistry::new();

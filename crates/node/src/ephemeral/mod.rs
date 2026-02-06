@@ -19,7 +19,7 @@
 //! # Example
 //!
 //! ```text
-//! use monad_node::ephemeral::{
+//! use graphene_node::ephemeral::{
 //!     BuildRequest, EphemeralBuilder, EphemeralBuilderConfig,
 //!     FirecrackerEphemeralBuilder, MockNetworkIsolator,
 //! };

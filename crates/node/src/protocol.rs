@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const TALOS_ALPN: &[u8] = b"monad/job/1";
+pub const TALOS_ALPN: &[u8] = b"graphene/job/1";
 
 fn default_runtime() -> String {
     "python-3.11".to_string()

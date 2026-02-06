@@ -7,7 +7,7 @@
 
 #![cfg(feature = "integration-tests")]
 
-use monad_node::p2p::{GrapheneNode, P2PConfig, P2PNetwork, TopicId};
+use graphene_node::p2p::{GrapheneNode, P2PConfig, P2PNetwork, TopicId};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -266,7 +266,7 @@ async fn test_two_node_connection() {
 
     // Node2 connects to node1 using the job ALPN
     let result = node2
-        .connect(addr1, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+        .connect(addr1, graphene_node::p2p::graphene::GRAPHENE_JOB_ALPN)
         .await;
 
     // Connection should succeed (node1 supports this ALPN)
@@ -284,7 +284,7 @@ async fn test_accept_loop_with_handler() {
     // Start accept loop with a simple handler
     let handler = Arc::new(
         |_conn: iroh::endpoint::Connection, _node: Arc<GrapheneNode>| async move {
-            Ok::<(), monad_node::p2p::P2PError>(())
+            Ok::<(), graphene_node::p2p::P2PError>(())
         },
     );
 
@@ -306,7 +306,7 @@ async fn test_accept_loop_with_handler() {
 
     // Connect should work
     let conn = node2
-        .connect(addr1, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+        .connect(addr1, graphene_node::p2p::graphene::GRAPHENE_JOB_ALPN)
         .await
         .expect("Failed to connect");
 

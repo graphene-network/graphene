@@ -36,37 +36,37 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{error, info, warn};
 
-use monad_node::cache::build::LayeredBuildCache;
-use monad_node::cache::iroh::IrohCache;
-use monad_node::cache::local::LocalDiskCache;
-use monad_node::crypto::DefaultCryptoProvider;
-use monad_node::executor::output::DefaultOutputProcessor;
+use graphene_node::cache::build::LayeredBuildCache;
+use graphene_node::cache::iroh::IrohCache;
+use graphene_node::cache::local::LocalDiskCache;
+use graphene_node::crypto::DefaultCryptoProvider;
+use graphene_node::executor::output::DefaultOutputProcessor;
 
 #[cfg(target_os = "linux")]
-use monad_node::executor::drive::linux::LinuxDriveBuilder;
+use graphene_node::executor::drive::linux::LinuxDriveBuilder;
 
 #[cfg(not(target_os = "linux"))]
-use monad_node::executor::drive::mock::MockDriveBuilder;
+use graphene_node::executor::drive::mock::MockDriveBuilder;
 
 #[cfg(target_os = "linux")]
-use monad_node::executor::runner::VmmRunner;
+use graphene_node::executor::runner::VmmRunner;
 
 #[cfg(target_os = "linux")]
-use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
+use graphene_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
 
-use monad_node::executor::runner::MockRunner;
+use graphene_node::executor::runner::MockRunner;
 
-use monad_node::executor::{DefaultJobExecutor, ExecutorConfig};
-use monad_node::p2p::graphene::GrapheneNode;
-use monad_node::p2p::messages::WorkerCapabilities;
-use monad_node::p2p::protocol::handler::JobProtocolHandler;
-use monad_node::p2p::{P2PConfig, P2PNetwork};
-use monad_node::result::SyncDelivery;
-use monad_node::ticket::{
+use graphene_node::executor::{DefaultJobExecutor, ExecutorConfig};
+use graphene_node::p2p::graphene::GrapheneNode;
+use graphene_node::p2p::messages::WorkerCapabilities;
+use graphene_node::p2p::protocol::handler::JobProtocolHandler;
+use graphene_node::p2p::{P2PConfig, P2PNetwork};
+use graphene_node::result::SyncDelivery;
+use graphene_node::ticket::{
     ChannelConfig, ChannelLocalState, ChannelStateManager, DefaultChannelStateManager,
     DefaultSolanaChannelClient, DefaultTicketValidator, OnChainChannelState, SolanaChannelClient,
 };
-use monad_node::worker::{WorkerEvent, WorkerJobContext, WorkerStateMachine};
+use graphene_node::worker::{WorkerEvent, WorkerJobContext, WorkerStateMachine};
 
 use solana_sdk::pubkey::Pubkey;
 
@@ -154,9 +154,9 @@ impl VmmRunner for RunnerKind {
         &self,
         kernel_path: &std::path::Path,
         drive_path: &std::path::Path,
-        manifest: &monad_node::p2p::messages::JobManifest,
+        manifest: &graphene_node::p2p::messages::JobManifest,
         boot_args: &str,
-    ) -> Result<monad_node::executor::runner::VmmOutput, monad_node::executor::runner::RunnerError>
+    ) -> Result<graphene_node::executor::runner::VmmOutput, graphene_node::executor::runner::RunnerError>
     {
         match self {
             RunnerKind::Firecracker(runner) => {
@@ -199,7 +199,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("monad_node=debug".parse()?)
+                .add_directive("graphene_node=debug".parse()?)
                 .add_directive("graphene_worker=debug".parse()?),
         )
         .init();
@@ -301,7 +301,7 @@ async fn main() -> Result<()> {
     #[cfg(target_os = "linux")]
     let runner = if should_use_mock_runner() {
         Arc::new(RunnerKind::Mock(MockRunner::new(
-            monad_node::executor::runner::MockRunnerBehavior::default(),
+            graphene_node::executor::runner::MockRunnerBehavior::default(),
         )))
     } else {
         let runner_config = FirecrackerRunnerConfig::new().with_runtime_dir(drives_path.clone());
@@ -312,7 +312,7 @@ async fn main() -> Result<()> {
 
     #[cfg(not(target_os = "linux"))]
     let runner = Arc::new(MockRunner::new(
-        monad_node::executor::runner::MockRunnerBehavior::default(),
+        graphene_node::executor::runner::MockRunnerBehavior::default(),
     ));
 
     // Output processor for encrypting results
@@ -455,7 +455,7 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     error!("❌ Job request failed: {}", e);
                     // Convert protocol error to P2P error
-                    Err(monad_node::p2p::P2PError::ConnectionError(e.to_string()))
+                    Err(graphene_node::p2p::P2PError::ConnectionError(e.to_string()))
                 }
             }
         }

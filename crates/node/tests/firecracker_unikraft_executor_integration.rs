@@ -6,19 +6,19 @@
 //! - cpio binary in PATH (for initrd creation)
 //! - Prebuilt Unikraft kernel at ~/.graphene/cache/kernels/python-3.12_fc-x86_64
 //!
-//! Run with: `cargo test -p monad_node --features integration-tests --test firecracker_unikraft_executor_integration`
+//! Run with: `cargo test -p graphene_node --features integration-tests --test firecracker_unikraft_executor_integration`
 
 #![cfg(all(target_os = "linux", feature = "integration-tests"))]
 
-use monad_node::cache::MockBuildCache;
-use monad_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptedBlob};
-use monad_node::executor::drive::linux::LinuxDriveBuilder;
-use monad_node::executor::output::DefaultOutputProcessor;
-use monad_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
-use monad_node::executor::{ExecutionRequest, JobExecutor};
-use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode};
-use monad_node::p2p::mock::MockGrapheneNode;
-use monad_node::p2p::protocol::types::JobAssets;
+use graphene_node::cache::MockBuildCache;
+use graphene_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptedBlob};
+use graphene_node::executor::drive::linux::LinuxDriveBuilder;
+use graphene_node::executor::output::DefaultOutputProcessor;
+use graphene_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
+use graphene_node::executor::{ExecutionRequest, JobExecutor};
+use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode};
+use graphene_node::p2p::mock::MockGrapheneNode;
+use graphene_node::p2p::protocol::types::JobAssets;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -112,7 +112,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
             code,
             &user_keys,
             &job_id,
-            monad_node::crypto::EncryptionDirection::Input,
+            graphene_node::crypto::EncryptionDirection::Input,
         )
         .expect("encrypt code");
 
@@ -142,7 +142,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
     let runner =
         FirecrackerRunner::new(FirecrackerRunnerConfig::new().with_runtime_dir(runtime_dir.path()));
 
-    let executor = monad_node::executor::DefaultJobExecutor::new(
+    let executor = graphene_node::executor::DefaultJobExecutor::new(
         Arc::new(LinuxDriveBuilder::with_defaults()),
         Arc::new(runner),
         Arc::new(DefaultOutputProcessor::new(Arc::clone(&crypto))),
@@ -163,7 +163,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
             &encrypted_stdout,
             &user_keys,
             &job_id,
-            monad_node::crypto::EncryptionDirection::Output,
+            graphene_node::crypto::EncryptionDirection::Output,
         )
         .expect("decrypt stdout");
     let stdout_str = String::from_utf8_lossy(&stdout);

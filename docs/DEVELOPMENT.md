@@ -166,7 +166,7 @@ source ~/.bashrc
 Lima mounts your home directory by default:
 
 ```bash
-cd /Users/$(whoami)/Git/monad
+cd /Users/$(whoami)/Git/graphene
 ```
 
 #### 6. Build Kernels
@@ -182,7 +182,7 @@ kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.1
 cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
 
 # Return to project root
-cd /Users/$(whoami)/Git/monad
+cd /Users/$(whoami)/Git/graphene
 ```
 
 #### 7. Build and Run Tests

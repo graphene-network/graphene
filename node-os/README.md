@@ -124,4 +124,4 @@ See `crates/ctl/` for the management CLI.
 ## References
 
 - [WHITEPAPER.md](../docs/WHITEPAPER.md) - Graphene Network architecture
-- [GitHub Issue #103](https://github.com/marcus-sa/monad/issues/103) - Node OS tracking
+- [GitHub Issue #103](https://github.com/marcus-sa/graphene/issues/103) - Node OS tracking

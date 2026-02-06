@@ -81,7 +81,7 @@ export class WorkerManager {
       ...process.env as Record<string, string>,
       GRAPHENE_STORAGE_PATH: storagePath,
       GRAPHENE_TEST_USER_PUBKEY: this.config.testUserPubkeyHex,
-      RUST_LOG: 'monad_node=debug,graphene_worker=debug',
+      RUST_LOG: 'graphene_node=debug,graphene_worker=debug',
       GRAPHENE_KERNELS: process.env.GRAPHENE_KERNELS ?? 'python:3.12,node:21',
       ...this.config.env,
     };

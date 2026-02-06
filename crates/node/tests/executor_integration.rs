@@ -7,19 +7,21 @@
 // Traits are imported for method resolution on mock types
 #![allow(unused_imports)]
 
-use iroh_blobs::Hash;
-use monad_node::cache::{BuildCache, MockBuildCache};
-use monad_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
-use monad_node::executor::drive::mock::MockDriveBuilder;
-use monad_node::executor::{
+use graphene_node::cache::{BuildCache, MockBuildCache};
+use graphene_node::crypto::{
+    ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptionDirection,
+};
+use graphene_node::executor::drive::mock::MockDriveBuilder;
+use graphene_node::executor::{
     build_env_json, reserved_env, ExecutionDriveBuilder, ExecutionError, ExecutionRequest,
     JobExecutor, MockExecutorBehavior, MockJobExecutor, MockOutputProcessor, MockRunner,
     MockRunnerBehavior,
 };
-use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode};
-use monad_node::p2p::mock::MockGrapheneNode;
-use monad_node::p2p::protocol::types::JobAssets;
-use monad_node::p2p::P2PNetwork;
+use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode};
+use graphene_node::p2p::mock::MockGrapheneNode;
+use graphene_node::p2p::protocol::types::JobAssets;
+use graphene_node::p2p::P2PNetwork;
+use iroh_blobs::Hash;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -324,7 +326,7 @@ async fn test_runner_success_path() {
         estimated_ingress_mb: None,
     };
 
-    use monad_node::executor::VmmRunner;
+    use graphene_node::executor::VmmRunner;
     let result = runner
         .run(
             std::path::Path::new("/kernel"),
@@ -360,7 +362,7 @@ async fn test_runner_timeout_behavior() {
         estimated_ingress_mb: None,
     };
 
-    use monad_node::executor::VmmRunner;
+    use graphene_node::executor::VmmRunner;
     let result = runner
         .run(
             std::path::Path::new("/kernel"),
@@ -393,7 +395,7 @@ async fn test_runner_crash_behavior() {
         estimated_ingress_mb: None,
     };
 
-    use monad_node::executor::VmmRunner;
+    use graphene_node::executor::VmmRunner;
     let result = runner
         .run(
             std::path::Path::new("/kernel"),
@@ -405,7 +407,10 @@ async fn test_runner_crash_behavior() {
 
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(matches!(err, monad_node::executor::RunnerError::Crashed(_)));
+    assert!(matches!(
+        err,
+        graphene_node::executor::RunnerError::Crashed(_)
+    ));
 }
 
 // ============================================================================
@@ -414,7 +419,7 @@ async fn test_runner_crash_behavior() {
 
 #[tokio::test]
 async fn test_output_processor_encrypts_all_data() {
-    use monad_node::executor::OutputProcessor;
+    use graphene_node::executor::OutputProcessor;
 
     let processor = MockOutputProcessor::working();
     let request = make_simple_request("test-job-encrypt");
@@ -444,7 +449,7 @@ async fn test_output_processor_encrypts_all_data() {
 
 #[tokio::test]
 async fn test_output_processor_preserves_exit_code() {
-    use monad_node::executor::OutputProcessor;
+    use graphene_node::executor::OutputProcessor;
 
     let processor = MockOutputProcessor::working();
     let request = make_simple_request("test-job-exitcode");
@@ -470,7 +475,7 @@ async fn test_output_processor_preserves_exit_code() {
 
 #[tokio::test]
 async fn test_output_processor_preserves_duration() {
-    use monad_node::executor::OutputProcessor;
+    use graphene_node::executor::OutputProcessor;
 
     let processor = MockOutputProcessor::working();
     let request = make_simple_request("test-job-duration");
@@ -547,7 +552,7 @@ async fn test_mock_executor_custom_behavior() {
         if req.manifest.vcpu >= 4 {
             Err(ExecutionError::vmm("Too many vCPUs requested"))
         } else {
-            Ok(monad_node::executor::ExecutionResult::new(
+            Ok(graphene_node::executor::ExecutionResult::new(
                 0,
                 Duration::from_millis(100),
                 b"result".to_vec(),
@@ -599,7 +604,7 @@ async fn test_mock_executor_call_count() {
 
 #[tokio::test]
 async fn test_cache_hit_returns_cached_path() {
-    use monad_node::cache::BuildCache;
+    use graphene_node::cache::BuildCache;
 
     let cache = MockBuildCache::new();
 
@@ -632,7 +637,7 @@ async fn test_cache_hit_returns_cached_path() {
 
 #[tokio::test]
 async fn test_cache_miss_returns_none() {
-    use monad_node::cache::BuildCache;
+    use graphene_node::cache::BuildCache;
 
     let cache = MockBuildCache::new();
 
@@ -648,7 +653,7 @@ async fn test_cache_miss_returns_none() {
 
 #[tokio::test]
 async fn test_p2p_blob_upload_and_download() {
-    use monad_node::p2p::P2PNetwork;
+    use graphene_node::p2p::P2PNetwork;
 
     let node = MockGrapheneNode::new();
 
@@ -667,7 +672,7 @@ async fn test_p2p_blob_upload_and_download() {
 
 #[tokio::test]
 async fn test_p2p_blob_injection_for_testing() {
-    use monad_node::p2p::P2PNetwork;
+    use graphene_node::p2p::P2PNetwork;
 
     let node = MockGrapheneNode::new();
 
@@ -686,7 +691,7 @@ async fn test_p2p_blob_injection_for_testing() {
 
 #[tokio::test]
 async fn test_p2p_blob_not_found() {
-    use monad_node::p2p::P2PNetwork;
+    use graphene_node::p2p::P2PNetwork;
 
     let node = MockGrapheneNode::new();
 
@@ -828,7 +833,7 @@ async fn test_runner_enforces_manifest_timeout() {
         estimated_ingress_mb: None,
     };
 
-    use monad_node::executor::VmmRunner;
+    use graphene_node::executor::VmmRunner;
 
     let start = std::time::Instant::now();
     let result = runner
@@ -930,7 +935,7 @@ async fn test_e2e_job_with_custom_result() {
     let executor = MockJobExecutor::new(MockExecutorBehavior::Custom(Arc::new(|req| {
         // Simulate different outcomes based on job ID
         match req.job_id.as_str() {
-            "compute-pi" => Ok(monad_node::executor::ExecutionResult::new(
+            "compute-pi" => Ok(graphene_node::executor::ExecutionResult::new(
                 0,
                 Duration::from_millis(500),
                 b"3.14159265359".to_vec(),
@@ -939,7 +944,7 @@ async fn test_e2e_job_with_custom_result() {
                 Hash::new(b"3.14159265359"),
             )),
             "fail-job" => Err(ExecutionError::vmm("Job failed intentionally")),
-            _ => Ok(monad_node::executor::ExecutionResult::new(
+            _ => Ok(graphene_node::executor::ExecutionResult::new(
                 0,
                 Duration::from_millis(100),
                 b"default result".to_vec(),

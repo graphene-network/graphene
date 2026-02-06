@@ -1,7 +1,7 @@
 use anyhow::Result;
 use iroh::{EndpointAddr, SecretKey};
 use iroh::endpoint::Endpoint;
-use monad_node::protocol::{Message, TALOS_ALPN};
+use graphene_node::protocol::{Message, TALOS_ALPN};
 use rand::RngCore;
 use std::env;
 
@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    println!("Usage: monad-client client <TARGET_PEER_ID>");
+    println!("Usage: graphene-client client <TARGET_PEER_ID>");
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "monad_node"
+name = "graphene_node"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true
@@ -93,5 +93,5 @@ path = "bin/server.rs"
 
 # TODO(#141): Re-enable client binary when SDK client is ready
 # [[bin]]
-# name = "monad-client"
+# name = "graphene-client"
 # path = "bin/client.rs"

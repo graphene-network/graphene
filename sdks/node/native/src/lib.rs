@@ -10,11 +10,11 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use monad_node::crypto::{
+use graphene_node::crypto::{
     self, CryptoProvider, DefaultCryptoProvider, EncryptedBlob as RustEncryptedBlob,
     EncryptionDirection as RustEncryptionDirection,
 };
-use monad_node::ticket::{
+use graphene_node::ticket::{
     ChannelState as RustChannelState, DefaultTicketValidator, PaymentTicket as RustPaymentTicket,
     TicketError, TicketPayload, TicketValidator,
 };
@@ -548,11 +548,11 @@ pub fn blake3_hash(data: Buffer) -> Buffer {
 // Protocol Bindings (JobRequest/JobResponse serialization)
 // ============================================================================
 
-use monad_node::p2p::messages::{
+use graphene_node::p2p::messages::{
     EgressRule as RustEgressRule, JobManifest as RustJobManifest,
     ResultDeliveryMode as RustResultDeliveryMode,
 };
-use monad_node::p2p::protocol::{
+use graphene_node::p2p::protocol::{
     wire::{decode_message as wire_decode, encode_message as wire_encode, MessageType},
     AssetData, Compression, JobAssets as RustJobAssets, JobRequest as RustJobRequest,
     JobResponse as RustJobResponse, JobResult as RustJobResult, JobStatus as RustJobStatus,
@@ -1003,8 +1003,8 @@ pub fn decode_wire_message(data: Buffer) -> Result<WireMessage> {
 // High-Level Client API
 // ============================================================================
 
-use monad_node::p2p::protocol::wire::{try_read_message, MessageType as WireMessageType};
-use monad_node::p2p::{graphene::GrapheneNode, P2PConfig, P2PNetwork, RelayConfig};
+use graphene_node::p2p::protocol::wire::{try_read_message, MessageType as WireMessageType};
+use graphene_node::p2p::{graphene::GrapheneNode, P2PConfig, P2PNetwork, RelayConfig};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -1333,7 +1333,7 @@ impl GrapheneClient {
 
         // Connect to worker using job protocol ALPN
         let conn = node
-            .connect(addr, monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+            .connect(addr, graphene_node::p2p::graphene::GRAPHENE_JOB_ALPN)
             .await
             .map_err(|e| napi::Error::from_reason(format!("Connection failed: {}", e)))?;
 
@@ -1681,7 +1681,10 @@ impl GrapheneClient {
         }
 
         let conn = node
-            .connect(addr.clone(), monad_node::p2p::graphene::GRAPHENE_JOB_ALPN)
+            .connect(
+                addr.clone(),
+                graphene_node::p2p::graphene::GRAPHENE_JOB_ALPN,
+            )
             .await
             .map_err(|e| napi::Error::from_reason(format!("Connection failed: {}", e)))?;
 
@@ -1861,13 +1864,13 @@ impl GrapheneClient {
 }
 
 // Note: Tests for napi bindings require Node.js runtime.
-// The underlying crypto functionality is tested in monad_node::crypto.
+// The underlying crypto functionality is tested in graphene_node::crypto.
 // See crates/sdk/tests/ for Node.js integration tests.
 #[cfg(test)]
 mod tests {
     use crate::{auto_asset_decision, AutoAssetDecision};
-    use monad_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
-    use monad_node::p2p::protocol::{INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD};
+    use graphene_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
+    use graphene_node::p2p::protocol::{INLINE_CODE_THRESHOLD, INLINE_INPUT_THRESHOLD};
 
     fn create_test_keypair(secret_bytes: [u8; 32]) -> ([u8; 32], [u8; 32]) {
         use ed25519_dalek::SigningKey;

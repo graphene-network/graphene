@@ -32,7 +32,7 @@ The build pipeline takes a Dockerfile + source code bundle and produces a sealed
 ### Building a Unikernel
 
 ```rust
-use monad_node::unikraft::{
+use graphene_node::unikraft::{
     BuildJob, BuildManifest, KraftBuilder, KraftConfig,
     ResourceLimits, Runtime, UnikernelBuilder,
 };
@@ -74,7 +74,7 @@ println!("Entrypoint: {:?}", validated.entrypoint);
 ### Testing with Mock
 
 ```rust
-use monad_node::unikraft::{MockKraftBuilder, MockBuildBehavior};
+use graphene_node::unikraft::{MockKraftBuilder, MockBuildBehavior};
 
 // Happy path
 let builder = MockKraftBuilder::happy_path();
@@ -172,8 +172,8 @@ match builder.build(&job).await {
 
 ```bash
 # Unit tests
-cargo test -p monad_node --lib
+cargo test -p graphene_node --lib
 
 # E2E tests (requires kraft CLI on Linux)
-cargo test -p monad_node --features e2e -- --ignored
+cargo test -p graphene_node --features e2e -- --ignored
 ```

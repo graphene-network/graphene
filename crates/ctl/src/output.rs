@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use monad_node::management::{
+use graphene_node::management::{
     protocol::{CapabilityInfo, MetricsSnapshot, NodeStatus},
     NodeConfig,
 };

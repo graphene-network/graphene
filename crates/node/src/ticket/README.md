@@ -78,7 +78,7 @@ pub struct ChannelLocalState {
 ### Signing a Ticket (User/Client)
 
 ```rust
-use monad_node::ticket::{DefaultTicketSigner, TicketSigner};
+use graphene_node::ticket::{DefaultTicketSigner, TicketSigner};
 
 let signer = DefaultTicketSigner::from_bytes(&user_secret_key);
 let ticket = signer.sign_ticket(channel_id, amount_micros, nonce).await?;
@@ -87,7 +87,7 @@ let ticket = signer.sign_ticket(channel_id, amount_micros, nonce).await?;
 ### Validating a Ticket (Worker)
 
 ```rust
-use monad_node::ticket::{DefaultTicketValidator, TicketValidator, ChannelState};
+use graphene_node::ticket::{DefaultTicketValidator, TicketValidator, ChannelState};
 
 let validator = DefaultTicketValidator::new();
 let channel_state = ChannelState {
@@ -101,7 +101,7 @@ validator.validate(&ticket, &user_pubkey, &channel_state).await?;
 ### Full Channel State Management (Worker)
 
 ```rust
-use monad_node::ticket::{
+use graphene_node::ticket::{
     DefaultChannelStateManager, ChannelConfig, ChannelLocalState,
     ChannelSyncService, MockSolanaChannelClient,
 };
@@ -181,11 +181,11 @@ PDA derivation: `[b"channel", user.key(), worker.key()]`
 
 ```bash
 # Run all ticket tests
-cargo test -p monad-node ticket::
+cargo test -p graphene-node ticket::
 
 # Run benchmarks
-cargo test -p monad-node bench_ticket --nocapture
-cargo test -p monad-node bench_accept --nocapture
+cargo test -p graphene-node bench_ticket --nocapture
+cargo test -p graphene-node bench_accept --nocapture
 ```
 
 ## Performance
@@ -198,6 +198,6 @@ Benchmarks show ~226µs average validation time, well under the 1ms target:
 
 ## Related Issues
 
-- [#27](https://github.com/marcus-sa/monad/issues/27) - Payment ticket format
-- [#28](https://github.com/marcus-sa/monad/issues/28) - Worker-side ticket verification
-- [#30](https://github.com/marcus-sa/monad/issues/30) - Batch settlement (blocked by this)
+- [#27](https://github.com/marcus-sa/graphene/issues/27) - Payment ticket format
+- [#28](https://github.com/marcus-sa/graphene/issues/28) - Worker-side ticket verification
+- [#30](https://github.com/marcus-sa/graphene/issues/30) - Batch settlement (blocked by this)

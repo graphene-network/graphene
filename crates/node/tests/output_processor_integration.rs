@@ -3,12 +3,14 @@ use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 
-use monad_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
-use monad_node::executor::output::{DefaultOutputProcessor, OutputProcessor};
-use monad_node::executor::runner::VmmOutput;
-use monad_node::executor::ExecutionRequest;
-use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode};
-use monad_node::p2p::protocol::types::JobAssets;
+use graphene_node::crypto::{
+    ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptionDirection,
+};
+use graphene_node::executor::output::{DefaultOutputProcessor, OutputProcessor};
+use graphene_node::executor::runner::VmmOutput;
+use graphene_node::executor::ExecutionRequest;
+use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode};
+use graphene_node::p2p::protocol::types::JobAssets;
 
 #[tokio::test]
 async fn output_processor_encrypts_and_preserves_metrics() {
@@ -75,7 +77,7 @@ async fn output_processor_encrypts_and_preserves_metrics() {
 
     let decrypted_result = crypto
         .decrypt_job_blob(
-            &monad_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_result).unwrap(),
+            &graphene_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_result).unwrap(),
             &user_keys,
             &request.job_id,
             EncryptionDirection::Output,
@@ -84,7 +86,7 @@ async fn output_processor_encrypts_and_preserves_metrics() {
 
     let decrypted_stdout = crypto
         .decrypt_job_blob(
-            &monad_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_stdout).unwrap(),
+            &graphene_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_stdout).unwrap(),
             &user_keys,
             &request.job_id,
             EncryptionDirection::Output,
@@ -93,7 +95,7 @@ async fn output_processor_encrypts_and_preserves_metrics() {
 
     let decrypted_stderr = crypto
         .decrypt_job_blob(
-            &monad_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_stderr).unwrap(),
+            &graphene_node::crypto::EncryptedBlob::from_bytes(&result.encrypted_stderr).unwrap(),
             &user_keys,
             &request.job_id,
             EncryptionDirection::Output,

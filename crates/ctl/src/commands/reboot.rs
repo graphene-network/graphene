@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use monad_node::management::{ManagementRequest, ManagementResponse};
+use graphene_node::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Validate that the force flag is set for reboot.

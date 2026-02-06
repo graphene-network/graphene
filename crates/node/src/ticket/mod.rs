@@ -53,7 +53,7 @@
 //! # Example
 //!
 //! ```text
-//! use monad_node::ticket::{
+//! use graphene_node::ticket::{
 //!     DefaultTicketSigner, DefaultTicketValidator, TicketSigner, TicketValidator,
 //!     ChannelState,
 //! };

@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```text
-//! use monad_node::ticket::{
+//! use graphene_node::ticket::{
 //!     ChannelSyncService, DefaultChannelStateManager, MockSolanaChannelClient,
 //!     ChannelConfig,
 //! };

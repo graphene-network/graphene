@@ -135,4 +135,4 @@ jobs:
           sudo apt-get install -y kraftkit
 
       - name: Run E2E Unikraft tests
-        run: cargo test -p monad_node --features e2e
+        run: cargo test -p graphene_node --features e2e

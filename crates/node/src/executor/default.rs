@@ -12,7 +12,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use monad_node::executor::{DefaultJobExecutor, ExecutionRequest, JobExecutor};
+//! use graphene_node::executor::{DefaultJobExecutor, ExecutionRequest, JobExecutor};
 //!
 //! // Create executor with all dependencies injected
 //! let executor = DefaultJobExecutor::new(

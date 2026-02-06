@@ -29,7 +29,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use monad_node::executor::{JobExecutor, ExecutionRequest, ExecutionResult};
+//! use graphene_node::executor::{JobExecutor, ExecutionRequest, ExecutionResult};
 //!
 //! async fn run_job(executor: &impl JobExecutor, request: ExecutionRequest) {
 //!     match executor.execute(request).await {

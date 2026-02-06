@@ -2,19 +2,19 @@
 //!
 //! These tests create actual Iroh endpoints and test the full protocol flow.
 
-use iroh::endpoint::Endpoint;
-use iroh::SecretKey;
-use monad_node::executor::{ExecutionError, ExecutionResult};
-use monad_node::p2p::graphene::GRAPHENE_JOB_ALPN;
-use monad_node::p2p::messages::{JobManifest, ResultDeliveryMode, WorkerCapabilities};
-use monad_node::p2p::protocol::{
+use graphene_node::executor::{ExecutionError, ExecutionResult};
+use graphene_node::p2p::graphene::GRAPHENE_JOB_ALPN;
+use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode, WorkerCapabilities};
+use graphene_node::p2p::protocol::{
     decode_message, encode_message, JobAssets, JobContext, JobProtocolHandler, JobRequest,
     JobResponse, JobStatus, MessageType, RejectReason,
 };
-use monad_node::ticket::{
+use graphene_node::ticket::{
     ChannelState, DefaultTicketSigner, MockTicketValidator, MockValidatorBehavior, PaymentTicket,
     TicketSigner, TicketValidator,
 };
+use iroh::endpoint::Endpoint;
+use iroh::SecretKey;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -212,7 +212,7 @@ async fn run_job_submission(
             }
 
             // Try to parse
-            if monad_node::p2p::protocol::wire::try_read_message(&buf[..offset])
+            if graphene_node::p2p::protocol::wire::try_read_message(&buf[..offset])
                 .ok()
                 .flatten()
                 .is_some()
@@ -223,11 +223,11 @@ async fn run_job_submission(
 
         // Parse and validate the request
         if let Ok(Some((msg_type, payload, _))) =
-            monad_node::p2p::protocol::wire::try_read_message(&buf[..offset])
+            graphene_node::p2p::protocol::wire::try_read_message(&buf[..offset])
         {
             if msg_type == MessageType::JobRequest {
                 let request: JobRequest =
-                    monad_node::p2p::protocol::wire::decode_payload(&payload).expect("decode");
+                    graphene_node::p2p::protocol::wire::decode_payload(&payload).expect("decode");
 
                 // Use the handler's context to validate
                 let context = handler.context();
@@ -237,9 +237,9 @@ async fn run_job_submission(
                 let capabilities = context.capabilities();
 
                 // 1. Check environment variables
-                let env_result = monad_node::p2p::protocol::validate_env(&request.manifest.env);
+                let env_result = graphene_node::p2p::protocol::validate_env(&request.manifest.env);
                 let (status, msg_type_out) = if let Err(e) = env_result {
-                    use monad_node::p2p::protocol::EnvValidationError;
+                    use graphene_node::p2p::protocol::EnvValidationError;
                     let reason = match e {
                         EnvValidationError::TooLarge { .. } => RejectReason::EnvTooLarge,
                         EnvValidationError::InvalidName { .. } | EnvValidationError::EmptyName => {
@@ -369,7 +369,7 @@ async fn run_job_submission(
 
     let (msg_type, payload) = decode_message(&buf[..offset]).expect("decode failed");
     let response: JobResponse =
-        monad_node::p2p::protocol::wire::decode_payload(payload).expect("payload decode failed");
+        graphene_node::p2p::protocol::wire::decode_payload(payload).expect("payload decode failed");
 
     assert_eq!(response.job_id, job_id);
 

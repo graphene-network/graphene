@@ -3,7 +3,7 @@
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
 use crate::output::{format_metrics_text, format_output, OutputFormat};
-use monad_node::management::{ManagementRequest, ManagementResponse};
+use graphene_node::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 pub async fn run(config_path: &str, node: &str, output_format: OutputFormat) -> anyhow::Result<()> {
@@ -30,7 +30,7 @@ pub async fn run(config_path: &str, node: &str, output_format: OutputFormat) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use monad_node::management::protocol::MetricsSnapshot;
+    use graphene_node::management::protocol::MetricsSnapshot;
 
     fn create_test_metrics() -> MetricsSnapshot {
         MetricsSnapshot {

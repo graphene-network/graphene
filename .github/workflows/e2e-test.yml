@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_LOG: monad_node=info,graphene_worker=info
+  RUST_LOG: graphene_node=info,graphene_worker=info
   FIRECRACKER_VERSION: "1.11.0"
 
 # Required because kernel-build.yml's release job declares contents: write

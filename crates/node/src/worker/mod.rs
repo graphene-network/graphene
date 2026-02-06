@@ -33,9 +33,9 @@
 //!
 //! ```ignore
 //! use std::sync::Arc;
-//! use monad_node::worker::{WorkerJobContext, WorkerStateMachine};
-//! use monad_node::executor::MockJobExecutor;
-//! use monad_node::result::MockResultDelivery;
+//! use graphene_node::worker::{WorkerJobContext, WorkerStateMachine};
+//! use graphene_node::executor::MockJobExecutor;
+//! use graphene_node::result::MockResultDelivery;
 //!
 //! // Create worker components
 //! let state_machine = WorkerStateMachine::new_shared(4);

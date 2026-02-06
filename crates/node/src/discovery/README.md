@@ -9,8 +9,8 @@ Workers announce their capabilities, pricing, and load status via gossip. Client
 ## Usage
 
 ```rust
-use monad_node::discovery::{IrohWorkerDiscovery, DiscoveryConfig, JobRequirements};
-use monad_node::p2p::{GrapheneNode, P2PConfig};
+use graphene_node::discovery::{IrohWorkerDiscovery, DiscoveryConfig, JobRequirements};
+use graphene_node::p2p::{GrapheneNode, P2PConfig};
 
 // Create P2P node and discovery service
 let node = Arc::new(GrapheneNode::new(P2PConfig::default()).await?);

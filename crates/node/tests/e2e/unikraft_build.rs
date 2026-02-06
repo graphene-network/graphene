@@ -1,11 +1,11 @@
 //! End-to-end tests for the Unikraft build pipeline.
 //!
 //! These tests require the `e2e` feature flag and the kraft CLI installed.
-//! Run with: `cargo test -p monad_node --features e2e`
+//! Run with: `cargo test -p graphene_node --features e2e`
 
 #![cfg(feature = "e2e")]
 
-use monad_node::unikraft::{
+use graphene_node::unikraft::{
     BuildJob, BuildManifest, KraftBuilder, KraftConfig, ResourceLimits, Runtime,
     UnikernelBuilder,
 };
