@@ -58,6 +58,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cpio
+
+      - name: Install Firecracker
+        run: |
+          FIRECRACKER_VERSION="v1.10.1"
+          curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/${FIRECRACKER_VERSION}/firecracker-${FIRECRACKER_VERSION}-x86_64.tgz" -o firecracker.tgz
+          tar -xzf firecracker.tgz
+          sudo mv release-${FIRECRACKER_VERSION}-x86_64/firecracker-${FIRECRACKER_VERSION}-x86_64 /usr/local/bin/firecracker
+          sudo chmod +x /usr/local/bin/firecracker
+          firecracker --version
+
+      - name: Install kraft CLI
+        run: |
+          # Install kraftkit from GitHub releases
+          KRAFT_VERSION=$(curl -s https://api.github.com/repos/unikraft/kraftkit/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraft_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraft.tar.gz
+          tar -xzf kraft.tar.gz
+          sudo mv kraft /usr/local/bin/kraft
+          kraft version
+
+      - name: Verify KVM access
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "ERROR: /dev/kvm not available"
+            exit 1
+          fi
+          ls -la /dev/kvm
+
       - name: Run tests
         run: cargo test --workspace --features integration-tests
 
