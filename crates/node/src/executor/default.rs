@@ -299,7 +299,7 @@ where
         &self,
         request: &ExecutionRequest,
     ) -> Result<std::path::PathBuf, ExecutionError> {
-        let kernel_spec = request.manifest.kernel.clone();
+        let kernel_spec = request.manifest.runtime.clone();
         let code_hash_bytes: [u8; 32] = self.compute_code_hash(&request.assets.code);
 
         // For now, we don't parse requirements from the code blob
@@ -341,7 +341,7 @@ where
         // TODO(#43): Implement actual unikernel build
         // For now, return an error indicating build is not implemented
         Err(ExecutionError::build(format!(
-            "Unikernel build not yet implemented for kernel: {}. Cache miss.",
+            "Unikernel build not yet implemented for runtime: {}. Cache miss.",
             kernel_spec
         )))
     }
@@ -352,9 +352,9 @@ where
     /// 1. GRAPHENE_KERNEL_CACHE environment variable
     /// 2. $HOME/.graphene/cache/kernels
     /// 3. /usr/share/graphene/kernels
-    fn find_prebuilt_kernel(&self, kernel_spec: &str) -> Option<std::path::PathBuf> {
+    fn find_prebuilt_kernel(&self, runtime_spec: &str) -> Option<std::path::PathBuf> {
         // Convert kernel spec like "python:3.12" to filename like "python-3.12_fc-x86_64"
-        let kernel_name = kernel_spec.replace(':', "-");
+        let kernel_name = runtime_spec.replace(':', "-");
         let filename = format!("{}_fc-x86_64", kernel_name);
 
         // Check paths in priority order
@@ -370,7 +370,7 @@ where
             let kernel_path = path_opt.join(&filename);
             if kernel_path.exists() {
                 debug!(
-                    kernel = kernel_spec,
+                    runtime = runtime_spec,
                     path = ?kernel_path,
                     "Found pre-built kernel"
                 );
@@ -378,7 +378,7 @@ where
             }
         }
 
-        debug!(kernel = kernel_spec, "No pre-built kernel found");
+        debug!(runtime = runtime_spec, "No pre-built kernel found");
         None
     }
 
@@ -466,7 +466,7 @@ where
         handle: &JobHandle,
     ) -> Result<ExecutionResult, ExecutionError> {
         let job_id = &request.job_id;
-        info!(job_id, kernel = %request.manifest.kernel, "Starting job execution");
+        info!(job_id, kernel = %request.manifest.runtime, "Starting job execution");
 
         // Phase 1: Derive channel keys
         self.check_cancelled(handle)?;
@@ -531,11 +531,11 @@ where
 
         // Phase 6: Run VM
         self.check_cancelled(handle)?;
-        let boot_args = if request.manifest.kernel.starts_with("python") {
+        let boot_args = if request.manifest.runtime.starts_with("python") {
             // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
             "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/python3 /app/main.py"
                 .to_string()
-        } else if request.manifest.kernel.starts_with("node") {
+        } else if request.manifest.runtime.starts_with("node") {
             // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
             "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/node /app/index.js"
                 .to_string()
@@ -803,7 +803,7 @@ mod tests {
                 vcpu: 1,
                 memory_mb: 256,
                 timeout_ms: 5000,
-                kernel: "python:3.12".to_string(),
+                runtime: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: HashMap::new(),
                 estimated_egress_mb: None,
@@ -888,7 +888,7 @@ mod tests {
                 vcpu: 1,
                 memory_mb: 256,
                 timeout_ms: 5000,
-                kernel: "python:3.12".to_string(),
+                runtime: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: HashMap::new(),
                 estimated_egress_mb: None,

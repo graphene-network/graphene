@@ -27,12 +27,12 @@ fn make_channel_keys() -> (ChannelKeys, [u8; 32], [u8; 32]) {
     (user_keys, user_public, worker_secret)
 }
 
-fn make_manifest(kernel: &str) -> JobManifest {
+fn make_manifest(runtime: &str) -> JobManifest {
     JobManifest {
         vcpu: 1,
         memory_mb: 256,
         timeout_ms: 5_000,
-        kernel: kernel.to_string(),
+        runtime: runtime.to_string(),
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,

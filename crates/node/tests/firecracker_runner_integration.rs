@@ -105,7 +105,7 @@ async fn firecracker_runner_creates_and_cleans_runtime_paths() {
         vcpu: 1,
         memory_mb: 256,
         timeout_ms: 1000,
-        kernel: "python:3.12".to_string(),
+        runtime: "python:3.12".to_string(),
         egress_allowlist: vec![],
         env: HashMap::new(),
         estimated_egress_mb: None,

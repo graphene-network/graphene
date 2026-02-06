@@ -134,7 +134,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
       try {
         const result = await client.run({
           code: 'print("Validated with real Solana!")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           timeoutMs: 30_000,
         });
 
@@ -168,7 +168,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         // For now, just verify basic connectivity works
         const result = await client.run({
           code: 'print("balance check")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
 
         expect(result.exitCode).toBe(0);
@@ -190,7 +190,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
         // Run multiple jobs to increment nonce
         const result1 = await client.run({
           code: 'print(1)',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
         expect(result1.exitCode).toBe(0);
 
@@ -198,7 +198,7 @@ describe.skipIf(!SOLANA_AVAILABLE)('E2E: Real Solana Tests', () => {
 
         const result2 = await client.run({
           code: 'print(2)',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
         expect(result2.exitCode).toBe(0);
 

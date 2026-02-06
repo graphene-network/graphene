@@ -223,7 +223,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 256,
             timeout_ms: 1000,
-            kernel: "test".to_string(),
+            runtime: "test".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,

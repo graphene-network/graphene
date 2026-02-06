@@ -36,7 +36,7 @@ pub trait BuildCache: Send + Sync {
     /// Returns the cached artifact path and which level it came from.
     async fn lookup(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
     ) -> Result<Option<CacheLookupResult>, CacheError>;
@@ -47,7 +47,7 @@ pub trait BuildCache: Send + Sync {
     /// Returns the blob hash for P2P retrieval.
     async fn store(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
         artifact_path: PathBuf,
@@ -62,7 +62,7 @@ pub trait BuildCache: Send + Sync {
         cache_key: &[u8; 32],
         blob_hash: Hash,
         size_bytes: u64,
-        kernel_spec: &str,
+        runtime_spec: &str,
     ) -> Result<(), CacheError>;
 }
 
@@ -91,12 +91,12 @@ impl<N: P2PNetwork + 'static> LayeredBuildCache<N> {
     /// Compute the L3 cache key from inputs.
     fn compute_cache_key(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
     ) -> [u8; 32] {
         let code_hash = blake3::Hash::from_bytes(*code_hash);
-        *full_build_key(kernel_spec, requirements, &code_hash).as_bytes()
+        *full_build_key(runtime_spec, requirements, &code_hash).as_bytes()
     }
 }
 
@@ -104,11 +104,11 @@ impl<N: P2PNetwork + 'static> LayeredBuildCache<N> {
 impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
     async fn lookup(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
     ) -> Result<Option<CacheLookupResult>, CacheError> {
-        let cache_key = self.compute_cache_key(kernel_spec, requirements, code_hash);
+        let cache_key = self.compute_cache_key(runtime_spec, requirements, code_hash);
         let cache_key_hex = hex::encode(cache_key);
 
         // Try local cache first
@@ -139,12 +139,12 @@ impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
 
     async fn store(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
         artifact_path: PathBuf,
     ) -> Result<Hash, CacheError> {
-        let cache_key = self.compute_cache_key(kernel_spec, requirements, code_hash);
+        let cache_key = self.compute_cache_key(runtime_spec, requirements, code_hash);
         let cache_key_hex = hex::encode(cache_key);
 
         // Store in local cache (moves the file)
@@ -169,7 +169,7 @@ impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
 
         // Announce availability
         let metadata = std::fs::metadata(&local_path)?;
-        self.announce(&cache_key, blob_hash, metadata.len(), kernel_spec)
+        self.announce(&cache_key, blob_hash, metadata.len(), runtime_spec)
             .await?;
 
         Ok(blob_hash)
@@ -180,7 +180,7 @@ impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
         cache_key: &[u8; 32],
         blob_hash: Hash,
         size_bytes: u64,
-        kernel_spec: &str,
+        runtime_spec: &str,
     ) -> Result<(), CacheError> {
         use crate::p2p::messages::CacheAnnouncement;
 
@@ -188,7 +188,7 @@ impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
             cache_key: *cache_key,
             blob_hash,
             size_bytes,
-            kernel_spec: kernel_spec.to_string(),
+            runtime_spec: runtime_spec.to_string(),
         };
 
         let message =
@@ -202,7 +202,7 @@ impl<N: P2PNetwork + 'static> BuildCache for LayeredBuildCache<N> {
         tracing::info!(
             blob = %blob_hash,
             size = size_bytes,
-            kernel = kernel_spec,
+            kernel = runtime_spec,
             "Announced cache availability"
         );
 
@@ -242,12 +242,12 @@ impl MockBuildCache {
 impl BuildCache for MockBuildCache {
     async fn lookup(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
     ) -> Result<Option<CacheLookupResult>, CacheError> {
         let code_hash = blake3::Hash::from_bytes(*code_hash);
-        let cache_key = *full_build_key(kernel_spec, requirements, &code_hash).as_bytes();
+        let cache_key = *full_build_key(runtime_spec, requirements, &code_hash).as_bytes();
 
         let entries = self.entries.read().unwrap();
         if let Some(path) = entries.get(&cache_key) {
@@ -262,13 +262,13 @@ impl BuildCache for MockBuildCache {
 
     async fn store(
         &self,
-        kernel_spec: &str,
+        runtime_spec: &str,
         requirements: &[String],
         code_hash: &[u8; 32],
         artifact_path: PathBuf,
     ) -> Result<Hash, CacheError> {
         let code_hash_blake = blake3::Hash::from_bytes(*code_hash);
-        let cache_key = *full_build_key(kernel_spec, requirements, &code_hash_blake).as_bytes();
+        let cache_key = *full_build_key(runtime_spec, requirements, &code_hash_blake).as_bytes();
 
         self.entries
             .write()
@@ -284,7 +284,7 @@ impl BuildCache for MockBuildCache {
         cache_key: &[u8; 32],
         blob_hash: Hash,
         _size_bytes: u64,
-        _kernel_spec: &str,
+        _runtime_spec: &str,
     ) -> Result<(), CacheError> {
         self.announcements
             .write()

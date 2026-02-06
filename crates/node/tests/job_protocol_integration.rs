@@ -151,7 +151,7 @@ fn create_test_request(channel_id: [u8; 32], ticket: PaymentTicket) -> JobReques
             vcpu: 1,
             memory_mb: 256,
             timeout_ms: 10000,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: [("MY_VAR".to_string(), "my_value".to_string())]
                 .into_iter()
@@ -259,8 +259,8 @@ async fn run_job_submission(
                     (JobStatus::Rejected(reason), MessageType::JobRejected)
                 }
                 // 3. Check kernel support
-                else if !capabilities.kernels.contains(&request.manifest.kernel) {
-                    let reason = RejectReason::UnsupportedKernel;
+                else if !capabilities.kernels.contains(&request.manifest.runtime) {
+                    let reason = RejectReason::UnsupportedRuntime;
                     context.on_job_rejected(request.job_id, reason).await;
                     (JobStatus::Rejected(reason), MessageType::JobRejected)
                 }
@@ -489,7 +489,7 @@ async fn test_job_submission_rejected_unsupported_kernel() {
     // Create request with unsupported kernel
     let ticket = PaymentTicket::new(channel_id, 1_000_000, 1, 1700000000, [0u8; 64]);
     let mut request = create_test_request(channel_id, ticket);
-    request.manifest.kernel = "rust:1.75".to_string(); // Not in capabilities
+    request.manifest.runtime = "rust:1.75".to_string(); // Not in capabilities
 
     // Run the submission
     let (response, msg_type) =
@@ -499,12 +499,12 @@ async fn test_job_submission_rejected_unsupported_kernel() {
     assert_eq!(msg_type, MessageType::JobRejected);
     assert_eq!(
         response.status,
-        JobStatus::Rejected(RejectReason::UnsupportedKernel)
+        JobStatus::Rejected(RejectReason::UnsupportedRuntime)
     );
 
     // Verify rejection recorded
     let rejected = context.rejected_jobs().await;
-    assert_eq!(rejected[0].1, RejectReason::UnsupportedKernel);
+    assert_eq!(rejected[0].1, RejectReason::UnsupportedRuntime);
 }
 
 #[tokio::test]

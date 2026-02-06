@@ -302,7 +302,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             timeout_ms: 30000,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,
@@ -407,7 +407,7 @@ mod tests {
             vcpu: 1,
             memory_mb: 256,
             timeout_ms: 10000,
-            kernel: "node:20".to_string(),
+            runtime: "node:20".to_string(),
             egress_allowlist: vec![EgressRule {
                 host: "api.example.com".to_string(),
                 port: 443,

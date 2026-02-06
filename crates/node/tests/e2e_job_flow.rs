@@ -169,7 +169,7 @@ fn make_test_request(delivery_mode: ResultDeliveryMode) -> JobRequest {
             vcpu: 1,
             memory_mb: 256,
             timeout_ms: 10000,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,

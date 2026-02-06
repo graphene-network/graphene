@@ -110,7 +110,7 @@ impl WorkerInfo {
         }
 
         // Check kernel support
-        if !self.capabilities.kernels.contains(&requirements.kernel) {
+        if !self.capabilities.kernels.contains(&requirements.runtime) {
             return false;
         }
 
@@ -159,7 +159,7 @@ pub struct JobRequirements {
     pub memory_mb: u32,
 
     /// Required kernel.
-    pub kernel: String,
+    pub runtime: String,
 
     /// Maximum acceptable CPU price per ms.
     pub max_price_cpu_ms: Option<u64>,

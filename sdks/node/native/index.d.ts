@@ -143,8 +143,8 @@ export interface JobManifest {
   memoryMb: number
   /** Maximum execution time in milliseconds. */
   timeoutMs: bigint
-  /** Required unikernel image (e.g., "python:3.12"). */
-  kernel: string
+  /** Required runtime image (e.g., "python:3.12"). */
+  runtime: string
   /** Allowed egress endpoints. */
   egressAllowlist: Array<EgressRule>
   /** Environment variables to set in the unikernel. */
@@ -242,7 +242,7 @@ export const enum RejectReason {
   /** Worker is at capacity. */
   CapacityFull = 'CapacityFull',
   /** Requested kernel is not supported. */
-  UnsupportedKernel = 'UnsupportedKernel',
+  UnsupportedRuntime = 'UnsupportedRuntime',
   /** Requested resources exceed worker limits. */
   ResourcesExceedLimits = 'ResourcesExceedLimits',
   /** Environment variables total size exceeds limit. */
@@ -389,8 +389,8 @@ export interface JobOptions {
   assets?: AssetOptions
   /** Timeout in milliseconds (default: 30000). */
   timeoutMs?: bigint
-  /** Kernel/runtime to use (default: "python:3.12"). */
-  kernel?: string
+  /** Runtime to use (default: "python:3.12"). */
+  runtime?: string
   /** Environment variables. */
   env?: Record<string, string>
   /** Result delivery mode: "sync" or "async". */

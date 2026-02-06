@@ -340,8 +340,8 @@ pub struct DiscoveryQuery {
     /// Required memory in MB.
     pub required_memory_mb: u32,
 
-    /// Required kernel.
-    pub required_kernel: String,
+    /// Required runtime.
+    pub required_runtime: String,
 
     /// Maximum acceptable CPU price per ms.
     pub max_price_cpu_ms: Option<u64>,
@@ -415,8 +415,8 @@ pub struct CacheAnnouncement {
     /// Size of the cached artifact in bytes.
     pub size_bytes: u64,
 
-    /// Kernel specification (e.g., "python:3.12", "node:20").
-    pub kernel_spec: String,
+    /// Runtime specification (e.g., "python:3.12", "node:20").
+    pub runtime_spec: String,
 }
 
 /// Messages broadcast on the `graphene-cache-v1` topic.
@@ -564,8 +564,8 @@ pub struct JobManifest {
     /// Maximum execution time in milliseconds.
     pub timeout_ms: u64,
 
-    /// Required unikernel image.
-    pub kernel: String,
+    /// Required unikernel runtime.
+    pub runtime: String,
 
     /// Allowed egress endpoints (for firewall configuration).
     pub egress_allowlist: Vec<EgressRule>,

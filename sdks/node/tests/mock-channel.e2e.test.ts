@@ -97,7 +97,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'print("Hello from Python!")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           timeoutMs: 30_000,
         });
 
@@ -133,7 +133,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'console.log("Hello from Node!")',
-          kernel: 'node:21',
+          runtime: 'node:21',
           timeoutMs: 30_000,
         });
 
@@ -163,7 +163,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'import os; print(os.environ.get("MY_VAR", "NOT_SET"))',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           env: { MY_VAR: 'test_value_123' },
           timeoutMs: 30_000,
         });
@@ -197,7 +197,7 @@ describe('E2E: Mock Channel Tests', () => {
         // Run first job
         const result1 = await client.run({
           code: 'print(1)',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
         expect(result1.exitCode).toBe(0);
         expect(client.currentNonce).toBe(initialNonce + 1n);
@@ -205,7 +205,7 @@ describe('E2E: Mock Channel Tests', () => {
         // Run second job
         const result2 = await client.run({
           code: 'print(2)',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
         expect(result2.exitCode).toBe(0);
         expect(client.currentNonce).toBe(initialNonce + 2n);
@@ -213,7 +213,7 @@ describe('E2E: Mock Channel Tests', () => {
         // Run third job
         const result3 = await client.run({
           code: 'print(3)',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
         });
         expect(result3.exitCode).toBe(0);
         expect(client.currentNonce).toBe(initialNonce + 3n);
@@ -237,7 +237,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'print("With resources")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           resources: {
             vcpu: 2,
             memoryMb: 512,
@@ -266,7 +266,7 @@ describe('E2E: Mock Channel Tests', () => {
         await expect(
           client.run({
             code: 'print("test")',
-            kernel: 'ruby:3.2', // Not in supported kernels list
+            runtime: 'ruby:3.2', // Not in supported kernels list
             timeoutMs: 10_000,
           })
         ).rejects.toThrow(/UnsupportedKernel|not supported/i);
@@ -288,7 +288,7 @@ describe('E2E: Mock Channel Tests', () => {
         await expect(
           client.run({
             code: 'print("test")',
-            kernel: 'python:3.12',
+            runtime: 'python:3.12',
             env: { GRAPHENE_INTERNAL: 'forbidden' },
             timeoutMs: 10_000,
           })
@@ -311,7 +311,7 @@ describe('E2E: Mock Channel Tests', () => {
         await expect(
           client.run({
             code: 'print("test")',
-            kernel: 'python:3.12',
+            runtime: 'python:3.12',
             resources: {
               vcpu: 100, // Way over max_vcpu: 4
               memoryMb: 100_000, // Way over max_memory_mb: 4096
@@ -340,7 +340,7 @@ describe('E2E: Mock Channel Tests', () => {
         await expect(
           client.run({
             code: 'print("test")',
-            kernel: 'python:3.12',
+            runtime: 'python:3.12',
             timeoutMs: 10_000,
           })
         ).rejects.toThrow(/TicketInvalid|signature|invalid/i);
@@ -390,7 +390,7 @@ describe('E2E: Mock Channel Tests', () => {
         // Small code should be delivered inline by default (auto mode)
         const result = await client.run({
           code: 'print("Auto mode inline delivery")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           timeoutMs: 30_000,
         });
 
@@ -420,7 +420,7 @@ describe('E2E: Mock Channel Tests', () => {
       try {
         const result = await client.run({
           code: 'print("Explicit inline mode")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           assets: {
             mode: 'inline',
           },
@@ -455,7 +455,7 @@ describe('E2E: Mock Channel Tests', () => {
         // Blob mode should upload to Iroh and then be fetched by worker
         const result = await client.run({
           code: 'print("Explicit blob mode")',
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           assets: {
             mode: 'blob',
           },
@@ -496,7 +496,7 @@ print(f"Compressed delivery: {len(data)} chars")
 
         const result = await client.run({
           code: repetitiveCode,
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           assets: {
             compress: true,
           },
@@ -536,7 +536,7 @@ import sys
 input_data = sys.stdin.read()
 print(f"Received input: {input_data}")
 `.trim(),
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           input: inputData,
           assets: {
             mode: 'inline',
@@ -575,7 +575,7 @@ print(f"Received input: {input_data}")
 import sys
 sys.stderr.write("stderr-only\\n")
 `.trim(),
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           timeoutMs: 30_000,
         });
 
@@ -608,7 +608,7 @@ sys.stderr.write("stderr-only\\n")
 from pathlib import Path
 Path("/output/inline.txt").write_text("inline-result-ok")
 `.trim(),
-          kernel: 'python:3.12',
+          runtime: 'python:3.12',
           timeoutMs: 30_000,
         });
 
@@ -643,7 +643,7 @@ Path("/output/inline.txt").write_text("inline-result-ok")
 
       const job = {
         code: 'print("benchmark-run")',
-        kernel: 'python:3.12',
+        runtime: 'python:3.12',
         timeoutMs: 30_000,
       } as const;
 

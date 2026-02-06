@@ -35,7 +35,7 @@ import { ConfigError } from './errors.js';
  *
  * const result = await client.run({
  *   code: 'print(2 + 2)',
- *   kernel: 'python:3.12',
+ *   runtime: 'python:3.12',
  * });
  *
  * console.log(new TextDecoder().decode(result.output)); // "4\n"
@@ -127,7 +127,7 @@ export class Client {
         compress: options.assets.compress,
       } : undefined,
       timeoutMs: options.timeoutMs !== undefined ? BigInt(options.timeoutMs) : undefined,
-      kernel: options.kernel,
+      runtime: options.runtime,
       env: options.env,
       deliveryMode: options.deliveryMode,
     };

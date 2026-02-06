@@ -19,7 +19,7 @@
  *
  * const result = await client.run({
  *   code: 'print(2 + 2)',
- *   kernel: 'python:3.12',
+ *   runtime: 'python:3.12',
  * });
  *
  * console.log(new TextDecoder().decode(result.output)); // "4\n"

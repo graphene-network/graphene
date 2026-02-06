@@ -7,7 +7,7 @@ fn make_manifest() -> JobManifest {
         vcpu: 2,
         memory_mb: 512,
         timeout_ms: 1000,
-        kernel: "python:3.12".to_string(),
+        runtime: "python:3.12".to_string(),
         egress_allowlist: vec![],
         env: Default::default(),
         estimated_egress_mb: None,

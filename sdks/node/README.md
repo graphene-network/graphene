@@ -21,7 +21,7 @@ const client = await Client.create({
 
 const result = await client.run({
   code: 'print(2 + 2)',
-  kernel: 'python:3.12',
+  runtime: 'python:3.12',
 });
 
 console.log(new TextDecoder().decode(result.output)); // "4\n"
@@ -70,7 +70,7 @@ Run a job on a Graphene worker.
 **Parameters:**
 - `options.code` - Code to execute (string)
 - `options.input?` - Optional input data (Uint8Array)
-- `options.kernel?` - Kernel image (default: "python:3.12")
+- `options.kernel?` - Runtime image (default: "python:3.12")
 - `options.vcpu?` - vCPU count (default: 1)
 - `options.memoryMb?` - Memory in MB (default: 256)
 - `options.timeoutMs?` - Timeout in ms (default: 30000)

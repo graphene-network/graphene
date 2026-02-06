@@ -120,7 +120,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
         vcpu: 1,
         memory_mb: 256,
         timeout_ms: 30_000,
-        kernel: "python:3.12".to_string(),
+        runtime: "python:3.12".to_string(),
         egress_allowlist: vec![],
         env: std::collections::HashMap::new(),
         estimated_egress_mb: None,

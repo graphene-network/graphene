@@ -331,7 +331,7 @@ pub enum RejectReason {
     CapacityFull,
 
     /// Requested kernel is not supported by this worker.
-    UnsupportedKernel,
+    UnsupportedRuntime,
 
     /// Requested resources exceed worker limits.
     ResourcesExceedLimits,
@@ -362,7 +362,7 @@ impl std::fmt::Display for RejectReason {
             RejectReason::ChannelExhausted => write!(f, "payment channel exhausted"),
             RejectReason::InsufficientPayment => write!(f, "insufficient payment for job cost"),
             RejectReason::CapacityFull => write!(f, "worker at capacity"),
-            RejectReason::UnsupportedKernel => write!(f, "unsupported kernel"),
+            RejectReason::UnsupportedRuntime => write!(f, "unsupported kernel"),
             RejectReason::ResourcesExceedLimits => write!(f, "resources exceed limits"),
             RejectReason::EnvTooLarge => write!(f, "environment variables too large"),
             RejectReason::InvalidEnvName => write!(f, "invalid environment variable name"),
@@ -584,7 +584,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             timeout_ms: 30000,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: Default::default(),
             estimated_egress_mb: None,
@@ -603,7 +603,7 @@ mod tests {
                 vcpu: 2,
                 memory_mb: 512,
                 timeout_ms: 30000,
-                kernel: "python:3.12".to_string(),
+                runtime: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: Default::default(),
                 estimated_egress_mb: None,
@@ -623,7 +623,7 @@ mod tests {
 
         assert_eq!(request.job_id, decoded.job_id);
         assert_eq!(request.manifest.vcpu, decoded.manifest.vcpu);
-        assert_eq!(request.manifest.kernel, decoded.manifest.kernel);
+        assert_eq!(request.manifest.runtime, decoded.manifest.runtime);
     }
 
     #[test]

@@ -581,8 +581,8 @@ pub struct JobManifest {
     pub memory_mb: u32,
     /// Maximum execution time in milliseconds.
     pub timeout_ms: BigInt,
-    /// Required unikernel image (e.g., "python:3.12").
-    pub kernel: String,
+    /// Required runtime image (e.g., "python:3.12").
+    pub runtime: String,
     /// Allowed egress endpoints.
     pub egress_allowlist: Vec<EgressRule>,
     /// Environment variables to set in the unikernel.
@@ -692,7 +692,7 @@ pub enum RejectReason {
     /// Worker is at capacity.
     CapacityFull,
     /// Requested kernel is not supported.
-    UnsupportedKernel,
+    UnsupportedRuntime,
     /// Requested resources exceed worker limits.
     ResourcesExceedLimits,
     /// Environment variables total size exceeds limit.
@@ -771,7 +771,7 @@ pub fn serialize_job_request(request: JobRequest) -> Result<Buffer> {
         vcpu: request.manifest.vcpu as u8,
         memory_mb: request.manifest.memory_mb,
         timeout_ms,
-        kernel: request.manifest.kernel,
+        runtime: request.manifest.runtime,
         egress_allowlist,
         env: request.manifest.env,
         estimated_egress_mb,
@@ -880,7 +880,7 @@ pub fn deserialize_job_response(data: Buffer) -> Result<JobResponse> {
                 RustRejectReason::ChannelExhausted => "ChannelExhausted",
                 RustRejectReason::InsufficientPayment => "InsufficientPayment",
                 RustRejectReason::CapacityFull => "CapacityFull",
-                RustRejectReason::UnsupportedKernel => "UnsupportedKernel",
+                RustRejectReason::UnsupportedRuntime => "UnsupportedRuntime",
                 RustRejectReason::ResourcesExceedLimits => "ResourcesExceedLimits",
                 RustRejectReason::EnvTooLarge => "EnvTooLarge",
                 RustRejectReason::InvalidEnvName => "InvalidEnvName",
@@ -1081,8 +1081,8 @@ pub struct JobOptions {
     pub assets: Option<AssetOptions>,
     /// Timeout in milliseconds (default: 30000).
     pub timeout_ms: Option<BigInt>,
-    /// Kernel/runtime to use (default: "python:3.12").
-    pub kernel: Option<String>,
+    /// Runtime to use (default: "python:3.12").
+    pub runtime: Option<String>,
     /// Environment variables.
     pub env: Option<HashMap<String, String>>,
     /// Result delivery mode: "sync" or "async".
@@ -1450,7 +1450,7 @@ impl GrapheneClient {
         let vcpu = resources.vcpu.unwrap_or(1) as u8;
         let memory_mb = resources.memory_mb.unwrap_or(256);
         let timeout_ms = options.timeout_ms.map(|b| b.get_u64().1).unwrap_or(30000);
-        let kernel = options.kernel.unwrap_or_else(|| "python:3.12".to_string());
+        let runtime = options.runtime.unwrap_or_else(|| "python:3.12".to_string());
         let env = options.env.unwrap_or_default();
         let egress_allowlist = networking.egress_allowlist.unwrap_or_default();
         let estimated_egress_mb = networking.estimated_egress_mb.map(|b| b.get_u64().1);
@@ -1641,7 +1641,7 @@ impl GrapheneClient {
             vcpu,
             memory_mb,
             timeout_ms,
-            kernel,
+            runtime,
             egress_allowlist: egress,
             env,
             estimated_egress_mb,

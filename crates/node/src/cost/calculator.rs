@@ -348,7 +348,7 @@ mod tests {
             vcpu,
             memory_mb,
             timeout_ms,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,

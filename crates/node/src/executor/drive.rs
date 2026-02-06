@@ -471,16 +471,16 @@ pub mod linux {
             })?;
 
             // Choose filename based on kernel runtime
-            let code_filename = if manifest.kernel.starts_with("python") {
+            let code_filename = if manifest.runtime.starts_with("python") {
                 "main.py"
-            } else if manifest.kernel.starts_with("node") {
+            } else if manifest.runtime.starts_with("node") {
                 "index.js"
             } else {
                 "code"
             };
             tracing::debug!(
                 job_id,
-                kernel = %manifest.kernel,
+                kernel = %manifest.runtime,
                 filename = code_filename,
                 staging = %app_dir.display(),
                 "Placing code asset"
@@ -692,7 +692,7 @@ mod tests {
             vcpu: 2,
             memory_mb: 512,
             timeout_ms: 30000,
-            kernel: "python:3.12".to_string(),
+            runtime: "python:3.12".to_string(),
             egress_allowlist: vec![],
             env: HashMap::new(),
             estimated_egress_mb: None,

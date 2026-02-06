@@ -128,7 +128,7 @@ const request = {
     vcpu: 1,
     memoryMb: 256,
     timeoutMs: 30000n,
-    kernel: 'python:3.12',
+    runtime: 'python:3.12',
     egressAllowlist: [],
     env: {},
   },

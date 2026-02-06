@@ -378,8 +378,8 @@ impl<V: TicketValidator, C: JobContext> JobProtocolHandler<V, C> {
 
         // 3. Check kernel support
         let capabilities = self.context.capabilities();
-        if !capabilities.kernels.contains(&request.manifest.kernel) {
-            return Err(RejectReason::UnsupportedKernel);
+        if !capabilities.kernels.contains(&request.manifest.runtime) {
+            return Err(RejectReason::UnsupportedRuntime);
         }
 
         // 4. Check resource limits
@@ -633,7 +633,7 @@ mod tests {
                 vcpu: 1,
                 memory_mb: 256,
                 timeout_ms: 10000,
-                kernel: "python:3.12".to_string(),
+                runtime: "python:3.12".to_string(),
                 egress_allowlist: vec![],
                 env: HashMap::new(),
                 estimated_egress_mb: None,
@@ -735,10 +735,10 @@ mod tests {
 
         let handler = JobProtocolHandler::new(validator, context);
         let mut request = create_test_request();
-        request.manifest.kernel = "rust:1.75".to_string();
+        request.manifest.runtime = "rust:1.75".to_string();
 
         let result = handler.validate_request(&request).await;
-        assert_eq!(result, Err(RejectReason::UnsupportedKernel));
+        assert_eq!(result, Err(RejectReason::UnsupportedRuntime));
     }
 
     #[tokio::test]

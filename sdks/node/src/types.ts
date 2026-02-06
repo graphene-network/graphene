@@ -149,8 +149,8 @@ export interface RunOptions {
   assets?: AssetOptions;
   /** Execution timeout in milliseconds (default: 30000) */
   timeoutMs?: number;
-  /** Kernel image to use (default: "python:3.12") */
-  kernel?: string;
+  /** Runtime image to use (default: "python:3.12") */
+  runtime?: string;
   /** Environment variables to pass to the job */
   env?: Record<string, string>;
   /** Delivery mode: "sync" waits for result, "async" returns immediately */

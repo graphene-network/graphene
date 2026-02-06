@@ -32,7 +32,7 @@ async fn layered_build_cache_announces_on_store() {
     assert_eq!(*topic, TopicId::cache_v1());
 
     let announcement: CacheAnnouncement = serde_json::from_slice(payload).unwrap();
-    assert_eq!(announcement.kernel_spec, kernel_spec);
+    assert_eq!(announcement.runtime_spec, kernel_spec);
     assert_eq!(announcement.blob_hash, blob_hash);
     assert_eq!(announcement.size_bytes, 9);
 }

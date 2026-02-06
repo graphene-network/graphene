@@ -15,8 +15,8 @@ use blake3::Hash;
 /// includes runtime and version (e.g., "python:3.12", "node:20").
 ///
 /// Expected hit rate: ~100% (kernels are pre-built)
-pub fn l1_key(kernel_spec: &str) -> Hash {
-    blake3::hash(kernel_spec.as_bytes())
+pub fn l1_key(runtime_spec: &str) -> Hash {
+    blake3::hash(runtime_spec.as_bytes())
 }
 
 /// Compute L2 cache key from L1 key and requirements.
@@ -51,8 +51,8 @@ pub fn l3_key(l2: &Hash, code_hash: &Hash) -> Hash {
 /// Compute L3 cache key directly from all inputs.
 ///
 /// Convenience function that computes the full L3 key from raw inputs.
-pub fn full_build_key(kernel_spec: &str, requirements: &[String], code_hash: &Hash) -> Hash {
-    let l1 = l1_key(kernel_spec);
+pub fn full_build_key(runtime_spec: &str, requirements: &[String], code_hash: &Hash) -> Hash {
+    let l1 = l1_key(runtime_spec);
     let l2 = l2_key(&l1, requirements);
     l3_key(&l2, code_hash)
 }

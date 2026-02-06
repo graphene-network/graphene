@@ -88,7 +88,7 @@ pub enum JobStatus {
 | `TicketInvalid` | Payment ticket signature or format invalid |
 | `ChannelExhausted` | Payment channel balance exhausted or nonce replayed |
 | `CapacityFull` | Worker has no available slots |
-| `UnsupportedKernel` | Requested kernel not supported |
+| `UnsupportedRuntime` | Requested kernel not supported |
 | `ResourcesExceedLimits` | Requested vCPU/memory exceeds worker limits |
 | `EnvTooLarge` | Environment variables exceed 128KB |
 | `InvalidEnvName` | Environment variable name invalid |

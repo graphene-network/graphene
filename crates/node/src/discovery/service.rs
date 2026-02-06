@@ -481,7 +481,7 @@ mod tests {
         let requirements = JobRequirements {
             vcpu: 4,
             memory_mb: 8192,
-            kernel: "node-20-unikraft".to_string(),
+            runtime: "node-20-unikraft".to_string(),
             max_price_cpu_ms: None,
             ..Default::default()
         };
