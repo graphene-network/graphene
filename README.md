@@ -2,7 +2,9 @@
 
 **Zero-Latency Decentralized Serverless for AI Agents**
 
-Graphene is a decentralized compute network optimized for AI agent execution and ephemeral serverless functions. It combines Unikraft unikernels with Firecracker MicroVMs to achieve sub-second cold starts with hardware-level isolation—without giving AI agents dangerous shell access.
+> Disclaimer: Graphene is still in active development. An alpha release will be available for testing soon.
+
+Graphene is a decentralized compute network optimized for AI agent execution and ephemeral serverless functions. It combines unikernels with MicroVMs to achieve sub-second cold starts with hardware-level isolation—without giving AI agents dangerous shell access.
 
 ## The Problem
 
@@ -83,38 +85,60 @@ Graphene enforces a **Planner/Executor separation**: AI agents generate code man
 
 ## Quick Start
 
-```python
-from graphene import Client
+```typescript
+import { Client } from '@graphene/sdk';
 
-client = Client()
+const client = await Client.create({
+  secretKey: mySecretKey,
+  channelPda: channelPda,
+});
 
-result = client.run(
-    code="""
-def main(data):
-    return {"sum": sum(data["numbers"])}
-""",
-    input={"numbers": [1, 2, 3, 4, 5]},
-    resources={"vcpu": 1, "memory_mb": 512}
-)
+const result = await client.run({
+  code: `
+const numbers = [1, 2, 3, 4, 5];
+const sum = numbers.reduce((total, n) => total + n, 0);
+console.log(JSON.stringify({ sum }));
+`,
+  resources: { vcpu: 1, memoryMb: 512 },
+  runtime: 'node:24',
+});
 
-print(result.output)  # {"sum": 15}
+const outputText = new TextDecoder().decode(result.output);
+console.log(outputText); // {"sum": 15}
 ```
 
-For more complex jobs with dependencies:
+For more complex jobs with files, higher resources, and egress allowlists:
 
-```python
-from graphene import Client, Manifest
+```typescript
+import { Client } from '@graphene/sdk';
 
-result = client.run(
-    dockerfile="./Dockerfile",
-    manifest=Manifest(
-        vcpu=2,
-        memory_mb=2048,
-        max_duration_ms=60000,
-        egress=["api.openai.com"]
-    ),
-    input_file="data.csv"
-)
+const client = await Client.create({
+  secretKey: mySecretKey,
+  channelPda: channelPda,
+});
+
+const result = await client.run({
+  code: `
+import * as fs from 'node:fs/promises';
+const contents = await fs.readFile('/data/input.csv', 'utf8');
+const lines = contents.trim().split('\\n').length;
+console.log(JSON.stringify({ lines }));
+`,
+  assets: {
+    mode: 'blob',
+    files: {
+      '/data/input.csv': './data.csv',
+    },
+  },
+  resources: { vcpu: 2, memoryMb: 2048 },
+  networking: {
+    egressAllowlist: [{ host: 'api.openai.com', port: 443 }],
+  },
+  timeoutMs: 60000,
+  runtime: 'node:24',
+});
+
+console.log(new TextDecoder().decode(result.output));
 ```
 
 ## Technical Stack
@@ -147,8 +171,6 @@ result = client.run(
 ## Documentation
 
 - [Whitepaper](docs/WHITEPAPER.md) — Full technical specification
-- [ELI5](docs/ELI5.md) — Simple explanation
-- [Endgame Vision](docs/ENDGAME.md) — Long-term roadmap
 - [Development Guide](docs/DEVELOPMENT.md) — Running E2E tests locally
 
 ## Security Model
@@ -163,7 +185,7 @@ Graphene provides triple-layer isolation:
 
 ## License
 
-[License information]
+GNU Affero General Public License v3.0
 
 ---
 
