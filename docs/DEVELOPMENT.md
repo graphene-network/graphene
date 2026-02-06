@@ -216,6 +216,196 @@ limactl delete graphene
 
 ---
 
+## CI/CD Workflows
+
+The project uses GitHub Actions with multiple workflows to ensure code quality and test coverage. Tests are organized by their infrastructure requirements.
+
+### Test Organization
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Test Categories                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Unit Tests (no feature flag)                                   │
+│  ├─ Run on every commit                                         │
+│  ├─ Fast execution, no external dependencies                    │
+│  └─ Workflow: ci.yml (test job)                                 │
+│                                                                  │
+│  Integration Tests (--features integration-tests)               │
+│  ├─ Mock-based integration tests                                │
+│  ├─ Tests: p2p_integration, e2e_job_flow,                       │
+│  │         ephemeral_network_isolation                          │
+│  ├─ No Firecracker/Unikraft required                            │
+│  └─ Workflow: ci.yml (test job)                                 │
+│                                                                  │
+│  E2E Tests (--features e2e-tests)                               │
+│  ├─ Full system tests with real infrastructure                  │
+│  ├─ Tests: firecracker_unikraft_executor_integration,           │
+│  │         unikraft_build, TypeScript SDK tests                 │
+│  ├─ Requires: Firecracker, Kraft, prebuilt kernels, KVM         │
+│  └─ Workflow: e2e-test.yml                                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Workflow Details
+
+#### `ci.yml` - Continuous Integration
+
+Runs on every push and pull request to `main`.
+
+**Jobs:**
+- **check** - `cargo check` for compilation errors
+- **test** - Unit and integration tests (no heavy infrastructure)
+- **fmt** - Code formatting with `rustfmt`
+- **clippy** - Linter checks
+
+**What runs here:**
+```bash
+# Unit tests (default)
+cargo test --workspace
+
+# Integration tests (mocks only, no Firecracker)
+cargo test --workspace --features integration-tests
+```
+
+**Dependencies installed:**
+- ✅ Rust toolchain
+- ❌ No Firecracker (not needed)
+- ❌ No prebuilt kernels (not needed)
+
+#### `e2e-test.yml` - End-to-End Tests
+
+Runs on `workflow_dispatch` (manual trigger).
+
+**Job Flow:**
+```
+1. build-kernels (via kernel-build.yml)
+   └─ Builds Python, Node.js, Bun kernels
+   └─ Uploads artifacts
+
+2. e2e-test
+   ├─ Downloads kernel artifacts
+   ├─ Sets up system (Firecracker, Kraft, KVM)
+   ├─ Builds worker binary + Anchor program
+   ├─ Runs Rust E2E tests (--features e2e-tests)
+   └─ Runs TypeScript E2E tests
+```
+
+**What runs here:**
+```bash
+# Rust tests requiring real Firecracker + kernels
+export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
+cargo test -p graphene_node --features e2e-tests
+
+# TypeScript SDK tests
+cd sdks/node
+bun test ./tests/*.e2e.test.ts
+```
+
+**Dependencies installed:**
+- ✅ Firecracker v1.11.0
+- ✅ Kraft CLI (latest)
+- ✅ Prebuilt Unikraft kernels
+- ✅ KVM enabled
+- ✅ Solana + Anchor CLI
+- ✅ System dependencies (cpio, e2fsprogs, libudev-dev)
+
+#### `kernel-build.yml` - Kernel Builds
+
+Builds Unikraft kernels for all supported runtimes.
+
+**Triggers:**
+- Changes to `kernels/**` directory
+- Manual `workflow_dispatch`
+- Called by `e2e-test.yml`
+
+**Process:**
+1. Generate build matrix from `kernels/kernel-matrix.toml`
+2. Build each runtime/version combination with Kraft
+3. Upload kernel binaries as artifacts
+4. (On `main` branch) Create GitHub release with kernels
+
+**Matrix:**
+```toml
+[runtimes.python]
+versions = ["3.10", "3.11", "3.12"]
+
+[runtimes.node]
+versions = ["20", "21", "22"]
+
+[runtimes.bun]
+versions = ["1.1"]
+```
+
+### Shared Actions
+
+#### `.github/actions/setup-system`
+
+Composite action used by workflows needing Firecracker/Kraft/KVM:
+
+```yaml
+- name: Setup system dependencies
+  uses: ./.github/actions/setup-system
+```
+
+**What it does:**
+1. Enables KVM permissions via udev rules
+2. Verifies KVM availability (fails if not accessible)
+3. Installs system dependencies (cpio, e2fsprogs, libudev-dev)
+4. Installs Firecracker v1.11.0
+5. Installs Kraft CLI (latest release)
+
+**Hard failures:**
+- ❌ Fails immediately if `/dev/kvm` is not available
+- ❌ No conditional skipping - KVM is mandatory
+
+### Running Workflows Locally
+
+#### CI Tests (Fast)
+```bash
+# Same as ci.yml test job
+cargo test --workspace --features integration-tests
+```
+
+#### E2E Tests (Requires Infrastructure)
+```bash
+# 1. Build kernels first
+cd kernels/python/3.12
+kraft build --plat fc --arch x86_64
+kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
+mkdir -p ~/.graphene/cache/kernels
+cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+
+# 2. Run E2E tests
+export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
+cargo test -p graphene_node --features e2e-tests
+```
+
+### Feature Flags Reference
+
+| Feature Flag | Tests Included | Infrastructure Needed | Workflow |
+|--------------|----------------|----------------------|----------|
+| _(none)_ | Unit tests | None | ci.yml |
+| `integration-tests` | P2P, job flow, network isolation (mocked) | None | ci.yml |
+| `e2e-tests` | Firecracker executor, Unikraft builds | Firecracker, Kraft, kernels, KVM | e2e-test.yml |
+| `tpm2-tools` | TPM attestation with CLI fallback | TPM2 tools | (optional) |
+
+### Test File Naming Convention
+
+```
+crates/node/tests/
+├── unit tests (no suffix) - Run without feature flags
+├── *_integration.rs      - Use feature = "integration-tests"
+├── e2e/                  - Use feature = "e2e-tests"
+│   ├── mod.rs
+│   └── unikraft_build.rs
+└── firecracker_unikraft_executor_integration.rs - Use feature = "e2e-tests"
+```
+
+---
+
 ## Building the Native Node SDK
 
 The `@graphene/sdk` package depends on `@graphene/sdk-native`, a Rust NAPI module providing cryptographic primitives and protocol serialization. Pre-built binaries are available for common platforms, but you may need to build from source for development or unsupported platforms.
