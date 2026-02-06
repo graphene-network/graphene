@@ -36,32 +36,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Enable KVM group permissions
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Check KVM availability
-        id: kvm
-        run: |
-          if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "✅ KVM is available"
-            ls -la /dev/kvm
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️ KVM is not available"
-          fi
-
-      - name: Install system dependencies
-        if: steps.kvm.outputs.available == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y e2fsprogs libudev-dev
+      - name: Setup system dependencies
+        id: system-setup
+        uses: ./.github/actions/setup-system
 
       - name: Install Solana CLI
-        if: steps.kvm.outputs.available == 'true'
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
           echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
@@ -70,7 +49,6 @@ jobs:
           solana-test-validator --version
 
       - name: Setup Solana keypair
-        if: steps.kvm.outputs.available == 'true'
         run: |
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
@@ -78,22 +56,11 @@ jobs:
           echo "Keypair created at ~/.config/solana/id.json"
 
       - name: Install Anchor CLI
-        if: steps.kvm.outputs.available == 'true'
         run: |
           cargo install --git https://github.com/coral-xyz/anchor --tag v0.32.1 anchor-cli
           anchor --version
 
-      - name: Install Firecracker
-        if: steps.kvm.outputs.available == 'true'
-        run: |
-          curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-x86_64.tgz" -o firecracker.tgz
-          tar -xzf firecracker.tgz
-          sudo mv release-v${FIRECRACKER_VERSION}-x86_64/firecracker-v${FIRECRACKER_VERSION}-x86_64 /usr/local/bin/firecracker
-          sudo chmod +x /usr/local/bin/firecracker
-          firecracker --version
-
       - name: Download kernel artifacts
-        if: steps.kvm.outputs.available == 'true'
         uses: actions/download-artifact@v4
         with:
           path: /tmp/kernels
@@ -101,7 +68,6 @@ jobs:
           merge-multiple: true
 
       - name: Setup kernel cache
-        if: steps.kvm.outputs.available == 'true'
         run: |
           mkdir -p $HOME/.graphene/cache/kernels
           if [ -d /tmp/kernels ] && [ "$(ls -A /tmp/kernels 2>/dev/null)" ]; then
@@ -154,7 +120,6 @@ jobs:
         run: bun install
 
       - name: Build Graphene Anchor program
-        if: steps.kvm.outputs.available == 'true'
         working-directory: programs/graphene
         run: |
           anchor build
@@ -186,7 +151,6 @@ jobs:
           bun test ./tests/*.e2e.test.ts --timeout ${{ inputs.timeout_seconds }}000
         env:
           GRAPHENE_WORKER_BINARY: ${{ github.workspace }}/target/release/graphene-worker
-          KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
 
       - name: Upload test artifacts on failure
         if: failure()

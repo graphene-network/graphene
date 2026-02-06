@@ -1,0 +1,56 @@
+name: 'Setup Graphene System'
+description: 'Sets up system dependencies for Graphene: KVM, Firecracker, Kraft CLI, and utilities'
+outputs:
+  kvm-available:
+    description: 'Whether KVM is available (true/false)'
+    value: ${{ steps.kvm-check.outputs.available }}
+
+runs:
+  using: composite
+  steps:
+    - name: Enable KVM group permissions
+      shell: bash
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Verify KVM availability
+      id: kvm-check
+      shell: bash
+      run: |
+        if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "✅ KVM is available"
+          ls -la /dev/kvm
+        else
+          echo "❌ ERROR: /dev/kvm is not available or not accessible"
+          ls -la /dev/kvm 2>&1 || echo "/dev/kvm does not exist"
+          exit 1
+        fi
+
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cpio e2fsprogs libudev-dev
+
+    - name: Install Firecracker
+      shell: bash
+      run: |
+        FIRECRACKER_VERSION="1.11.0"
+        curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-x86_64.tgz" -o firecracker.tgz
+        tar -xzf firecracker.tgz
+        sudo mv release-v${FIRECRACKER_VERSION}-x86_64/firecracker-v${FIRECRACKER_VERSION}-x86_64 /usr/local/bin/firecracker
+        sudo chmod +x /usr/local/bin/firecracker
+        firecracker --version
+
+    - name: Install Kraft CLI
+      shell: bash
+      run: |
+        # Install kraftkit from GitHub releases
+        KRAFT_VERSION=$(curl -s https://api.github.com/repos/unikraft/kraftkit/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+        curl -fsSL "https://github.com/unikraft/kraftkit/releases/download/${KRAFT_VERSION}/kraft_${KRAFT_VERSION#v}_linux_amd64.tar.gz" -o kraft.tar.gz
+        tar -xzf kraft.tar.gz
+        sudo mv kraft /usr/local/bin/kraft
+        kraft version
