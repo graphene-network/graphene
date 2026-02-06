@@ -74,7 +74,7 @@ impl BuildJob {
     }
 
     /// Load a build job from the examples directory (for E2E testing)
-    #[cfg(feature = "e2e")]
+    #[cfg(feature = "e2e-tests")]
     pub fn from_example(name: &str) -> std::io::Result<Self> {
         use std::fs;
         use std::io::Read;

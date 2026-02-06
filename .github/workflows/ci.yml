@@ -58,9 +58,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Setup system dependencies
-        uses: ./.github/actions/setup-system
-
       - name: Run tests
         run: cargo test --workspace --features integration-tests
 
@@ -131,4 +128,4 @@ jobs:
         uses: ./.github/actions/setup-system
 
       - name: Run E2E Unikraft tests
-        run: cargo test -p graphene_node --features e2e
+        run: cargo test -p graphene_node --features e2e-tests

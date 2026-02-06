@@ -142,7 +142,14 @@ jobs:
         working-directory: sdks/node
         run: bun run build
 
-      - name: Run all E2E Tests
+      - name: Run Rust E2E tests
+        run: |
+          export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
+          echo "Kernel cache path: $GRAPHENE_KERNEL_CACHE"
+          ls -la "$GRAPHENE_KERNEL_CACHE" || echo "Kernel cache directory is empty or doesn't exist"
+          cargo test -p graphene_node --features e2e-tests
+
+      - name: Run TypeScript E2E tests
         working-directory: sdks/node
         run: |
           export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"

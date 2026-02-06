@@ -8,7 +8,7 @@ repository.workspace = true
 [features]
 default = []
 integration-tests = []
-e2e = []
+e2e-tests = []
 tpm2-tools = []  # Enable TPM2 command-line tool fallback for attestation
 
 [dependencies]

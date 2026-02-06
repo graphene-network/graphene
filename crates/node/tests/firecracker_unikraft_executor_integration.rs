@@ -1,4 +1,4 @@
-//! Full Firecracker + Unikraft + executor integration test.
+//! Full Firecracker + Unikraft + executor E2E test.
 //!
 //! Requires:
 //! - Linux with /dev/kvm available
@@ -6,9 +6,11 @@
 //! - cpio binary in PATH (for initrd creation)
 //! - Prebuilt Unikraft kernel at ~/.graphene/cache/kernels/python-3.12_fc-x86_64
 //!
-//! Run with: `cargo test -p graphene_node --features integration-tests --test firecracker_unikraft_executor_integration`
+//! Run with: `cargo test -p graphene_node --features e2e-tests --test firecracker_unikraft_executor_integration`
+//!
+//! This test runs in the e2e-test.yml workflow which builds kernels beforehand.
 
-#![cfg(all(target_os = "linux", feature = "integration-tests"))]
+#![cfg(all(target_os = "linux", feature = "e2e-tests"))]
 
 use graphene_node::cache::MockBuildCache;
 use graphene_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptedBlob};
