@@ -179,11 +179,36 @@ For popular stacks (Python + Pandas, Node + Express), cold start approaches the 
 Iroh provides the peer-to-peer networking layer:
 
 - **Gossip Protocol**: Workers announce availability on `graphene-compute-v1` topic
-- **Magicsock**: NAT traversal via UDP hole-punching and DERP relays
+- **Magicsock**: NAT traversal via UDP hole-punching and relay fallback
 - **QUIC Multiplexing**: Concurrent streams for tickets, code, and results
 - **Content-Addressed Blobs**: Verified chunk-by-chunk transfer
+- **Discovery Gateway**: Aggregates gossip into REST API with embedded relay
 
 Data flows directly between user and worker. The blockchain never sees job payloads.
+
+#### Relay Architecture
+
+The Discovery Gateway embeds an Iroh relay server, providing a single well-known endpoint for SDK clients:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Discovery Gateway                            │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
+│  │   REST API  │    │   Gossip    │    │ Iroh Relay  │         │
+│  │  /workers   │    │  Listener   │    │   Server    │         │
+│  └─────────────┘    └─────────────┘    └─────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Component | Discovery API | Dedicated Relay | Opportunistic Relay |
+|-----------|--------------|-----------------|---------------------|
+| **Gateway** | Yes | Yes | - |
+| **Worker** | No | No | Yes (mesh) |
+
+Workers participate in opportunistic relaying (standard Iroh mesh behavior) but do not run dedicated relay or discovery services. This keeps worker resources focused on job execution while the gateway handles network coordination.
+
+See [ADR-0003](./adr/ADR-0003-embedded-relay-architecture.md) for detailed architecture decisions.
 
 #### Inline vs Blob Asset Delivery
 
@@ -1881,8 +1906,10 @@ All workers subscribe to `graphene-compute-v1` gossip topic. Announcements inclu
 
 After discovery, users connect directly to workers via Magicsock:
 - NAT traversal via UDP hole-punching
-- Fallback to DERP relays
+- Fallback to Discovery Gateway relay (see Section 4.3)
 - Connection identified by public key (not IP)
+
+The Discovery Gateway serves as both the REST discovery endpoint and the Iroh relay, so SDK clients configure a single URL for both services. Workers contribute to mesh connectivity through opportunistic relaying but do not run dedicated relay servers.
 
 ### 12.3 Global Cache
 
