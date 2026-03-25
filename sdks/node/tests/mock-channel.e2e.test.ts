@@ -1,9 +1,9 @@
 /**
- * E2E tests for TypeScript SDK ↔ Graphene Worker communication.
+ * E2E tests for TypeScript SDK ↔ OpenCapsule Worker communication.
  *
  * Level 1: Mock Channel Tests
  * - Tests QUIC protocol, encryption, job execution
- * - Uses GRAPHENE_TEST_USER_PUBKEY for test channel injection
+ * - Uses OPENCAPSULE_TEST_USER_PUBKEY for test channel injection
  * - No Solana dependencies
  *
  * Runner handling:
@@ -91,7 +91,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -127,7 +127,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -157,7 +157,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -188,7 +188,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -231,7 +231,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -259,7 +259,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -275,13 +275,13 @@ describe('E2E: Mock Channel Tests', () => {
       }
     }, TEST_TIMEOUT);
 
-    it('rejects reserved GRAPHENE_* environment variable prefix', async () => {
+    it('rejects reserved OPENCAPSULE_* environment variable prefix', async () => {
       const client = await Client.create({
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -289,10 +289,10 @@ describe('E2E: Mock Channel Tests', () => {
           client.run({
             code: 'print("test")',
             runtime: 'python:3.12',
-            env: { GRAPHENE_INTERNAL: 'forbidden' },
+            env: { OPENCAPSULE_INTERNAL: 'forbidden' },
             timeoutMs: 10_000,
           })
-        ).rejects.toThrow(/ReservedEnvPrefix|GRAPHENE_|reserved/i);
+        ).rejects.toThrow(/ReservedEnvPrefix|OPENCAPSULE_|reserved/i);
       } finally {
         await client.close();
       }
@@ -304,7 +304,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -333,7 +333,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -357,7 +357,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -383,7 +383,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -414,7 +414,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -441,14 +441,14 @@ describe('E2E: Mock Channel Tests', () => {
       }
     }, TEST_TIMEOUT);
 
-    // TODO(#158): Enable after remote blob downloads are supported in GrapheneNode::download_blob.
+    // TODO(#158): Enable after remote blob downloads are supported in OpenCapsuleNode::download_blob.
     it.skip('accepts explicit blob mode', async () => {
       const client = await Client.create({
         secretKey: testKeypair.secretKey,
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -482,7 +482,7 @@ describe('E2E: Mock Channel Tests', () => {
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -523,7 +523,7 @@ print(f"Compressed delivery: {len(data)} chars")
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -566,7 +566,7 @@ print(f"Received input: {input_data}")
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -599,7 +599,7 @@ sys.stderr.write("stderr-only\\n")
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       try {
@@ -638,7 +638,7 @@ Path("/output/inline.txt").write_text("inline-result-ok")
         channelPda: testChannelPda(),
         workerNodeId: worker.nodeId,
         relayUrl: worker.relayUrl ?? undefined,
-        storagePath: `.graphene-test-${Date.now()}`,
+        storagePath: `.opencapsule-test-${Date.now()}`,
       });
 
       const job = {

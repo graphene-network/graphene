@@ -32,7 +32,7 @@ The build pipeline takes a Dockerfile + source code bundle and produces a sealed
 ### Building a Unikernel
 
 ```rust
-use graphene_node::unikraft::{
+use opencapsule_node::unikraft::{
     BuildJob, BuildManifest, KraftBuilder, KraftConfig,
     ResourceLimits, Runtime, UnikernelBuilder,
 };
@@ -40,7 +40,7 @@ use graphene_node::unikraft::{
 // Create builder with custom config
 let config = KraftConfig {
     kraft_bin: PathBuf::from("/usr/local/bin/kraft"),
-    cache_dir: PathBuf::from("/var/cache/graphene/unikraft"),
+    cache_dir: PathBuf::from("/var/cache/opencapsule/unikraft"),
     build_timeout: Duration::from_secs(300),
 };
 let builder = KraftBuilder::new(config);
@@ -74,7 +74,7 @@ println!("Entrypoint: {:?}", validated.entrypoint);
 ### Testing with Mock
 
 ```rust
-use graphene_node::unikraft::{MockKraftBuilder, MockBuildBehavior};
+use opencapsule_node::unikraft::{MockKraftBuilder, MockBuildBehavior};
 
 // Happy path
 let builder = MockKraftBuilder::happy_path();
@@ -95,7 +95,7 @@ assert!(builder.was_job_built("job-123"));
 
 | Command | Notes |
 |---------|-------|
-| `FROM` | Must be `graphene/node:20` |
+| `FROM` | Must be `opencapsule/node:20` |
 | `COPY` | Copy files into image |
 | `WORKDIR` | Set working directory |
 | `ENV` | Set environment variables |
@@ -149,7 +149,7 @@ match builder.build(&job).await {
         eprintln!("Forbidden command '{}': {}", command, reason)
     }
     Err(UnikraftError::UnsupportedBaseImage(img)) => {
-        eprintln!("Use graphene/node:20, not {}", img)
+        eprintln!("Use opencapsule/node:20, not {}", img)
     }
     Err(UnikraftError::BuildTimeout { elapsed, limit }) => {
         eprintln!("Build timed out after {:?}", elapsed)
@@ -165,15 +165,15 @@ match builder.build(&job).await {
 
 | Runtime | Base Image | Status |
 |---------|------------|--------|
-| Node.js 20 | `graphene/node:20` | Supported |
-| Python 3.12 | `graphene/python:3.12` | Planned |
+| Node.js 20 | `opencapsule/node:20` | Supported |
+| Python 3.12 | `opencapsule/python:3.12` | Planned |
 
 ## Testing
 
 ```bash
 # Unit tests
-cargo test -p graphene_node --lib
+cargo test -p opencapsule_node --lib
 
 # E2E tests (requires kraft CLI on Linux)
-cargo test -p graphene_node --features e2e -- --ignored
+cargo test -p opencapsule_node --features e2e -- --ignored
 ```

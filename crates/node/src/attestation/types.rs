@@ -129,7 +129,7 @@ pub struct PlatformIdentity {
     pub pcr_values: PcrValues,
     /// Timestamp of verification
     pub verified_at: u64,
-    /// Platform identifier (e.g., "graphene-os-v0.1.0")
+    /// Platform identifier (e.g., "opencapsule-os-v0.1.0")
     pub platform_id: String,
 }
 
@@ -148,10 +148,10 @@ impl Display for PlatformIdentity {
 /// Platform attestation trait
 ///
 /// Implementations verify that the node binary is running on a trusted
-/// Graphene OS installation and can generate quotes for network registration.
+/// OpenCapsule OS installation and can generate quotes for network registration.
 #[async_trait]
 pub trait PlatformAttestor: Send + Sync {
-    /// Verify we're running on a trusted Graphene OS
+    /// Verify we're running on a trusted OpenCapsule OS
     ///
     /// This checks:
     /// 1. dm-verity root hash matches embedded expected value

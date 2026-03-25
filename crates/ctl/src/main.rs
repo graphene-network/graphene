@@ -1,44 +1,44 @@
-//! graphenectl - Remote management CLI for Graphene nodes
+//! opencapsulectl - Remote management CLI for OpenCapsule nodes
 //!
-//! Provides API-based management for shell-less Graphene Node OS.
+//! Provides API-based management for shell-less OpenCapsule Node OS.
 //!
 //! # Usage
 //!
 //! ```bash
 //! # Bootstrap - get initial credentials
-//! graphenectl bootstrap --nodes 192.168.1.100
+//! opencapsulectl bootstrap --nodes 192.168.1.100
 //!
 //! # Configuration management
-//! graphenectl apply -f node-config.toml
-//! graphenectl get config
+//! opencapsulectl apply -f node-config.toml
+//! opencapsulectl get config
 //!
 //! # Status and monitoring
-//! graphenectl status
-//! graphenectl logs --follow
+//! opencapsulectl status
+//! opencapsulectl logs --follow
 //!
 //! # Worker lifecycle
-//! graphenectl register --stake 100
-//! graphenectl join
-//! graphenectl drain
+//! opencapsulectl register --stake 100
+//! opencapsulectl join
+//! opencapsulectl drain
 //! ```
 
 use clap::{Parser, Subcommand};
-use graphenectl::{
+use opencapsulectl::{
     commands, parse_output_format, require_node, shellexpand, CapAction, ConfigAction, OutputFormat,
 };
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
-#[command(name = "graphenectl")]
-#[command(about = "Remote management CLI for Graphene nodes")]
+#[command(name = "opencapsulectl")]
+#[command(about = "Remote management CLI for OpenCapsule nodes")]
 #[command(version)]
 struct Cli {
     /// Path to config file
-    #[arg(long, env = "GRAPHENE_CONFIG", default_value = "~/.graphene/config")]
+    #[arg(long, env = "OPENCAPSULE_CONFIG", default_value = "~/.opencapsule/config")]
     config: String,
 
     /// Node name from config (or node ID if not in config)
-    #[arg(short, long, env = "GRAPHENE_NODE")]
+    #[arg(short, long, env = "OPENCAPSULE_NODE")]
     node: Option<String>,
 
     /// Output format (json, yaml, text)
@@ -62,7 +62,7 @@ enum Commands {
         nodes: Vec<String>,
 
         /// Output file for credentials
-        #[arg(long, default_value = "~/.graphene/config")]
+        #[arg(long, default_value = "~/.opencapsule/config")]
         output: String,
     },
 

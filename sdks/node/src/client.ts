@@ -1,5 +1,5 @@
 /**
- * High-level Graphene client for job submission and execution.
+ * High-level OpenCapsule client for job submission and execution.
  *
  * This is a thin wrapper around the native Rust client.
  * All business logic (encryption, hashing, transport, etc.) is in Rust.
@@ -8,24 +8,24 @@
  */
 
 import {
-  GrapheneClient as NativeClient,
+  OpenCapsuleClient as NativeClient,
   type ClientConfig as NativeClientConfig,
   type JobOptions as NativeJobOptions,
   type NativeJobResult,
   type EgressRule,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 import type { ClientConfig, RunOptions, RunResult } from './types.js';
 import { ConfigError } from './errors.js';
 
 /**
- * High-level client for interacting with Graphene Network workers.
+ * High-level client for interacting with OpenCapsule Network workers.
  *
  * This is a thin TypeScript wrapper around the native Rust client.
  * All cryptography, networking, and protocol handling is done in Rust.
  *
  * @example
  * ```typescript
- * import { Client } from '@graphene/sdk';
+ * import { Client } from '@opencapsule/sdk';
  *
  * const client = await Client.create({
  *   secretKey: mySecretKey,    // Your Ed25519 secret key (32 bytes)
@@ -52,7 +52,7 @@ export class Client {
   }
 
   /**
-   * Create a new Graphene client.
+   * Create a new OpenCapsule client.
    *
    * @param config - Client configuration
    * @throws {ConfigError} If key lengths are invalid
@@ -90,7 +90,7 @@ export class Client {
   }
 
   /**
-   * Run a job on a Graphene worker.
+   * Run a job on a OpenCapsule worker.
    *
    * @param options - Job configuration
    * @returns The job result with decrypted output

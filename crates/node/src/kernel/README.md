@@ -1,6 +1,6 @@
 # Kernel Library
 
-Pre-built unikernel management for the Graphene Network.
+Pre-built unikernel management for the OpenCapsule.
 
 ## Overview
 
@@ -41,8 +41,8 @@ Kernels are built from the [Unikraft Application Catalog](https://github.com/uni
 ## Usage
 
 ```rust
-use graphene_node::kernel::{KernelRegistry, LocalKernelRegistry, KernelSpec};
-use graphene_node::kernel::matrix::KernelMatrix;
+use opencapsule_node::kernel::{KernelRegistry, LocalKernelRegistry, KernelSpec};
+use opencapsule_node::kernel::matrix::KernelMatrix;
 
 // Load version matrix
 let matrix = KernelMatrix::from_file("kernels/kernel-matrix.toml")?;
@@ -72,10 +72,10 @@ println!("Boot args: {}", metadata.boot_args());
 
 ## Storage Layout
 
-Kernels are stored under `~/.graphene/kernels/`:
+Kernels are stored under `~/.opencapsule/kernels/`:
 
 ```
-~/.graphene/kernels/
+~/.opencapsule/kernels/
 ├── blobs/
 │   └── <blake3-hash>           # Actual kernel binaries
 ├── refs/
@@ -89,7 +89,7 @@ Kernels are stored under `~/.graphene/kernels/`:
 The `MockKernelRegistry` supports configurable behaviors for comprehensive testing:
 
 ```rust
-use graphene_node::kernel::mock::{MockKernelRegistry, MockBehavior};
+use opencapsule_node::kernel::mock::{MockKernelRegistry, MockBehavior};
 
 // Test happy path
 let registry = MockKernelRegistry::new();

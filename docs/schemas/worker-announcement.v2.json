@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "WorkerAnnouncement",
-  "description": "Worker availability announcement broadcast on the graphene-compute-v1 gossip topic.",
+  "description": "Worker availability announcement broadcast on the opencapsule-compute-v1 gossip topic.",
   "type": "object",
   "required": [
     "node_id",

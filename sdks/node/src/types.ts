@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Graphene SDK.
+ * Type definitions for the OpenCapsule SDK.
  *
  * Re-exports types from the native bindings and adds additional
  * TypeScript-specific types for the high-level client.
@@ -15,17 +15,17 @@ export type {
   ClientConfig as NativeClientConfig,
   JobOptions as NativeJobOptions,
   NativeJobResult,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 // Re-export const enums
 export {
   EncryptionDirection,
   JobStatus,
   RejectReason,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 /**
- * Configuration options for the Graphene Client.
+ * Configuration options for the OpenCapsule Client.
  */
 export interface ClientConfig {
   /** Ed25519 secret key (32 bytes) */

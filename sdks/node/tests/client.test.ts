@@ -1,12 +1,12 @@
 /**
- * Tests for the Graphene SDK client.
+ * Tests for the OpenCapsule SDK client.
  *
  * Note: These tests only verify the TypeScript wrapper behavior.
  * Actual crypto, networking, and protocol tests are in Rust.
  */
 
 import { describe, it, expect } from 'bun:test';
-import { Client, ConfigError, GrapheneError, JobRejectedError, CryptoError } from '../src/index.js';
+import { Client, ConfigError, OpenCapsuleError, JobRejectedError, CryptoError } from '../src/index.js';
 
 /**
  * Helper to generate test keys.
@@ -77,11 +77,11 @@ describe('Client.create', () => {
 });
 
 describe('Error classes', () => {
-  it('GrapheneError has code property', () => {
-    const error = new GrapheneError('test', 'TEST_CODE');
+  it('OpenCapsuleError has code property', () => {
+    const error = new OpenCapsuleError('test', 'TEST_CODE');
     expect(error.code).toBe('TEST_CODE');
     expect(error.message).toBe('test');
-    expect(error.name).toBe('GrapheneError');
+    expect(error.name).toBe('OpenCapsuleError');
   });
 
   it('JobRejectedError has reason property', () => {

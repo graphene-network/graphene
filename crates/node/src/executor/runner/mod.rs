@@ -353,8 +353,8 @@ impl FirecrackerRunner {
                     return code;
                 }
             }
-            // Also check for Graphene-specific format
-            if let Some(code_str) = line.strip_prefix("GRAPHENE_EXIT: ") {
+            // Also check for OpenCapsule-specific format
+            if let Some(code_str) = line.strip_prefix("OPENCAPSULE_EXIT: ") {
                 if let Ok(code) = code_str.trim().parse::<i32>() {
                     return code;
                 }
@@ -381,7 +381,7 @@ impl FirecrackerRunner {
             if line.starts_with("[STDERR]") || line.starts_with("ERROR:") {
                 stderr.extend_from_slice(line.as_bytes());
                 stderr.push(b'\n');
-            } else if !line.starts_with("EXIT_CODE:") && !line.starts_with("GRAPHENE_EXIT:") {
+            } else if !line.starts_with("EXIT_CODE:") && !line.starts_with("OPENCAPSULE_EXIT:") {
                 stdout.extend_from_slice(line.as_bytes());
                 stdout.push(b'\n');
             }
@@ -518,7 +518,7 @@ impl VmmRunner for FirecrackerRunner {
                 Vec::new()
             });
 
-        let log_to_stdout = std::env::var("GRAPHENE_SERIAL_LOG_STDOUT")
+        let log_to_stdout = std::env::var("OPENCAPSULE_SERIAL_LOG_STDOUT")
             .ok()
             .map(|value| value.to_ascii_lowercase())
             .and_then(|value| match value.as_str() {
@@ -530,13 +530,13 @@ impl VmmRunner for FirecrackerRunner {
 
         if log_to_stdout && !serial_output.is_empty() {
             println!(
-                "--- Graphene serial log ({} bytes) ---\n{}",
+                "--- OpenCapsule serial log ({} bytes) ---\n{}",
                 serial_output.len(),
                 String::from_utf8_lossy(&serial_output)
             );
         }
 
-        let capture_path = std::env::var("GRAPHENE_SERIAL_LOG_PATH")
+        let capture_path = std::env::var("OPENCAPSULE_SERIAL_LOG_PATH")
             .ok()
             .filter(|value| !value.trim().is_empty());
 
@@ -548,7 +548,7 @@ impl VmmRunner for FirecrackerRunner {
             }
         }
 
-        let keep_serial_log = std::env::var("GRAPHENE_KEEP_SERIAL_LOG")
+        let keep_serial_log = std::env::var("OPENCAPSULE_KEEP_SERIAL_LOG")
             .ok()
             .map(|value| value.to_ascii_lowercase())
             .and_then(|value| match value.as_str() {
@@ -620,14 +620,14 @@ mod tests {
     fn test_runner_config_builder() {
         let config = FirecrackerRunnerConfig::new()
             .with_firecracker_bin("/usr/bin/firecracker")
-            .with_runtime_dir("/var/run/graphene")
+            .with_runtime_dir("/var/run/opencapsule")
             .with_shutdown_timeout(Duration::from_secs(10));
 
         assert_eq!(
             config.firecracker_bin,
             PathBuf::from("/usr/bin/firecracker")
         );
-        assert_eq!(config.runtime_dir, PathBuf::from("/var/run/graphene"));
+        assert_eq!(config.runtime_dir, PathBuf::from("/var/run/opencapsule"));
         assert_eq!(config.shutdown_timeout, Duration::from_secs(10));
     }
 
@@ -642,8 +642,8 @@ mod tests {
         let output = b"Error occurred\nEXIT_CODE: 1\n";
         assert_eq!(runner.extract_exit_code(output), 1);
 
-        // Graphene format
-        let output = b"Job done\nGRAPHENE_EXIT: 42\n";
+        // OpenCapsule format
+        let output = b"Job done\nOPENCAPSULE_EXIT: 42\n";
         assert_eq!(runner.extract_exit_code(output), 42);
 
         // No exit code (defaults to 0)

@@ -29,7 +29,7 @@ End-to-end encryption for job inputs/outputs, enabling "soft confidential comput
 ## Usage Pattern
 
 ```rust
-use graphene_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
+use opencapsule_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
 
 let crypto = DefaultCryptoProvider;
 
@@ -91,7 +91,7 @@ Self-contained: everything needed to decrypt is in the blob (except the keys).
 ## Testing
 
 ```bash
-cargo test -p graphene_node crypto
+cargo test -p opencapsule_node crypto
 ```
 
 Mock behaviors for testing:

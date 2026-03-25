@@ -19,7 +19,7 @@
 //! # Example
 //!
 //! ```text
-//! use graphene_node::ephemeral::{
+//! use opencapsule_node::ephemeral::{
 //!     BuildRequest, EphemeralBuilder, EphemeralBuilderConfig,
 //!     FirecrackerEphemeralBuilder, MockNetworkIsolator,
 //! };

@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```
-//! use graphene_node::job::{Job, JobState, exit_code};
+//! use opencapsule_node::job::{Job, JobState, exit_code};
 //!
 //! let mut job = Job::new("job-123");
 //!

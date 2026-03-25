@@ -1,7 +1,7 @@
 {
-  "name": "@graphene/sdk-native",
+  "name": "@opencapsule/sdk-native",
   "version": "0.1.0",
-  "description": "Native bindings for Graphene Network SDK - cryptographic primitives, payment tickets, and protocol serialization",
+  "description": "Native bindings for OpenCapsule Network SDK - cryptographic primitives, payment tickets, and protocol serialization",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
@@ -33,12 +33,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/graphene-network/graphene",
+    "url": "https://github.com/opencapsule/opencapsule",
     "directory": "crates/sdk"
   },
-  "homepage": "https://github.com/graphene-network/graphene#readme",
+  "homepage": "https://github.com/opencapsule/opencapsule#readme",
   "bugs": {
-    "url": "https://github.com/graphene-network/graphene/issues"
+    "url": "https://github.com/opencapsule/opencapsule/issues"
   },
   "files": [
     "index.js",
@@ -50,7 +50,7 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "graphene",
+    "opencapsule",
     "unikernel",
     "compute",
     "serverless",

@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #23327 | 11:01 PM | 🔵 | Graphene Whitepaper Technical Architecture Details | ~869 |
+| #23327 | 11:01 PM | 🔵 | OpenCapsule Whitepaper Technical Architecture Details | ~869 |
 </claude-mem-context>

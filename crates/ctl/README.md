@@ -1,15 +1,15 @@
-# graphenectl
+# opencapsulectl
 
-Remote management CLI for Graphene nodes.
+Remote management CLI for OpenCapsule nodes.
 
 ## Overview
 
-Since Graphene nodes run as hardened unikernels with no shell access (no SSH, no bash), `graphenectl` provides API-based management over Iroh QUIC connections.
+Since OpenCapsule nodes run as hardened unikernels with no shell access (no SSH, no bash), `opencapsulectl` provides API-based management over Iroh QUIC connections.
 
 ```bash
-graphenectl --node prod-1 status
-graphenectl --node prod-1 apply -f node-config.toml
-graphenectl --node prod-1 drain
+opencapsulectl --node prod-1 status
+opencapsulectl --node prod-1 apply -f node-config.toml
+opencapsulectl --node prod-1 drain
 ```
 
 ## Installation
@@ -20,18 +20,18 @@ cargo install --path crates/ctl
 
 ## Configuration
 
-Node credentials are stored in `~/.graphene/config`:
+Node credentials are stored in `~/.opencapsule/config`:
 
 ```yaml
 nodes:
   prod-1:
     node_id: "ed25519:abc123..."
-    capability: "graphene-cap:v1:operator:..."
+    capability: "opencapsule-cap:v1:operator:..."
     endpoint: "203.0.113.50:9000"
 
   prod-2:
     node_id: "ed25519:def456..."
-    capability: "graphene-cap:v1:admin:..."
+    capability: "opencapsule-cap:v1:admin:..."
 ```
 
 ## Commands
@@ -41,101 +41,101 @@ nodes:
 Get initial credentials from a new node:
 
 ```bash
-graphenectl bootstrap --nodes 192.168.1.100:9000
+opencapsulectl bootstrap --nodes 192.168.1.100:9000
 ```
 
 ### Configuration
 
 ```bash
 # Apply configuration from file
-graphenectl --node prod-1 apply -f node-config.toml
+opencapsulectl --node prod-1 apply -f node-config.toml
 
 # Get current configuration
-graphenectl --node prod-1 get config
+opencapsulectl --node prod-1 get config
 
 # Edit configuration interactively
-graphenectl --node prod-1 edit config
+opencapsulectl --node prod-1 edit config
 ```
 
 ### Status & Monitoring
 
 ```bash
 # Get node status
-graphenectl --node prod-1 status
+opencapsulectl --node prod-1 status
 
 # Watch status continuously
-graphenectl --node prod-1 status --watch
+opencapsulectl --node prod-1 status --watch
 
 # Stream logs
-graphenectl --node prod-1 logs --follow
+opencapsulectl --node prod-1 logs --follow
 
 # Get metrics snapshot
-graphenectl --node prod-1 metrics
+opencapsulectl --node prod-1 metrics
 ```
 
 ### Worker Lifecycle
 
 ```bash
 # Register on-chain with stake
-graphenectl --node prod-1 register --stake 100
+opencapsulectl --node prod-1 register --stake 100
 
 # Join the worker pool
-graphenectl --node prod-1 join
+opencapsulectl --node prod-1 join
 
 # Enter maintenance mode (stop accepting new jobs)
-graphenectl --node prod-1 drain
+opencapsulectl --node prod-1 drain
 
 # Exit maintenance mode
-graphenectl --node prod-1 undrain
+opencapsulectl --node prod-1 undrain
 
 # Unregister from the network
-graphenectl --node prod-1 unregister
+opencapsulectl --node prod-1 unregister
 ```
 
 ### Maintenance
 
 ```bash
 # Check for available upgrades
-graphenectl --node prod-1 upgrade
+opencapsulectl --node prod-1 upgrade
 
 # Apply upgrade (downloads and stages OS image)
-graphenectl --node prod-1 upgrade --image https://releases.graphene.network/...
+opencapsulectl --node prod-1 upgrade --image https://releases.opencapsule.dev/...
 
 # Reboot node
-graphenectl --node prod-1 reboot
+opencapsulectl --node prod-1 reboot
 ```
 
 ### Capability Management
 
 ```bash
 # Generate new capability token
-graphenectl --node prod-1 cap generate --role operator --ttl 30
+opencapsulectl --node prod-1 cap generate --role operator --ttl 30
 
 # List revoked capabilities
-graphenectl --node prod-1 cap list
+opencapsulectl --node prod-1 cap list
 
 # Revoke a capability
-graphenectl --node prod-1 cap revoke <token-prefix>
+opencapsulectl --node prod-1 cap revoke <token-prefix>
 ```
 
 ### Local Configuration
 
 ```bash
 # Add node to local config
-graphenectl config add prod-3 --node-id ed25519:... --capability graphene-cap:...
+opencapsulectl config add prod-3 --node-id ed25519:... --capability opencapsule-cap:...
 
 # Remove node from local config
-graphenectl config remove prod-3
+opencapsulectl config remove prod-3
 
 # List configured nodes
-graphenectl config list
+opencapsulectl config list
 ```
 
 ## Global Options
 
 | Option | Description |
 |--------|-------------|
-| `--config <PATH>` | Config file (default: `~/.graphene/config`) |
+| `--config <PATH>` | Config file (default: `~/.opencapsule/config`) |
 | `--node <NAME>` | Target node name or ID |
 | `--output <FORMAT>` | Output format: `json`, `yaml`, `text` |
 | `-v, --verbose` | Enable verbose logging |
@@ -154,7 +154,7 @@ Capability tokens have roles that determine allowed operations:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ graphenectl CLI                                             │
+│ opencapsulectl CLI                                             │
 │ ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
 │ │ commands/       │  │ client.rs       │  │ config.rs    │ │
 │ │ - apply.rs      │  │ ManagementClient│  │ ClientConfig │ │
@@ -164,10 +164,10 @@ Capability tokens have roles that determine allowed operations:
 │ └─────────────────┘           │                             │
 └───────────────────────────────┼─────────────────────────────┘
                                 │ Iroh QUIC
-                                │ ALPN: "graphene-mgmt/1"
+                                │ ALPN: "opencapsule-mgmt/1"
                                 ▼
                     ┌───────────────────────┐
-                    │ Graphene Node         │
+                    │ OpenCapsule Node         │
                     │ ManagementHandler     │
                     └───────────────────────┘
 ```

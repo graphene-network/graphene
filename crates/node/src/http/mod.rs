@@ -1,4 +1,4 @@
-//! HTTP REST API for the Graphene worker node.
+//! HTTP REST API for the OpenCapsule worker node.
 //!
 //! Provides endpoints for job submission, status polling, result retrieval,
 //! health checks, and management operations.

@@ -22,11 +22,11 @@ on:
       machine:
         description: 'Machine to build (or "all")'
         required: false
-        default: 'graphene-node-x86_64'
+        default: 'opencapsule-node-x86_64'
         type: choice
         options:
-          - graphene-node-x86_64
-          - graphene-node-aarch64
+          - opencapsule-node-x86_64
+          - opencapsule-node-aarch64
           - all
       skip_cache:
         description: 'Skip sstate cache'
@@ -36,7 +36,7 @@ on:
 
 env:
   # Versions are read from node-os/os-matrix.toml in the load-config step
-  SSTATE_BUCKET: "graphene-sstate"
+  SSTATE_BUCKET: "opencapsule-sstate"
   BUILD_DIR: "/tmp/yocto-build"
 
 jobs:
@@ -112,23 +112,23 @@ jobs:
               ${{ github.workspace }}/poky/meta-poky \\
               ${{ github.workspace }}/poky/meta-yocto-bsp \\
               ${{ github.workspace }}/meta-rust-bin \\
-              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
+              ${{ github.workspace }}/node-os/yocto/meta-opencapsule \\
           "
           EOF
 
           cat > conf/local.conf << EOF
-          MACHINE = "graphene-node-x86_64"
+          MACHINE = "opencapsule-node-x86_64"
           BB_NUMBER_THREADS = "4"
           PARALLEL_MAKE = "-j 4"
           DL_DIR = "${{ env.BUILD_DIR }}/downloads"
           SSTATE_DIR = "${{ env.BUILD_DIR }}/sstate-cache"
           TMPDIR = "${{ env.BUILD_DIR }}/tmp"
           INHERIT += "externalsrc"
-          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC:pn-opencapsule-node = "${{ github.workspace }}"
           # B (build dir) must point to cargo's target dir for CARGO_BINDIR to work
-          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}/target"
-          SRCREV:pn-graphene-node = "${{ github.sha }}"
-          GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
+          EXTERNALSRC_BUILD:pn-opencapsule-node = "${{ github.workspace }}/target"
+          SRCREV:pn-opencapsule-node = "${{ github.sha }}"
+          OPENCAPSULE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           # Use meta-rust-bin instead of Poky's rust recipes
           # Mask Poky's rust to force use of meta-rust-bin
           BBMASK += "poky/meta/recipes-devtools/rust"
@@ -151,10 +151,10 @@ jobs:
           fi
           echo "::endgroup::"
 
-          echo "::group::Checking graphene-node-image recipe"
+          echo "::group::Checking opencapsule-node-image recipe"
           # Verify our image recipe is valid
-          bitbake -e graphene-node-image > /dev/null 2>&1
-          echo "✓ graphene-node-image recipe is valid"
+          bitbake -e opencapsule-node-image > /dev/null 2>&1
+          echo "✓ opencapsule-node-image recipe is valid"
           echo "::endgroup::"
 
   # Full build for releases, scheduled runs, and manual dispatch
@@ -170,9 +170,9 @@ jobs:
         id: generate
         run: |
           if [ "${{ inputs.machine }}" = "all" ] || [ -z "${{ inputs.machine }}" ]; then
-            MATRIX='{"machine":["graphene-node-x86_64"]}'
+            MATRIX='{"machine":["opencapsule-node-x86_64"]}'
             # aarch64 requires cross-compilation setup, disabled for now
-            # MATRIX='{"machine":["graphene-node-x86_64","graphene-node-aarch64"]}'
+            # MATRIX='{"machine":["opencapsule-node-x86_64","opencapsule-node-aarch64"]}'
           else
             MATRIX='{"machine":["${{ inputs.machine }}"]}'
           fi
@@ -265,7 +265,7 @@ jobs:
               ${{ github.workspace }}/poky/meta-poky \\
               ${{ github.workspace }}/poky/meta-yocto-bsp \\
               ${{ github.workspace }}/meta-rust-bin \\
-              ${{ github.workspace }}/node-os/yocto/meta-graphene \\
+              ${{ github.workspace }}/node-os/yocto/meta-opencapsule \\
           "
           EOF
 
@@ -282,14 +282,14 @@ jobs:
           PACKAGE_CLASSES = "package_rpm"
           INHERIT += "create-spdx"
           INHERIT += "externalsrc"
-          EXTERNALSRC:pn-graphene-node = "${{ github.workspace }}"
+          EXTERNALSRC:pn-opencapsule-node = "${{ github.workspace }}"
           # B (build dir) must point to cargo's target dir for CARGO_BINDIR to work
-          EXTERNALSRC_BUILD:pn-graphene-node = "${{ github.workspace }}/target"
+          EXTERNALSRC_BUILD:pn-opencapsule-node = "${{ github.workspace }}/target"
           # Override SRCREV to prevent BitBake from querying the git remote
           # (AUTOREV triggers git ls-remote which fails without credentials)
-          SRCREV:pn-graphene-node = "${{ github.sha }}"
+          SRCREV:pn-opencapsule-node = "${{ github.sha }}"
           # Kernel branch from os-matrix.toml
-          GRAPHENE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
+          OPENCAPSULE_KERNEL_BRANCH = "${KERNEL_BRANCH}"
           # Use meta-rust-bin instead of Poky's rust recipes
           # Mask Poky's rust to force use of meta-rust-bin
           BBMASK += "poky/meta/recipes-devtools/rust"
@@ -303,7 +303,7 @@ jobs:
           source oe-init-build-env ${{ env.BUILD_DIR }}
           # Run bitbake with explicit error handling
           # 2>&1: merge stderr to stdout for proper logging
-          bitbake graphene-node-image 2>&1 | tee bitbake.log
+          bitbake opencapsule-node-image 2>&1 | tee bitbake.log
           # Check exit status
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo "::error::BitBake build failed"
@@ -316,7 +316,7 @@ jobs:
         run: |
           set -eo pipefail
           cd ${{ env.BUILD_DIR }}
-          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+          IMAGE=$(find tmp/deploy/images -name "opencapsule-node-image-*.ext4" | head -1)
 
           if [ -z "$IMAGE" ]; then
             echo "ERROR: No image found"
@@ -348,7 +348,7 @@ jobs:
         run: |
           set -eo pipefail
           cd ${{ env.BUILD_DIR }}
-          IMAGE=$(find tmp/deploy/images -name "graphene-node-image-*.ext4" | head -1)
+          IMAGE=$(find tmp/deploy/images -name "opencapsule-node-image-*.ext4" | head -1)
           SIZE=$(stat -c%s "$IMAGE")
           SIZE_MB=$((SIZE / 1024 / 1024))
           echo "Image size: ${SIZE_MB}MB"
@@ -368,7 +368,7 @@ jobs:
           {
             "yocto_release": "${{ env.YOCTO_RELEASE }}",
             "machine": "${{ matrix.machine }}",
-            "image_size_bytes": $(stat -c%s "$(find tmp/deploy/images -name 'graphene-node-image-*.ext4' | head -1)"),
+            "image_size_bytes": $(stat -c%s "$(find tmp/deploy/images -name 'opencapsule-node-image-*.ext4' | head -1)"),
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "commit_sha": "${{ github.sha }}"
           }
@@ -378,11 +378,11 @@ jobs:
         timeout-minutes: 15
         uses: actions/upload-artifact@v4
         with:
-          name: graphene-node-os-yocto-${{ matrix.machine }}
+          name: opencapsule-node-os-yocto-${{ matrix.machine }}
           path: |
-            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.wic.gz
-            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/graphene-node-image-*.ext4
-            ${{ env.BUILD_DIR }}/tmp/deploy/licenses/graphene-node-image/
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/opencapsule-node-image-*.wic.gz
+            ${{ env.BUILD_DIR }}/tmp/deploy/images/${{ matrix.machine }}/opencapsule-node-image-*.ext4
+            ${{ env.BUILD_DIR }}/tmp/deploy/licenses/opencapsule-node-image/
             ${{ env.BUILD_DIR }}/build-info.json
           retention-days: 30
 
@@ -423,7 +423,7 @@ jobs:
         with:
           name: Node OS (Yocto) - ${{ github.ref_name }}
           body: |
-            Graphene Node OS built with Yocto (${{ env.YOCTO_RELEASE }}).
+            OpenCapsule Node OS built with Yocto (${{ env.YOCTO_RELEASE }}).
 
             ## Features
             - Minimal Linux host OS for Firecracker

@@ -1,5 +1,5 @@
 [package]
-name = "graphene_node"
+name = "opencapsule_node"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true
@@ -68,5 +68,5 @@ criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 tower = { version = "0.4", features = ["util"] }
 
 [[bin]]
-name = "graphene-worker"
+name = "opencapsule-worker"
 path = "bin/server.rs"

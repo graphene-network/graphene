@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse, NodeConfig};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse, NodeConfig};
 use std::path::Path;
 use std::process::Command;
 
@@ -27,7 +27,7 @@ pub fn get_editor() -> String {
 
 /// Generate a temp file path for editing a node's config.
 pub fn temp_config_path(node: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("graphene-config-{}.yaml", node))
+    std::env::temp_dir().join(format!("opencapsule-config-{}.yaml", node))
 }
 
 pub async fn run(config_path: &str, node: &str, resource: &str) -> anyhow::Result<()> {
@@ -127,7 +127,7 @@ mod tests {
         let path = temp_config_path("my-node");
         assert!(path
             .to_string_lossy()
-            .contains("graphene-config-my-node.yaml"));
+            .contains("opencapsule-config-my-node.yaml"));
     }
 
     #[test]

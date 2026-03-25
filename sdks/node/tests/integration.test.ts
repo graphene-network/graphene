@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Graphene SDK.
+ * Integration tests for the OpenCapsule SDK.
  *
  * These tests verify the TypeScript wrapper correctly delegates to native code.
  * Actual networking, crypto, and protocol tests are in Rust.
@@ -12,7 +12,7 @@ import {
   createPaymentTicket,
   decodeWireMessage,
   encodeWireMessage,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 describe('Wire Protocol: Job Request Serialization', () => {
   it('serializes job request to wire format', () => {

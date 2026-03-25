@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Upgrade action to perform
@@ -64,7 +64,7 @@ pub async fn run(
                 .await?;
             match response {
                 ManagementResponse::Ok => {
-                    println!("Upgrade staged. Run 'graphenectl upgrade --apply' to install.")
+                    println!("Upgrade staged. Run 'opencapsulectl upgrade --apply' to install.")
                 }
                 ManagementResponse::Error { code, message } => {
                     anyhow::bail!("{}: {}", code, message)

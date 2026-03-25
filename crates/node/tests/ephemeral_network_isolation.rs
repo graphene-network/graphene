@@ -3,7 +3,7 @@
 //! These tests verify that nftables rules are correctly created and enforced
 //! for ephemeral builder VMs.
 //!
-//! Run with: `sudo cargo test -p graphene_node --features integration-tests -- ephemeral_network`
+//! Run with: `sudo cargo test -p opencapsule_node --features integration-tests -- ephemeral_network`
 //!
 //! Requirements:
 //! - Linux with nftables (`nft` command)
@@ -12,7 +12,7 @@
 
 #![cfg(all(feature = "integration-tests", target_os = "linux"))]
 
-use graphene_node::ephemeral::{
+use opencapsule_node::ephemeral::{
     default_egress_allowlist, EgressEntry, LinuxNetworkIsolator, NetworkIsolator, Protocol,
 };
 use std::process::Command;
@@ -343,7 +343,7 @@ mod test_egress_entry {
 }
 
 mod test_egress_rule_conversion {
-    use graphene_node::types::EgressRule;
+    use opencapsule_node::types::EgressRule;
 
     use super::*;
 

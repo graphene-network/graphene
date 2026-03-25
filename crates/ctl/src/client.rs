@@ -1,9 +1,9 @@
-//! HTTP-based management client for Graphene worker nodes.
+//! HTTP-based management client for OpenCapsule worker nodes.
 
 #![allow(dead_code)]
 
 use crate::config::NodeEntry;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
@@ -63,7 +63,7 @@ pub struct AuthenticatedRequest {
     pub request: ManagementRequest,
 }
 
-/// Management client for connecting to Graphene worker nodes via HTTP.
+/// Management client for connecting to OpenCapsule worker nodes via HTTP.
 pub struct ManagementClient {
     base_url: String,
     capability: String,

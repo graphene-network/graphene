@@ -4,23 +4,23 @@
 //! - Linux with /dev/kvm available
 //! - firecracker binary in PATH
 //! - cpio binary in PATH (for initrd creation)
-//! - Prebuilt Unikraft kernel at ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+//! - Prebuilt Unikraft kernel at ~/.opencapsule/cache/kernels/python-3.12_fc-x86_64
 //!
-//! Run with: `cargo test -p graphene_node --features e2e-tests --test firecracker_unikraft_executor_integration`
+//! Run with: `cargo test -p opencapsule_node --features e2e-tests --test firecracker_unikraft_executor_integration`
 //!
 //! This test runs in the e2e-test.yml workflow which builds kernels beforehand.
 
 #![cfg(all(target_os = "linux", feature = "e2e-tests"))]
 
-use graphene_node::cache::MockBuildCache;
-use graphene_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptedBlob};
-use graphene_node::executor::drive::linux::LinuxDriveBuilder;
-use graphene_node::executor::output::DefaultOutputProcessor;
-use graphene_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
-use graphene_node::executor::{ExecutionRequest, JobExecutor};
-use graphene_node::p2p::messages::{JobManifest, ResultDeliveryMode};
-use graphene_node::p2p::mock::MockGrapheneNode;
-use graphene_node::p2p::protocol::types::JobAssets;
+use opencapsule_node::cache::MockBuildCache;
+use opencapsule_node::crypto::{ChannelKeys, CryptoProvider, DefaultCryptoProvider, EncryptedBlob};
+use opencapsule_node::executor::drive::linux::LinuxDriveBuilder;
+use opencapsule_node::executor::output::DefaultOutputProcessor;
+use opencapsule_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig};
+use opencapsule_node::executor::{ExecutionRequest, JobExecutor};
+use opencapsule_node::p2p::messages::{JobManifest, ResultDeliveryMode};
+use opencapsule_node::p2p::mock::MockOpenCapsuleNode;
+use opencapsule_node::p2p::protocol::types::JobAssets;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -67,7 +67,7 @@ fn kvm_available() -> bool {
 
 fn kernel_path() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
-    let path = home.join(".graphene/cache/kernels/python-3.12_fc-x86_64");
+    let path = home.join(".opencapsule/cache/kernels/python-3.12_fc-x86_64");
     if path.exists() {
         Some(path)
     } else {
@@ -100,9 +100,9 @@ async fn firecracker_unikraft_executor_runs_python_job() {
     );
     assert!(kvm_available(), "/dev/kvm not available");
     let _kernel_path = kernel_path()
-        .expect("prebuilt kernel not found at ~/.graphene/cache/kernels/python-3.12_fc-x86_64");
+        .expect("prebuilt kernel not found at ~/.opencapsule/cache/kernels/python-3.12_fc-x86_64");
 
-    let _keep_serial = EnvGuard::set("GRAPHENE_KEEP_SERIAL_LOG", "1");
+    let _keep_serial = EnvGuard::set("OPENCAPSULE_KEEP_SERIAL_LOG", "1");
 
     let (user_keys, user_public, worker_secret) = create_test_channel_keys();
     let crypto = Arc::new(DefaultCryptoProvider);
@@ -114,7 +114,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
             code,
             &user_keys,
             &job_id,
-            graphene_node::crypto::EncryptionDirection::Input,
+            opencapsule_node::crypto::EncryptionDirection::Input,
         )
         .expect("encrypt code");
 
@@ -144,12 +144,12 @@ async fn firecracker_unikraft_executor_runs_python_job() {
     let runner =
         FirecrackerRunner::new(FirecrackerRunnerConfig::new().with_runtime_dir(runtime_dir.path()));
 
-    let executor = graphene_node::executor::DefaultJobExecutor::new(
+    let executor = opencapsule_node::executor::DefaultJobExecutor::new(
         Arc::new(LinuxDriveBuilder::with_defaults()),
         Arc::new(runner),
         Arc::new(DefaultOutputProcessor::new(Arc::clone(&crypto))),
         Arc::clone(&crypto),
-        Arc::new(MockGrapheneNode::new()),
+        Arc::new(MockOpenCapsuleNode::new()),
         Arc::new(MockBuildCache::new()),
         worker_secret,
     );
@@ -165,7 +165,7 @@ async fn firecracker_unikraft_executor_runs_python_job() {
             &encrypted_stdout,
             &user_keys,
             &job_id,
-            graphene_node::crypto::EncryptionDirection::Output,
+            opencapsule_node::crypto::EncryptionDirection::Output,
         )
         .expect("decrypt stdout");
     let stdout_str = String::from_utf8_lossy(&stdout);

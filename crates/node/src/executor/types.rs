@@ -6,20 +6,20 @@ use thiserror::Error;
 
 /// Reserved environment variable names injected by the executor.
 pub mod reserved_env {
-    pub const GRAPHENE_JOB_ID: &str = "GRAPHENE_JOB_ID";
-    pub const GRAPHENE_INPUT_PATH: &str = "GRAPHENE_INPUT_PATH";
-    pub const GRAPHENE_OUTPUT_PATH: &str = "GRAPHENE_OUTPUT_PATH";
-    pub const GRAPHENE_TIMEOUT_MS: &str = "GRAPHENE_TIMEOUT_MS";
+    pub const OPENCAPSULE_JOB_ID: &str = "OPENCAPSULE_JOB_ID";
+    pub const OPENCAPSULE_INPUT_PATH: &str = "OPENCAPSULE_INPUT_PATH";
+    pub const OPENCAPSULE_OUTPUT_PATH: &str = "OPENCAPSULE_OUTPUT_PATH";
+    pub const OPENCAPSULE_TIMEOUT_MS: &str = "OPENCAPSULE_TIMEOUT_MS";
 
     pub const ALL: &[&str] = &[
-        GRAPHENE_JOB_ID,
-        GRAPHENE_INPUT_PATH,
-        GRAPHENE_OUTPUT_PATH,
-        GRAPHENE_TIMEOUT_MS,
+        OPENCAPSULE_JOB_ID,
+        OPENCAPSULE_INPUT_PATH,
+        OPENCAPSULE_OUTPUT_PATH,
+        OPENCAPSULE_TIMEOUT_MS,
     ];
 
     pub fn is_reserved(name: &str) -> bool {
-        name.starts_with("GRAPHENE_")
+        name.starts_with("OPENCAPSULE_")
     }
 }
 
@@ -195,10 +195,10 @@ mod tests {
 
     #[test]
     fn test_reserved_env_is_reserved() {
-        assert!(reserved_env::is_reserved("GRAPHENE_JOB_ID"));
-        assert!(reserved_env::is_reserved("GRAPHENE_CUSTOM"));
+        assert!(reserved_env::is_reserved("OPENCAPSULE_JOB_ID"));
+        assert!(reserved_env::is_reserved("OPENCAPSULE_CUSTOM"));
         assert!(!reserved_env::is_reserved("MY_VAR"));
-        assert!(!reserved_env::is_reserved("GRAPHENE"));
+        assert!(!reserved_env::is_reserved("OPENCAPSULE"));
     }
 
     #[test]

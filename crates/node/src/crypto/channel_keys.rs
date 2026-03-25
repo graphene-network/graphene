@@ -57,7 +57,7 @@ impl ChannelKeys {
     /// 1. Convert Ed25519 secret → X25519 secret (via SHA512 clamping)
     /// 2. Convert Ed25519 public → X25519 public (via curve conversion)
     /// 3. Perform X25519 ECDH to get shared secret
-    /// 4. HKDF-SHA256(shared_secret, salt=channel_pda, info="graphene-channel-v1")
+    /// 4. HKDF-SHA256(shared_secret, salt=channel_pda, info="opencapsule-channel-v1")
     ///
     /// # Arguments
     ///
@@ -81,7 +81,7 @@ impl ChannelKeys {
         // Derive channel master key via HKDF
         let hkdf = Hkdf::<Sha256>::new(Some(channel_pda), shared_secret.as_bytes());
         let mut channel_master_key = [0u8; 32];
-        hkdf.expand(b"graphene-channel-v1", &mut channel_master_key)
+        hkdf.expand(b"opencapsule-channel-v1", &mut channel_master_key)
             .expect("32 bytes is valid HKDF output length");
 
         Ok(Self {

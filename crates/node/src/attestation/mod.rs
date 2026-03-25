@@ -1,7 +1,7 @@
-//! Platform attestation for Graphene Node OS
+//! Platform attestation for OpenCapsule Node OS
 //!
 //! This module provides TPM-based attestation and dm-verity verification
-//! to ensure the node binary only runs on verified Graphene OS installations.
+//! to ensure the node binary only runs on verified OpenCapsule OS installations.
 //!
 //! # Architecture
 //!

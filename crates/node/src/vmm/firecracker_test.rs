@@ -3,7 +3,7 @@
 //! These tests only run on Linux where Firecracker is supported.
 //! Some tests require the `firecracker` binary to be installed.
 //!
-//! Run with: `cargo test -p graphene_node --features integration-tests`
+//! Run with: `cargo test -p opencapsule_node --features integration-tests`
 
 use super::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer, VmState, VmmError};
 use std::path::PathBuf;

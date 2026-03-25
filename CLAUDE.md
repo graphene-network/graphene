@@ -1,4 +1,4 @@
-# Graphene Network - Coding Agent Context
+# OpenCapsule - Coding Agent Context
 
 ## Critical: Unikernels Have NO Shell
 
@@ -90,11 +90,11 @@ CORRECT (Unikernel reality):
 
 ---
 
-## Graphene Execution Model
+## OpenCapsule Execution Model
 
 ### The Planner/Executor Separation
 
-AI agents in Graphene do NOT get shell access. Instead:
+AI agents in OpenCapsule do NOT get shell access. Instead:
 
 | Layer | Role | Has Shell? |
 |-------|------|-----------|
@@ -201,14 +201,14 @@ socket.connect(("10.0.0.1", 22))  # RFC1918 addresses blocked
 - Concepts: https://unikraft.org/docs/concepts
 - Security: https://unikraft.org/docs/concepts/security
 
-### Graphene Docs
+### OpenCapsule Docs
 - Whitepaper: `docs/WHITEPAPER.md`
 - ELI5 Explanation: `docs/ELI5.md`
 - Endgame Vision: `docs/ENDGAME.md`
 
 ### Key Insight
 > "The AI agent does not 'run' inside a runtime. It *requests* a build, and the system executes a sealed, single-purpose unikernel."
-> — Graphene Whitepaper
+> — OpenCapsule Whitepaper
 
 ---
 

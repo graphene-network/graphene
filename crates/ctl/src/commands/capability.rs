@@ -4,7 +4,7 @@ use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
 use crate::output::format_capabilities_text;
 use crate::CapAction;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse, Role};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse, Role};
 use std::path::Path;
 
 /// Parse a role string into a Role enum.

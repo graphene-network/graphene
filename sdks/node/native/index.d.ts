@@ -79,7 +79,7 @@ export const enum RejectReason {
   EnvTooLarge = 'EnvTooLarge',
   /** Environment variable name is invalid. */
   InvalidEnvName = 'InvalidEnvName',
-  /** Environment variable uses reserved GRAPHENE_* prefix. */
+  /** Environment variable uses reserved OPENCAPSULE_* prefix. */
   ReservedEnvPrefix = 'ReservedEnvPrefix',
   /** Code or input blob could not be fetched. */
   AssetUnavailable = 'AssetUnavailable',
@@ -88,7 +88,7 @@ export const enum RejectReason {
   /** Generic internal error. */
   InternalError = 'InternalError'
 }
-/** Configuration for creating a Graphene client. */
+/** Configuration for creating an OpenCapsule client. */
 export interface ClientConfig {
   /** Worker HTTP URL (e.g., "http://192.168.1.100:3000"). */
   workerUrl: string
@@ -177,11 +177,11 @@ export declare class EncryptedBlob {
   static fromBytes(bytes: Buffer): EncryptedBlob
 }
 /**
- * A native Graphene network client using HTTP transport.
+ * A native OpenCapsule network client using HTTP transport.
  */
-export declare class GrapheneClient {
-  /** Create a new Graphene client. */
-  static create(config: ClientConfig): Promise<GrapheneClient>
+export declare class OpenCapsuleClient {
+  /** Create a new OpenCapsule client. */
+  static create(config: ClientConfig): Promise<OpenCapsuleClient>
   /** Submit a job to the worker. */
   submitJob(options: JobOptions): Promise<NativeJobResult>
   /** Get the current nonce value. */

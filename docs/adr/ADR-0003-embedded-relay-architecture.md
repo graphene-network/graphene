@@ -7,7 +7,7 @@
 
 ## Context
 
-The Graphene network requires two infrastructure services for SDK clients:
+The OpenCapsule network requires two infrastructure services for SDK clients:
 
 1. **Discovery** - REST API for querying available workers (see ADR-0001)
 2. **Relay** - QUIC relay for NAT traversal when direct connections fail
@@ -147,7 +147,7 @@ Clients configure a single gateway URL:
 
 ```typescript
 const client = await Client.create({
-  gatewayUrl: 'https://gateway.graphene.network',
+  gatewayUrl: 'https://gateway.opencapsule.dev',
   // Gateway provides both discovery API and relay
 });
 ```
@@ -162,9 +162,9 @@ The SDK:
 Deploy multiple gateway instances across regions for redundancy:
 
 ```
-gateway-us-east.graphene.network  → US East
-gateway-eu-west.graphene.network  → EU West
-gateway-ap-south.graphene.network → Asia Pacific
+gateway-us-east.opencapsule.dev  → US East
+gateway-eu-west.opencapsule.dev  → EU West
+gateway-ap-south.opencapsule.dev → Asia Pacific
 ```
 
 SDKs can be configured with multiple gateways for failover:
@@ -172,8 +172,8 @@ SDKs can be configured with multiple gateways for failover:
 ```typescript
 const client = await Client.create({
   gateways: [
-    'https://gateway-us-east.graphene.network',
-    'https://gateway-eu-west.graphene.network',
+    'https://gateway-us-east.opencapsule.dev',
+    'https://gateway-eu-west.opencapsule.dev',
   ],
 });
 ```

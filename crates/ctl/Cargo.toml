@@ -1,22 +1,22 @@
 [package]
-name = "graphenectl"
+name = "opencapsulectl"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true
 repository.workspace = true
-description = "Remote management CLI for Graphene nodes"
+description = "Remote management CLI for OpenCapsule nodes"
 
 [lib]
-name = "graphenectl"
+name = "opencapsulectl"
 path = "src/lib.rs"
 
 [[bin]]
-name = "graphenectl"
+name = "opencapsulectl"
 path = "src/main.rs"
 
 [dependencies]
 # Core dependencies
-graphene_node = { path = "../node" }
+opencapsule_node = { path = "../node" }
 tokio = { version = "1.49", features = ["full"] }
 anyhow = "1.0"
 thiserror = "2.0"

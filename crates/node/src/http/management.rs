@@ -1,6 +1,6 @@
 //! Management API types and handlers.
 //!
-//! These types replace the deleted `graphene_node::management` module.
+//! These types replace the deleted `opencapsule_node::management` module.
 //! The CLI imports these types for request/response serialization.
 
 use crate::http::state::AppState;

@@ -175,7 +175,7 @@ const result = await client.run({
 │  └─────────────┘    └─────────────┘    └─────────────┘         │
 │                            ▲                                     │
 └────────────────────────────┼─────────────────────────────────────┘
-                             │ graphene-compute-v1
+                             │ opencapsule-compute-v1
                              │
          ┌───────────────────┼───────────────────┐
          │                   │                   │
@@ -277,8 +277,8 @@ Single authoritative worker registry.
 ## Implementation Plan
 
 ### Phase 1: Discovery Gateway (P1)
-1. Create `graphene-discovery` service
-2. Subscribe to `graphene-compute-v1` gossip
+1. Create `opencapsule-discovery` service
+2. Subscribe to `opencapsule-compute-v1` gossip
 3. Expose REST API for worker queries
 4. Deploy to multiple regions
 
@@ -340,7 +340,7 @@ For latency-critical serverless, skip discovery entirely:
 ```typescript
 // Worker ID configured at deploy time
 const client = await Client.create({
-  workerNodeId: process.env.GRAPHENE_WORKER_ID,
+  workerNodeId: process.env.OPENCAPSULE_WORKER_ID,
   channelPda,
   secretKey,
 });
@@ -375,7 +375,7 @@ Response:
 ```typescript
 // Fast path in serverless function
 const client = await Client.create({
-  sessionToken: process.env.GRAPHENE_SESSION_TOKEN,
+  sessionToken: process.env.OPENCAPSULE_SESSION_TOKEN,
 });
 
 // Session token encodes: workerNodeId + pre-negotiated parameters
@@ -478,7 +478,7 @@ Response:
   "workerNodeId": "abc123def456...",
   "workerEndpoint": {
     "nodeId": "abc123def456...",
-    "relayUrl": "https://relay-us-east.graphene.network"
+    "relayUrl": "https://relay-us-east.opencapsule.dev"
   },
   "expiresAt": "2026-02-04T12:30:00Z",
   "refreshBefore": "2026-02-04T12:25:00Z"

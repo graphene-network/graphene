@@ -1,16 +1,16 @@
 #![deny(clippy::all)]
 
-//! Native bindings for the Graphene Network SDK.
+//! Native bindings for the OpenCapsule SDK.
 //!
 //! This crate provides Node.js bindings via napi-rs for:
 //! - Channel key derivation from Ed25519 identities
 //! - Job encryption/decryption with forward secrecy
-//! - HTTP-based job submission to Graphene workers
+//! - HTTP-based job submission to OpenCapsule workers
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use graphene_node::crypto::{
+use opencapsule_node::crypto::{
     self, CryptoProvider, DefaultCryptoProvider, EncryptedBlob as RustEncryptedBlob,
     EncryptionDirection as RustEncryptionDirection,
 };
@@ -278,11 +278,11 @@ pub fn blake3_hash(data: Buffer) -> Buffer {
 // HTTP Client Types
 // ============================================================================
 
-use graphene_node::api::{
+use opencapsule_node::api::{
     ApiError as RustApiError, JobResultResponse, JobStatusResponse, SubmitJobRequest,
     SubmitJobResponse,
 };
-use graphene_node::types::{
+use opencapsule_node::types::{
     AssetData, Compression, EgressRule as RustEgressRule, JobAssets as RustJobAssets,
     JobManifest as RustJobManifest,
 };
@@ -343,7 +343,7 @@ pub enum RejectReason {
     EnvTooLarge,
     /// Environment variable name is invalid.
     InvalidEnvName,
-    /// Environment variable uses reserved GRAPHENE_* prefix.
+    /// Environment variable uses reserved OPENCAPSULE_* prefix.
     ReservedEnvPrefix,
     /// Code or input blob could not be fetched.
     AssetUnavailable,
@@ -353,7 +353,7 @@ pub enum RejectReason {
     InternalError,
 }
 
-/// Configuration for creating a Graphene client.
+/// Configuration for creating a OpenCapsule client.
 #[napi(object)]
 pub struct ClientConfig {
     /// Worker HTTP URL (e.g., "http://192.168.1.100:3000").
@@ -433,14 +433,14 @@ pub struct NativeJobResult {
 // HTTP-Based Client
 // ============================================================================
 
-/// A native Graphene network client using HTTP transport.
+/// A native OpenCapsule network client using HTTP transport.
 ///
 /// Handles:
 /// - Channel key derivation for end-to-end encryption
 /// - Job encryption/decryption
 /// - HTTP-based job submission and result retrieval
 #[napi]
-pub struct GrapheneClient {
+pub struct OpenCapsuleClient {
     client: reqwest::Client,
     base_url: String,
     channel_keys: crypto::ChannelKeys,
@@ -453,8 +453,8 @@ pub struct GrapheneClient {
 }
 
 #[napi]
-impl GrapheneClient {
-    /// Create a new Graphene client.
+impl OpenCapsuleClient {
+    /// Create a new OpenCapsule client.
     ///
     /// This initializes:
     /// - Channel key derivation for end-to-end encryption
@@ -463,7 +463,7 @@ impl GrapheneClient {
     /// # Arguments
     /// * `config` - Client configuration with keys and worker URL
     #[napi(factory)]
-    pub async fn create(config: ClientConfig) -> Result<GrapheneClient> {
+    pub async fn create(config: ClientConfig) -> Result<OpenCapsuleClient> {
         // Validate key lengths
         if config.secret_key.len() != 32 {
             return Err(napi::Error::from_reason(format!(
@@ -503,7 +503,7 @@ impl GrapheneClient {
         // Normalize base URL (strip trailing slash)
         let base_url = config.worker_url.trim_end_matches('/').to_string();
 
-        Ok(GrapheneClient {
+        Ok(OpenCapsuleClient {
             client: reqwest::Client::new(),
             base_url,
             channel_keys,
@@ -817,10 +817,10 @@ impl GrapheneClient {
 }
 
 // Note: Tests for napi bindings require Node.js runtime.
-// The underlying crypto functionality is tested in graphene_node::crypto.
+// The underlying crypto functionality is tested in opencapsule_node::crypto.
 #[cfg(test)]
 mod tests {
-    use graphene_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
+    use opencapsule_node::crypto::{CryptoProvider, DefaultCryptoProvider, EncryptionDirection};
 
     fn create_test_keypair(secret_bytes: [u8; 32]) -> ([u8; 32], [u8; 32]) {
         use ed25519_dalek::SigningKey;
@@ -869,7 +869,7 @@ mod tests {
             .derive_channel_keys(&worker_secret, &user_public, &channel_id)
             .unwrap();
 
-        let plaintext = b"Hello, Graphene!";
+        let plaintext = b"Hello, OpenCapsule!";
         let job_id = "test-job-123";
 
         // User encrypts

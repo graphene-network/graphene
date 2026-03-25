@@ -1,7 +1,7 @@
 {
-  "name": "@graphene/sdk",
+  "name": "@opencapsule/sdk",
   "version": "0.1.0",
-  "description": "High-level TypeScript client for Graphene Network",
+  "description": "High-level TypeScript client for OpenCapsule Network",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,7 +20,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@graphene/sdk-native": "workspace:native"
+    "@opencapsule/sdk-native": "workspace:native"
   },
   "devDependencies": {
     "@noble/ed25519": "^2.1.0",
@@ -29,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/graphene-network/graphene"
+    "url": "https://github.com/opencapsule/opencapsule"
   },
   "license": "AGPL-3.0-only",
   "files": [
@@ -40,7 +40,7 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "graphene",
+    "opencapsule",
     "unikernel",
     "compute",
     "serverless"

@@ -38,7 +38,7 @@ async function firecrackerAvailable(): Promise<boolean> {
 }
 
 export async function shouldUseMockRunner(): Promise<boolean> {
-  if (envTruthy('GRAPHENE_FORCE_MOCK_RUNNER')) {
+  if (envTruthy('OPENCAPSULE_FORCE_MOCK_RUNNER')) {
     return true;
   }
 

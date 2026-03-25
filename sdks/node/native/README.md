@@ -1,13 +1,13 @@
-# @graphene/sdk-native
+# @opencapsule/sdk-native
 
-Native bindings for Graphene Network SDK - cryptographic primitives, payment tickets, and protocol serialization.
+Native bindings for OpenCapsule SDK - cryptographic primitives, payment tickets, and protocol serialization.
 
-This package provides the low-level native bindings used by `@graphene/sdk`. Most users should use `@graphene/sdk` directly.
+This package provides the low-level native bindings used by `@opencapsule/sdk`. Most users should use `@opencapsule/sdk` directly.
 
 ## Installation
 
 ```bash
-npm install @graphene/sdk-native
+npm install @opencapsule/sdk-native
 ```
 
 ## Supported Platforms
@@ -28,7 +28,7 @@ Pre-built binaries are available for:
 ### Channel Key Derivation
 
 ```typescript
-import { deriveChannelKeys } from '@graphene/sdk-native';
+import { deriveChannelKeys } from '@opencapsule/sdk-native';
 
 const channelKeys = deriveChannelKeys(
   localSecret,   // Ed25519 secret key (32 bytes)
@@ -47,7 +47,7 @@ import {
   encryptJobBlob,
   decryptJobBlob,
   EncryptionDirection,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 // Encrypt data for a job
 const encrypted = encryptJobBlob(
@@ -83,7 +83,7 @@ import {
   createPaymentTicket,
   verifyTicketSignature,
   validateTicket,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 // Create a payment ticket
 const ticket = createPaymentTicket(
@@ -119,7 +119,7 @@ import {
   deserializeJobResponse,
   encodeWireMessage,
   decodeWireMessage,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 // Serialize a job request to wire format
 const request = {

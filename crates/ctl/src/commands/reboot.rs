@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Validate that the force flag is set for reboot.
