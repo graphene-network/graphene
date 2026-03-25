@@ -162,6 +162,15 @@ Cloudflare Workers are fast and globally distributed, but they run inside V8 iso
 - **Centralized**: You can't run Cloudflare Workers on your own hardware. Graphene workers run anywhere with KVM support.
 - **No filesystem**: Workers have no persistent or temporary filesystem. Graphene unikernels get a full (ephemeral) filesystem with your code and dependencies baked in at build time.
 
+### Graphene vs Northflank Sandboxes
+
+Northflank Sandboxes use Kata/gVisor MicroVMs — similar hardware isolation to Graphene. But the security model is fundamentally different:
+
+- **Shell access**: Northflank sandboxes run full Linux with shells, package managers, and process spawning. Graphene unikernels have none of these — the attack surface is structurally eliminated, not just restricted.
+- **Image size**: Northflank runs standard container images (hundreds of MB to GB). Graphene unikernels are 1-5MB, enabling sub-second cold starts from content-addressed cache.
+- **E2E encryption**: Graphene encrypts all job I/O with per-job ephemeral keys (XChaCha20-Poly1305). Code and results are encrypted in transit and at rest. Northflank does not provide per-job encryption.
+- **Open source**: Graphene is AGPL-3.0. Northflank is proprietary.
+
 ## Roadmap
 
 - **Q1 2026**: Engine—Single-node worker, HTTP API, Firecracker + Unikraft
