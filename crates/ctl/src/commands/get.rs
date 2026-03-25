@@ -3,7 +3,7 @@
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
 use crate::output::{format_config_text, format_output, format_status_text, OutputFormat};
-use graphene_node::management::{ManagementRequest, ManagementResponse};
+use graphene_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Supported resource types for the get command

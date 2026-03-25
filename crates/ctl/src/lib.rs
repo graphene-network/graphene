@@ -47,17 +47,13 @@ pub enum ConfigAction {
         /// Node name
         name: String,
 
-        /// Node ID (ed25519 public key)
+        /// Node URL (e.g. http://192.168.1.100:3000)
         #[arg(long)]
-        node_id: String,
+        url: String,
 
         /// Capability token
         #[arg(long)]
         capability: String,
-
-        /// Direct endpoint (optional)
-        #[arg(long)]
-        endpoint: Option<String>,
     },
 
     /// Remove a node from config

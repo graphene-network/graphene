@@ -11,115 +11,21 @@ export const enum EncryptionDirection {
   Output = 1
 }
 /**
- * Derive channel keys from Ed25519 identities and a Solana payment channel PDA.
+ * Derive channel keys from Ed25519 identities and a shared channel identifier.
  *
- * This performs:
- * 1. Ed25519 -> X25519 key conversion
- * 2. X25519 ECDH between local secret and peer public
- * 3. HKDF with channel PDA as salt to derive the channel master key
- *
- * Both parties in a payment channel will derive the same master key.
- *
- * # Arguments
- * * `local_secret` - Your Ed25519 secret key (32 bytes)
- * * `peer_pubkey` - Peer's Ed25519 public key (32 bytes)
- * * `channel_pda` - Solana PDA for the payment channel (32 bytes)
- *
- * # Returns
- * ChannelKeys containing the shared master key and X25519 keys
+ * Both parties will derive the same master key.
  */
-export declare function deriveChannelKeys(localSecret: Buffer, peerPubkey: Buffer, channelPda: Buffer): ChannelKeys
+export declare function deriveChannelKeys(localSecret: Buffer, peerPubkey: Buffer, channelId: Buffer): ChannelKeys
 /**
  * Encrypt data for a job using channel keys.
  *
  * Uses XChaCha20-Poly1305 with per-job ephemeral keys for forward secrecy.
- * The job_id is incorporated into key derivation to prevent cross-job decryption.
- *
- * # Arguments
- * * `plaintext` - Data to encrypt
- * * `channel_keys` - Pre-derived channel keys
- * * `job_id` - Unique job identifier
- * * `direction` - Input (user->worker) or Output (worker->user)
- *
- * # Returns
- * EncryptedBlob containing version, ephemeral pubkey, nonce, and ciphertext
  */
 export declare function encryptJobBlob(plaintext: Buffer, channelKeys: ChannelKeys, jobId: string, direction: EncryptionDirection): EncryptedBlob
 /**
  * Decrypt a job blob using channel keys.
- *
- * # Arguments
- * * `encrypted` - The encrypted blob
- * * `channel_keys` - Pre-derived channel keys (from the receiving side)
- * * `job_id` - Unique job identifier (must match encryption)
- * * `direction` - Must match the direction used during encryption
- *
- * # Returns
- * Decrypted plaintext
  */
 export declare function decryptJobBlob(encrypted: EncryptedBlob, channelKeys: ChannelKeys, jobId: string, direction: EncryptionDirection): Buffer
-/**
- * Channel state for ticket validation context.
- *
- * Workers track this state per-channel to validate incoming tickets.
- */
-export interface ChannelState {
-  /** Last seen nonce for this channel. */
-  lastNonce: bigint
-  /** Last cumulative amount seen. */
-  lastAmount: bigint
-  /** Total balance available in the channel. */
-  channelBalance: bigint
-}
-/**
- * Create a new payment ticket with the given parameters.
- *
- * Signs the 48-byte payload (channel_id || amount_micros || nonce) with Ed25519.
- * The timestamp is set to the current time.
- *
- * # Arguments
- * * `channel_id` - Payment channel address (32 bytes)
- * * `amount_micros` - Cumulative amount to authorize (u64 as BigInt)
- * * `nonce` - Ticket sequence number (u64 as BigInt)
- * * `signer_secret` - Ed25519 secret key (32 bytes)
- *
- * # Returns
- * A signed PaymentTicket ready for transmission to workers.
- */
-export declare function createPaymentTicket(channelId: Buffer, amountMicros: bigint, nonce: bigint, signerSecret: Buffer): PaymentTicket
-/**
- * Verify the Ed25519 signature on a payment ticket.
- *
- * This only checks the cryptographic signature, not business rules like
- * nonce ordering or balance limits.
- *
- * # Arguments
- * * `ticket` - The ticket to verify
- * * `payer_pubkey` - Expected Ed25519 public key of the payer (32 bytes)
- *
- * # Returns
- * `true` if signature is valid, `false` otherwise
- */
-export declare function verifyTicketSignature(ticket: PaymentTicket, payerPubkey: Buffer): boolean
-/**
- * Validate a payment ticket against channel state.
- *
- * Performs full validation including:
- * 1. Ed25519 signature verification
- * 2. Nonce must be strictly greater than last_nonce (replay protection)
- * 3. Amount must be >= last_amount (cumulative)
- * 4. Amount must be <= channel_balance
- * 5. Timestamp must be within acceptable bounds (not too old or too far in future)
- *
- * # Arguments
- * * `ticket` - The ticket to validate
- * * `payer_pubkey` - Expected Ed25519 public key of the payer (32 bytes)
- * * `channel_state` - Current state of the payment channel
- *
- * # Returns
- * `Ok(())` if valid, throws an error with details on failure.
- */
-export declare function validateTicket(ticket: PaymentTicket, payerPubkey: Buffer, channelState: ChannelState): Promise<void>
 /**
  * Compute the BLAKE3 hash of the given data.
  *
@@ -135,53 +41,6 @@ export interface EgressRule {
   /** Protocol (tcp/udp). */
   protocol: string
 }
-/** Resource requirements and configuration for a job. */
-export interface JobManifest {
-  /** Required vCPUs. */
-  vcpu: number
-  /** Required memory in MB. */
-  memoryMb: number
-  /** Maximum execution time in milliseconds. */
-  timeoutMs: bigint
-  /** Required runtime image (e.g., "python:3.12"). */
-  runtime: string
-  /** Allowed egress endpoints. */
-  egressAllowlist: Array<EgressRule>
-  /** Environment variables to set in the unikernel. */
-  env: Record<string, string>
-  /** Estimated network egress in megabytes (optional). */
-  estimatedEgressMb?: bigint
-  /** Estimated network ingress in megabytes (optional). */
-  estimatedIngressMb?: bigint
-}
-/** References to code and input blobs in Iroh. */
-export interface JobAssets {
-  /** BLAKE3 hash of the encrypted code blob (32 bytes). */
-  codeHash: Buffer
-  /** Optional URL to fetch code from. */
-  codeUrl?: string
-  /** BLAKE3 hash of the encrypted input blob (32 bytes). */
-  inputHash: Buffer
-  /** Optional URL to fetch input from. */
-  inputUrl?: string
-}
-/** Job submission request from client to worker. */
-export interface JobRequest {
-  /** Unique job identifier (UUID string). */
-  jobId: string
-  /** Resource requirements and configuration. */
-  manifest: JobManifest
-  /** Payment authorization ticket (serialized bytes). */
-  ticket: Buffer
-  /** Code and input blob references. */
-  assets: JobAssets
-  /** Ephemeral X25519 public key for forward secrecy (32 bytes). */
-  ephemeralPubkey: Buffer
-  /** Solana PDA of the payment channel (32 bytes). */
-  channelPda: Buffer
-  /** Requested result delivery mode ("sync" | "async"). */
-  deliveryMode: string
-}
 /** Resource usage metrics for a completed job. */
 export interface JobMetrics {
   /** Peak memory usage in bytes. */
@@ -192,31 +51,8 @@ export interface JobMetrics {
   networkRxBytes: bigint
   /** Total network bytes transmitted. */
   networkTxBytes: bigint
-  /** Total cost charged in microtokens. */
-  totalCostMicros: bigint
-  /** CPU cost component in microtokens. */
-  cpuCostMicros: bigint
-  /** Memory cost component in microtokens. */
-  memoryCostMicros: bigint
-  /** Egress cost component in microtokens. */
-  egressCostMicros: bigint
 }
-/** Job execution result. */
-export interface JobResult {
-  /** BLAKE3 hash of the encrypted result blob (32 bytes). */
-  resultHash: Buffer
-  /** Optional URL to fetch result from. */
-  resultUrl?: string
-  /** Exit code of the unikernel (0 = success). */
-  exitCode: number
-  /** Execution duration in milliseconds. */
-  durationMs: bigint
-  /** Resource usage metrics. */
-  metrics: JobMetrics
-  /** Worker's Ed25519 signature (64 bytes). */
-  workerSignature: Buffer
-}
-/** Status of a job in the protocol. */
+/** Status of a job. */
 export const enum JobStatus {
   /** Job accepted and queued for execution. */
   Accepted = 'Accepted',
@@ -233,12 +69,6 @@ export const enum JobStatus {
 }
 /** Reason for job rejection. */
 export const enum RejectReason {
-  /** Payment ticket signature or format is invalid. */
-  TicketInvalid = 'TicketInvalid',
-  /** Payment channel balance exhausted or nonce replayed. */
-  ChannelExhausted = 'ChannelExhausted',
-  /** Payment does not authorize enough funds. */
-  InsufficientPayment = 'InsufficientPayment',
   /** Worker is at capacity. */
   CapacityFull = 'CapacityFull',
   /** Requested kernel is not supported. */
@@ -258,90 +88,16 @@ export const enum RejectReason {
   /** Generic internal error. */
   InternalError = 'InternalError'
 }
-/** Response to a job request. */
-export interface JobResponse {
-  /** The job ID this response refers to. */
-  jobId: string
-  /** Current status of the job. */
-  status: string
-  /** Job result (only present when status is Succeeded, Failed, or Timeout). */
-  result?: JobResult
-  /** Error message (only present when status is Rejected). */
-  error?: string
-  /** Reject reason (only present when status is Rejected). */
-  rejectReason?: string
-}
-/** A decoded wire message containing type and payload. */
-export interface WireMessage {
-  /** Message type byte. */
-  msgType: number
-  /** Raw payload bytes (bincode-encoded). */
-  payload: Buffer
-}
-/**
- * Serialize a JobRequest to wire format bytes.
- *
- * The wire format is: [4 bytes: length BE] [1 byte: type] [N bytes: bincode payload]
- *
- * # Arguments
- * * `request` - The job request to serialize
- *
- * # Returns
- * Wire-formatted bytes ready for transmission
- */
-export declare function serializeJobRequest(request: JobRequest): Buffer
-/**
- * Deserialize a JobResponse from wire format bytes.
- *
- * # Arguments
- * * `data` - Wire-formatted bytes received from a worker
- *
- * # Returns
- * Parsed JobResponse
- */
-export declare function deserializeJobResponse(data: Buffer): JobResponse
-/**
- * Encode a raw payload into wire format with the given message type.
- *
- * Wire format: [4 bytes: length BE] [1 byte: type] [payload]
- *
- * # Arguments
- * * `msg_type` - Message type byte (1=JobRequest, 2=JobAccepted, 3=JobProgress, 4=JobResult, 5=JobRejected)
- * * `payload` - Raw payload bytes
- *
- * # Returns
- * Wire-formatted bytes
- */
-export declare function encodeWireMessage(msgType: number, payload: Buffer): Buffer
-/**
- * Decode a wire message into its type and payload.
- *
- * # Arguments
- * * `data` - Wire-formatted bytes
- *
- * # Returns
- * WireMessage containing the message type and raw payload
- */
-export declare function decodeWireMessage(data: Buffer): WireMessage
 /** Configuration for creating a Graphene client. */
 export interface ClientConfig {
-  /** Storage path for persistent data (identity key, blob cache). */
-  storagePath: string
+  /** Worker HTTP URL (e.g., "http://192.168.1.100:3000"). */
+  workerUrl: string
   /** Your Ed25519 secret key (32 bytes). */
   secretKey: Buffer
-  /** Payment channel PDA (32 bytes). */
-  channelPda: Buffer
-  /**
-   * Worker's node ID - hex-encoded Ed25519 public key (64 hex chars).
-   * This is used for both P2P connection and encryption key derivation.
-   */
-  workerNodeId: string
-  /** Whether to use relay servers for NAT traversal. */
-  useRelay?: boolean
-  /** Optional bind port (0 for random). */
-  bindPort?: number
-  /** Worker's relay URL for NAT traversal (needed by Iroh 0.96). */
-  relayUrl?: string
+  /** Shared channel identifier (32 bytes) - used for key derivation. */
+  channelId: Buffer
+  /** Worker's Ed25519 public key (hex-encoded, 64 hex chars). */
+  workerPubkey: string
 }
 /** Resource requirements for a job. */
 export interface ResourceOptions {
@@ -361,17 +117,6 @@ export interface NetworkingOptions {
 }
 /** Asset delivery options for a job. */
 export interface AssetOptions {
-  /**
-   * Delivery mode: "auto", "inline", or "blob".
-   * - "auto" (default): Use inline for small payloads, blob for large.
-   * - "inline": Always inline, error if over 16 MB message limit.
-   * - "blob": Always upload to Iroh blob storage.
-   */
-  mode?: string
-  /** Threshold for inline code in bytes (default: 4MB, only for "auto" mode). */
-  inlineCodeThreshold?: number
-  /** Threshold for inline input in bytes (default: 8MB, only for "auto" mode). */
-  inlineInputThreshold?: number
   /** Enable zstd compression before encryption. */
   compress?: boolean
 }
@@ -385,7 +130,7 @@ export interface JobOptions {
   resources?: ResourceOptions
   /** Networking options (egress allowlist, bandwidth estimates). */
   networking?: NetworkingOptions
-  /** Asset delivery options (mode, compression, thresholds). */
+  /** Asset delivery options (compression). */
   assets?: AssetOptions
   /** Timeout in milliseconds (default: 30000). */
   timeoutMs?: bigint
@@ -393,8 +138,6 @@ export interface JobOptions {
   runtime?: string
   /** Environment variables. */
   env?: Record<string, string>
-  /** Result delivery mode: "sync" or "async". */
-  deliveryMode?: string
 }
 /** Result from a completed job. */
 export interface NativeJobResult {
@@ -409,24 +152,15 @@ export interface NativeJobResult {
 }
 /**
  * Channel keys derived from a payment channel relationship.
- *
- * Contains the shared channel master key and X25519 keys for
- * per-job ephemeral key exchanges.
  */
 export declare class ChannelKeys {
-  /**
-   * Get the channel master key (32 bytes).
-   *
-   * This key is shared between both parties in the payment channel.
-   */
+  /** Get the channel master key (32 bytes). */
   masterKey(): Buffer
   /** Get the peer's X25519 public key (32 bytes). */
   peerPublicKey(): Buffer
 }
 /**
  * An encrypted blob containing all data needed for decryption.
- *
- * Format: version (1 byte) + ephemeral pubkey (32 bytes) + nonce (24 bytes) + ciphertext
  */
 export declare class EncryptedBlob {
   /** Get the format version. */
@@ -443,109 +177,12 @@ export declare class EncryptedBlob {
   static fromBytes(bytes: Buffer): EncryptedBlob
 }
 /**
- * A payment ticket authorizing off-chain job payments.
- *
- * Contains:
- * - channel_id: Payment channel address (32 bytes)
- * - amount_micros: Cumulative amount authorized in microtokens
- * - nonce: Monotonically increasing sequence number
- * - timestamp: Unix epoch seconds when ticket was created
- * - signature: Ed25519 signature over the 48-byte payload
- */
-export declare class PaymentTicket {
-  /** Get the payment channel ID (32 bytes). */
-  get channelId(): Buffer
-  /** Get the cumulative amount authorized in microtokens. */
-  get amountMicros(): bigint
-  /** Get the ticket nonce (sequence number). */
-  get nonce(): bigint
-  /** Get the ticket timestamp (Unix epoch seconds). */
-  get timestamp(): number
-  /** Get the Ed25519 signature (64 bytes). */
-  signature(): Buffer
-  /** Serialize the ticket to bytes for transmission/storage. */
-  toBytes(): Buffer
-  /** Deserialize a ticket from bytes. */
-  static fromBytes(bytes: Buffer): PaymentTicket
-}
-/**
- * A native Graphene network client.
- *
- * Handles everything internally:
- * - Channel key derivation
- * - Job encryption/decryption
- * - Payment ticket creation
- * - Blob upload/download
- * - Protocol serialization
- * - Network transport
+ * A native Graphene network client using HTTP transport.
  */
 export declare class GrapheneClient {
-  /**
-   * Create a new Graphene client.
-   *
-   * This initializes:
-   * - Channel key derivation for end-to-end encryption
-   * - P2P networking (QUIC endpoint with NAT traversal)
-   * - Blob storage for code/input/output transfers
-   *
-   * # Arguments
-   * * `config` - Client configuration with keys and worker info
-   */
+  /** Create a new Graphene client. */
   static create(config: ClientConfig): Promise<GrapheneClient>
-  /** Get this client's node ID (public key) as a hex string. */
-  nodeId(): Promise<string>
-  /**
-   * Upload a blob and return its BLAKE3 hash.
-   *
-   * # Arguments
-   * * `data` - The data to upload
-   *
-   * # Returns
-   * The BLAKE3 hash of the uploaded blob (32 bytes)
-   */
-  uploadBlob(data: Buffer): Promise<Buffer>
-  /**
-   * Download a blob by its BLAKE3 hash.
-   *
-   * # Arguments
-   * * `hash` - The BLAKE3 hash of the blob (32 bytes)
-   * * `from_node_id` - Optional peer node ID (hex string) to download from
-   *
-   * # Returns
-   * The blob data
-   */
-  downloadBlob(hash: Buffer, fromNodeId?: string | undefined | null): Promise<Buffer>
-  /**
-   * Send a job request to a worker and receive the response.
-   *
-   * This establishes a QUIC connection to the worker, sends the serialized
-   * job request, and waits for the response.
-   *
-   * # Arguments
-   * * `worker_node_id` - The worker's node ID (hex string)
-   * * `request` - Wire-formatted job request bytes
-   *
-   * # Returns
-   * Wire-formatted job response bytes
-   */
-  sendJobRequest(workerNodeId: string, request: Buffer): Promise<Buffer>
-  /**
-   * Submit a job to the worker.
-   *
-   * This handles everything internally:
-   * 1. Generates unique job ID
-   * 2. Encrypts code and input
-   * 3. Creates payment ticket
-   * 4. Uploads blobs to worker
-   * 5. Sends job request
-   * 6. Receives and decrypts response
-   *
-   * # Arguments
-   * * `options` - Job configuration
-   *
-   * # Returns
-   * Job result with decrypted output
-   */
+  /** Submit a job to the worker. */
   submitJob(options: JobOptions): Promise<NativeJobResult>
   /** Get the current nonce value. */
   get currentNonce(): bigint

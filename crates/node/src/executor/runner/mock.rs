@@ -4,7 +4,7 @@
 //! various execution scenarios without requiring actual Firecracker VMs.
 
 use super::{RunnerError, VmmOutput, VmmRunner};
-use crate::p2p::messages::JobManifest;
+use crate::types::JobManifest;
 use async_trait::async_trait;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};

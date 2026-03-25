@@ -343,7 +343,7 @@ mod test_egress_entry {
 }
 
 mod test_egress_rule_conversion {
-    use graphene_node::p2p::messages::EgressRule;
+    use graphene_node::types::EgressRule;
 
     use super::*;
 

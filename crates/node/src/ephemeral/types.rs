@@ -112,8 +112,8 @@ impl From<String> for EgressEntry {
     }
 }
 
-impl From<&crate::p2p::messages::EgressRule> for EgressEntry {
-    fn from(rule: &crate::p2p::messages::EgressRule) -> Self {
+impl From<&crate::types::EgressRule> for EgressEntry {
+    fn from(rule: &crate::types::EgressRule) -> Self {
         Self {
             host: rule.host.clone(),
             port: rule.port,
@@ -122,8 +122,8 @@ impl From<&crate::p2p::messages::EgressRule> for EgressEntry {
     }
 }
 
-impl From<crate::p2p::messages::EgressRule> for EgressEntry {
-    fn from(rule: crate::p2p::messages::EgressRule) -> Self {
+impl From<crate::types::EgressRule> for EgressEntry {
+    fn from(rule: crate::types::EgressRule) -> Self {
         Self {
             host: rule.host,
             port: rule.port,

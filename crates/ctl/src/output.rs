@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use graphene_node::management::{
+use graphene_node::http::management::{
     protocol::{CapabilityInfo, MetricsSnapshot, NodeStatus},
     NodeConfig,
 };
@@ -21,7 +21,6 @@ pub enum OutputFormat {
 pub fn format_output<T: Serialize>(value: &T, format: OutputFormat) -> String {
     match format {
         OutputFormat::Text => {
-            // For text format, caller should use specific formatters
             serde_yaml::to_string(value).unwrap_or_else(|_| "Error formatting output".to_string())
         }
         OutputFormat::Json => {
@@ -208,8 +207,6 @@ pub fn format_timestamp(epoch_secs: u64) -> String {
 
     let _datetime = UNIX_EPOCH + Duration::from_secs(epoch_secs);
 
-    // Simple formatting without external crate
-    // Returns ISO-8601 style: "2024-01-15 10:30:00"
     let secs_since_epoch = epoch_secs;
     let days_since_epoch = secs_since_epoch / 86400;
     let time_of_day = secs_since_epoch % 86400;
@@ -218,7 +215,6 @@ pub fn format_timestamp(epoch_secs: u64) -> String {
     let minutes = (time_of_day % 3600) / 60;
     let seconds = time_of_day % 60;
 
-    // Calculate year/month/day from days since epoch (1970-01-01)
     let (year, month, day) = days_to_ymd(days_since_epoch);
 
     format!(
@@ -229,7 +225,6 @@ pub fn format_timestamp(epoch_secs: u64) -> String {
 
 /// Convert days since Unix epoch to (year, month, day)
 fn days_to_ymd(days: u64) -> (i32, u32, u32) {
-    // Algorithm from Howard Hinnant's date algorithms
     let z = days as i64 + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u32;
@@ -266,7 +261,6 @@ mod tests {
 
     #[test]
     fn test_format_timestamp() {
-        // 2024-01-15 00:00:00 UTC = 1705276800
         let ts = format_timestamp(1705276800);
         assert!(ts.starts_with("2024-01-15"));
     }

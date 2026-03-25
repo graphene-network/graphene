@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::management::{ManagementRequest, ManagementResponse, NodeConfig};
+use graphene_node::http::management::{ManagementRequest, ManagementResponse, NodeConfig};
 use std::path::Path;
 use std::process::Command;
 
