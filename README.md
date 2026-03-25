@@ -140,17 +140,17 @@ console.log(new TextDecoder().decode(result.output));
 
 ## Comparison
 
-| Feature | Cloudflare Workers | AWS Lambda | Akash | Graphene |
-|---------|-------------------|------------|-------|----------|
-| Cold Start | <1ms | 100-500ms | 30-120s | **200-500ms** |
-| Isolation | V8 Isolate | Container | Container | **MicroVM + Unikernel** |
-| Runtimes | JS/WASM only | Many (containers) | Any (containers) | **Python, Node, Bun** |
-| Shell Access | No | Yes (risky) | Yes (risky) | **No (by design)** |
-| Network Egress | Unrestricted | Unrestricted | Unrestricted | **Allowlist only** |
+| Feature | Cloudflare Workers | Northflank Sandboxes | AWS Lambda | Graphene |
+|---------|-------------------|---------------------|------------|----------|
+| Cold Start | <1ms | <1s | 100-500ms | **200-500ms** |
+| Isolation | V8 Isolate | MicroVM (Kata/gVisor) | Container | **MicroVM + Unikernel** |
+| Runtimes | JS/WASM only | Any language | Many (containers) | **Python, Node, Bun** |
+| Shell Access | No | Yes | Yes (risky) | **No (by design)** |
+| Network Egress | Unrestricted | Configurable | Unrestricted | **Allowlist only** |
 | Arbitrary Binaries | No | Yes | Yes | **Yes (build-time)** |
-| Max CPU Time | 30s (paid) | 15min | Unlimited | Configurable |
-| Self-Hostable | No | No | Yes | **Yes** |
-| Vendor Lock-in | Cloudflare | AWS | No | **No** |
+| E2E Encryption | No | No | No | **Yes (per-job keys)** |
+| Self-Hostable | No | Yes (BYOC) | No | **Yes** |
+| Vendor Lock-in | Cloudflare | Northflank | AWS | **No** |
 
 ### Graphene vs Cloudflare Workers
 
