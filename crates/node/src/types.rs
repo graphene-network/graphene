@@ -1,4 +1,4 @@
-//! Core types for the Graphene compute engine.
+//! Core types for the OpenCapsule compute engine.
 //!
 //! These types define the shared vocabulary for job execution, worker capabilities,
 //! and asset delivery. Previously distributed across P2P protocol modules, they are
@@ -31,7 +31,7 @@ pub struct JobManifest {
     pub egress_allowlist: Vec<EgressRule>,
 
     /// Environment variables to set in the unikernel.
-    /// Names must match `^[A-Za-z_][A-Za-z0-9_]*$` and cannot use `GRAPHENE_*` prefix.
+    /// Names must match `^[A-Za-z_][A-Za-z0-9_]*$` and cannot use `OPENCAPSULE_*` prefix.
     /// Total size (keys + values) must not exceed 128KB.
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -311,7 +311,7 @@ impl std::fmt::Display for RejectReason {
             RejectReason::ResourcesExceedLimits => write!(f, "resources exceed limits"),
             RejectReason::EnvTooLarge => write!(f, "environment variables too large"),
             RejectReason::InvalidEnvName => write!(f, "invalid environment variable name"),
-            RejectReason::ReservedEnvPrefix => write!(f, "reserved GRAPHENE_* prefix"),
+            RejectReason::ReservedEnvPrefix => write!(f, "reserved OPENCAPSULE_* prefix"),
             RejectReason::AssetUnavailable => write!(f, "code or input unavailable"),
             RejectReason::InlineTooLarge => write!(f, "inline asset exceeds size limit"),
             RejectReason::InternalError => write!(f, "internal error"),

@@ -1,5 +1,5 @@
 /**
- * Custom error classes for the Graphene SDK.
+ * Custom error classes for the OpenCapsule SDK.
  *
  * @module errors
  */
@@ -21,15 +21,15 @@ export type RejectReason =
   | 'InternalError';
 
 /**
- * Base error class for all Graphene SDK errors.
+ * Base error class for all OpenCapsule SDK errors.
  */
-export class GrapheneError extends Error {
+export class OpenCapsuleError extends Error {
   /** Error code for programmatic handling */
   public readonly code: string;
 
   constructor(message: string, code: string) {
     super(message);
-    this.name = 'GrapheneError';
+    this.name = 'OpenCapsuleError';
     this.code = code;
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
@@ -41,7 +41,7 @@ export class GrapheneError extends Error {
 /**
  * Error thrown when a job is rejected by the worker.
  */
-export class JobRejectedError extends GrapheneError {
+export class JobRejectedError extends OpenCapsuleError {
   /** The reason the job was rejected */
   public readonly reason: RejectReason | string;
 
@@ -55,7 +55,7 @@ export class JobRejectedError extends GrapheneError {
 /**
  * Error thrown when a job execution fails (non-zero exit code).
  */
-export class JobFailedError extends GrapheneError {
+export class JobFailedError extends OpenCapsuleError {
   /** The exit code from the job */
   public readonly exitCode: number;
   /** The decrypted output (may contain error details) */
@@ -72,7 +72,7 @@ export class JobFailedError extends GrapheneError {
 /**
  * Error thrown when a job times out.
  */
-export class JobTimeoutError extends GrapheneError {
+export class JobTimeoutError extends OpenCapsuleError {
   /** The timeout limit in milliseconds */
   public readonly timeoutMs: number;
 
@@ -86,7 +86,7 @@ export class JobTimeoutError extends GrapheneError {
 /**
  * Error thrown when transport operations fail.
  */
-export class TransportError extends GrapheneError {
+export class TransportError extends OpenCapsuleError {
   constructor(message: string) {
     super(message, 'TRANSPORT_ERROR');
     this.name = 'TransportError';
@@ -96,7 +96,7 @@ export class TransportError extends GrapheneError {
 /**
  * Error thrown when encryption or decryption fails.
  */
-export class CryptoError extends GrapheneError {
+export class CryptoError extends OpenCapsuleError {
   constructor(message: string) {
     super(message, 'CRYPTO_ERROR');
     this.name = 'CryptoError';
@@ -106,7 +106,7 @@ export class CryptoError extends GrapheneError {
 /**
  * Error thrown when payment ticket operations fail.
  */
-export class PaymentError extends GrapheneError {
+export class PaymentError extends OpenCapsuleError {
   constructor(message: string) {
     super(message, 'PAYMENT_ERROR');
     this.name = 'PaymentError';
@@ -116,7 +116,7 @@ export class PaymentError extends GrapheneError {
 /**
  * Error thrown when configuration is invalid.
  */
-export class ConfigError extends GrapheneError {
+export class ConfigError extends OpenCapsuleError {
   constructor(message: string) {
     super(message, 'CONFIG_ERROR');
     this.name = 'ConfigError';

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// graphenectl client configuration
+/// opencapsulectl client configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClientConfig {
     /// Default node to use when --node is not specified
@@ -114,7 +114,7 @@ mod tests {
             "test-node".to_string(),
             NodeEntry {
                 url: "http://192.168.1.100:9000".to_string(),
-                capability: "graphene-cap:v1:admin:...".to_string(),
+                capability: "opencapsule-cap:v1:admin:...".to_string(),
                 description: Some("Test node".to_string()),
             },
         );

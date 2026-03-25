@@ -15,7 +15,7 @@ import {
   verifyTicketSignature,
   blake3Hash,
   EncryptionDirection,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';
 
 describe('Native Crypto: Channel Key Derivation', () => {
   it('both parties derive the same master key', () => {
@@ -62,7 +62,7 @@ describe('Native Crypto: Blob Encryption', () => {
 
     const channelKeys = deriveChannelKeys(secret, peerPubkey, channelPda);
 
-    const plaintext = Buffer.from('Hello, Graphene!');
+    const plaintext = Buffer.from('Hello, OpenCapsule!');
     const jobId = 'test-job-001';
 
     const encrypted = encryptJobBlob(plaintext, channelKeys, jobId, EncryptionDirection.Input);
@@ -104,7 +104,7 @@ describe('Native Crypto: Payment Tickets', () => {
     );
 
     const bytes = ticket.toBytes();
-    const { PaymentTicket } = require('@graphene/sdk-native');
+    const { PaymentTicket } = require('@opencapsule/sdk-native');
     const restored = PaymentTicket.fromBytes(bytes);
 
     expect(restored.amountMicros).toBe(BigInt(5000000));

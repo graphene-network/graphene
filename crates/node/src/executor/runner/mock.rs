@@ -113,7 +113,7 @@ impl Default for MockRunnerBehavior {
 /// # Example
 ///
 /// ```ignore
-/// use graphene_node::executor::runner::mock::{MockRunner, MockRunnerBehavior};
+/// use opencapsule_node::executor::runner::mock::{MockRunner, MockRunnerBehavior};
 ///
 /// // Create a mock that succeeds
 /// let runner = MockRunner::new(MockRunnerBehavior::Success {

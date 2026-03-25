@@ -1,5 +1,5 @@
-name: 'Setup Graphene System'
-description: 'Sets up system dependencies for Graphene: KVM, Firecracker, Kraft CLI, and utilities'
+name: 'Setup OpenCapsule System'
+description: 'Sets up system dependencies for OpenCapsule: KVM, Firecracker, Kraft CLI, and utilities'
 outputs:
   kvm-available:
     description: 'Whether KVM is available (true/false)'

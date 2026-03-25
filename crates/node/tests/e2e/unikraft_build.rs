@@ -1,11 +1,11 @@
 //! End-to-end tests for the Unikraft build pipeline.
 //!
 //! These tests require the `e2e` feature flag and the kraft CLI installed.
-//! Run with: `cargo test -p graphene_node --features e2e-tests`
+//! Run with: `cargo test -p opencapsule_node --features e2e-tests`
 
 #![cfg(feature = "e2e-tests")]
 
-use graphene_node::unikraft::{
+use opencapsule_node::unikraft::{
     BuildJob, BuildManifest, KraftBuilder, KraftConfig, ResourceLimits, Runtime,
     UnikernelBuilder,
 };
@@ -15,7 +15,7 @@ use std::path::PathBuf;
 fn test_config() -> KraftConfig {
     KraftConfig {
         kraft_bin: PathBuf::from("kraft"),
-        cache_dir: std::env::temp_dir().join("graphene-e2e-test-cache"),
+        cache_dir: std::env::temp_dir().join("opencapsule-e2e-test-cache"),
         build_timeout: std::time::Duration::from_secs(300),
     }
 }
@@ -100,7 +100,7 @@ async fn test_reject_invalid_dockerfile() {
 
     // Test with forbidden USER command
     let invalid_dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 USER node
 CMD ["node", "index.js"]
 "#;
@@ -119,7 +119,7 @@ CMD ["bash"]
 
     // Test with shell form CMD
     let shell_form = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 CMD node index.js
 "#;
 

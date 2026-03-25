@@ -1,4 +1,4 @@
-//! graphenectl command implementations
+//! opencapsulectl command implementations
 
 pub mod apply;
 pub mod bootstrap;

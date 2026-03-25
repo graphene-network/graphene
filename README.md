@@ -1,10 +1,10 @@
-# Graphene
+# OpenCapsule
 
 **Secure Code Execution for AI Agents**
 
-> Graphene is in active development. An alpha release will be available for testing soon.
+> OpenCapsule is in active development. An alpha release will be available for testing soon.
 
-Graphene is an open-source runtime for AI agent code execution. It combines unikernels with MicroVMs to achieve sub-second cold starts with hardware-level isolation — without giving AI agents dangerous shell access.
+OpenCapsule is an open-source runtime for AI agent code execution. It combines unikernels with MicroVMs to achieve sub-second cold starts with hardware-level isolation — without giving AI agents dangerous shell access.
 
 ## The Problem
 
@@ -17,9 +17,9 @@ Current "agentic" AI solutions treat AI agents like human users—giving them sh
 
 **The shell is the wrong abstraction for AI agents.** They need to execute code, not operate environments.
 
-## The Graphene Solution
+## The OpenCapsule Solution
 
-Graphene enforces a **Planner/Executor separation**: AI agents generate code manifests, which are compiled into sealed single-purpose unikernels with:
+OpenCapsule enforces a **Planner/Executor separation**: AI agents generate code manifests, which are compiled into sealed single-purpose unikernels with:
 
 - **No shell** (`/bin/bash` doesn't exist)
 - **No package manager** (all deps are build-time only)
@@ -28,7 +28,7 @@ Graphene enforces a **Planner/Executor separation**: AI agents generate code man
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Traditional (Dangerous)       │  Graphene (Safe)           │
+│  Traditional (Dangerous)       │  OpenCapsule (Safe)           │
 ├────────────────────────────────┼────────────────────────────┤
 │  AI Agent                      │  AI Agent (Planner)        │
 │      │                         │      │                     │
@@ -82,7 +82,7 @@ Graphene enforces a **Planner/Executor separation**: AI agents generate code man
 ## Quick Start
 
 ```typescript
-import { Client } from '@graphene/sdk';
+import { Client } from '@opencapsule/sdk';
 
 const client = await Client.create({
   secretKey: mySecretKey,       // Your Ed25519 secret key (32 bytes)
@@ -140,7 +140,7 @@ console.log(new TextDecoder().decode(result.output));
 
 ## Comparison
 
-| Feature | Cloudflare Workers | Northflank Sandboxes | AWS Lambda | Graphene |
+| Feature | Cloudflare Workers | Northflank Sandboxes | AWS Lambda | OpenCapsule |
 |---------|-------------------|---------------------|------------|----------|
 | Cold Start | <1ms | <1s | 100-500ms | **200-500ms** |
 | Isolation | V8 Isolate | MicroVM (Kata/gVisor) | Container | **MicroVM + Unikernel** |
@@ -152,24 +152,24 @@ console.log(new TextDecoder().decode(result.output));
 | Self-Hostable | No | Yes (BYOC) | No | **Yes** |
 | Vendor Lock-in | Cloudflare | Northflank | AWS | **No** |
 
-### Graphene vs Cloudflare Workers
+### OpenCapsule vs Cloudflare Workers
 
 Cloudflare Workers are fast and globally distributed, but they run inside V8 isolates—a software sandbox sharing a process with other tenants. This means:
 
-- **JS/WASM only**: No Python, no native binaries, no `ffmpeg`, no ML frameworks. Graphene runs full unikernels with any statically-linked binary.
-- **Software isolation**: V8 isolates rely on the V8 engine for security. A V8 bug = tenant escape. Graphene uses KVM hardware virtualization—each job gets its own virtual machine.
-- **Not designed for AI agents**: Workers are built for HTTP middleware (rewrite headers, transform responses). Graphene is built for compute jobs: run a Python script, process data, call an API, return a result.
-- **Centralized**: You can't run Cloudflare Workers on your own hardware. Graphene workers run anywhere with KVM support.
-- **No filesystem**: Workers have no persistent or temporary filesystem. Graphene unikernels get a full (ephemeral) filesystem with your code and dependencies baked in at build time.
+- **JS/WASM only**: No Python, no native binaries, no `ffmpeg`, no ML frameworks. OpenCapsule runs full unikernels with any statically-linked binary.
+- **Software isolation**: V8 isolates rely on the V8 engine for security. A V8 bug = tenant escape. OpenCapsule uses KVM hardware virtualization—each job gets its own virtual machine.
+- **Not designed for AI agents**: Workers are built for HTTP middleware (rewrite headers, transform responses). OpenCapsule is built for compute jobs: run a Python script, process data, call an API, return a result.
+- **Centralized**: You can't run Cloudflare Workers on your own hardware. OpenCapsule workers run anywhere with KVM support.
+- **No filesystem**: Workers have no persistent or temporary filesystem. OpenCapsule unikernels get a full (ephemeral) filesystem with your code and dependencies baked in at build time.
 
-### Graphene vs Northflank Sandboxes
+### OpenCapsule vs Northflank Sandboxes
 
-Northflank Sandboxes use Kata/gVisor MicroVMs — similar hardware isolation to Graphene. But the security model is fundamentally different:
+Northflank Sandboxes use Kata/gVisor MicroVMs — similar hardware isolation to OpenCapsule. But the security model is fundamentally different:
 
-- **Shell access**: Northflank sandboxes run full Linux with shells, package managers, and process spawning. Graphene unikernels have none of these — the attack surface is structurally eliminated, not just restricted.
-- **Image size**: Northflank runs standard container images (hundreds of MB to GB). Graphene unikernels are 1-5MB, enabling sub-second cold starts from content-addressed cache.
-- **E2E encryption**: Graphene encrypts all job I/O with per-job ephemeral keys (XChaCha20-Poly1305). Code and results are encrypted in transit and at rest. Northflank does not provide per-job encryption.
-- **Open source**: Graphene is AGPL-3.0. Northflank is proprietary.
+- **Shell access**: Northflank sandboxes run full Linux with shells, package managers, and process spawning. OpenCapsule unikernels have none of these — the attack surface is structurally eliminated, not just restricted.
+- **Image size**: Northflank runs standard container images (hundreds of MB to GB). OpenCapsule unikernels are 1-5MB, enabling sub-second cold starts from content-addressed cache.
+- **E2E encryption**: OpenCapsule encrypts all job I/O with per-job ephemeral keys (XChaCha20-Poly1305). Code and results are encrypted in transit and at rest. Northflank does not provide per-job encryption.
+- **Open source**: OpenCapsule is AGPL-3.0. Northflank is proprietary.
 
 ## Roadmap
 
@@ -184,7 +184,7 @@ Northflank Sandboxes use Kata/gVisor MicroVMs — similar hardware isolation to 
 
 ## Security Model
 
-Graphene provides triple-layer isolation:
+OpenCapsule provides triple-layer isolation:
 
 | Layer | Component | Protection |
 |-------|-----------|------------|
@@ -198,5 +198,5 @@ GNU Affero General Public License v3.0
 
 ---
 
-*For technical questions: developers@graphene.network*
-*For partnerships: partners@graphene.network*
+*For technical questions: developers@opencapsule.dev*
+*For partnerships: partners@opencapsule.dev*

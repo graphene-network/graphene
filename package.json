@@ -1,5 +1,5 @@
 {
-  "name": "graphene",
+  "name": "opencapsule",
   "packageManager": "bun@1.3.5",
   "workspaces": [
     "sdks/*"

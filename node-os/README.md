@@ -1,19 +1,19 @@
-# Graphene Node OS
+# OpenCapsule Node OS
 
-Minimal, hardened Linux host OS for Graphene Network nodes.
+Minimal, hardened Linux host OS for OpenCapsule nodes.
 
 ## Overview
 
 This is the **HOST operating system** that runs on bare metal or VMs. It provides:
 - Firecracker hypervisor for running unikernel VMs
-- `graphene-node` worker daemon
+- `opencapsule-node` worker daemon
 - Minimal attack surface (no shell, no package manager)
 - dm-verity integrity verification (Phase 2)
 - TPM-based attestation (Phase 2)
 
 ## Building
 
-Graphene Node OS is built with Yocto for production-quality images with SBOM generation.
+OpenCapsule Node OS is built with Yocto for production-quality images with SBOM generation.
 
 ```bash
 # Clone Yocto layers (Whinlatter / Yocto 5.3)
@@ -26,17 +26,17 @@ git clone -b yocto-5.3 https://git.yoctoproject.org/meta-yocto layers/meta-yocto
 TEMPLATECONF="$(pwd)/layers/meta-yocto/meta-poky/conf/templates/default" \
   source layers/openembedded-core/oe-init-build-env ../build
 
-# Add meta-graphene layer
-bitbake-layers add-layer /path/to/node-os/yocto/meta-graphene
+# Add meta-opencapsule layer
+bitbake-layers add-layer /path/to/node-os/yocto/meta-opencapsule
 
 # Configure machine
-echo 'MACHINE = "graphene-node-x86_64"' >> conf/local.conf
+echo 'MACHINE = "opencapsule-node-x86_64"' >> conf/local.conf
 
 # Build
-bitbake graphene-node-image
+bitbake opencapsule-node-image
 ```
 
-Output: `tmp/deploy/images/graphene-node-x86_64/graphene-node-image-*.wic.gz`
+Output: `tmp/deploy/images/opencapsule-node-x86_64/opencapsule-node-image-*.wic.gz`
 
 ## Directory Structure
 
@@ -44,11 +44,11 @@ Output: `tmp/deploy/images/graphene-node-x86_64/graphene-node-image-*.wic.gz`
 node-os/
 ├── os-matrix.toml          # Version matrix configuration
 └── yocto/
-    └── meta-graphene/      # Yocto layer
+    └── meta-opencapsule/      # Yocto layer
         ├── conf/           # Layer and machine configs
         ├── recipes-core/   # Core image recipe
         ├── recipes-devtools/   # Firecracker
-        ├── recipes-graphene/   # graphene-node
+        ├── recipes-opencapsule/   # opencapsule-node
         ├── recipes-security/   # dm-verity, TPM
         ├── classes/        # Hardening bbclass
         └── wic/            # Disk image layouts
@@ -114,14 +114,14 @@ Since there's no shell, nodes are managed via the Iroh-based management API:
 
 ```bash
 # Remote management
-graphenectl --node prod-1 status
-graphenectl --node prod-1 apply -f node-config.toml
-graphenectl --node prod-1 drain
+opencapsulectl --node prod-1 status
+opencapsulectl --node prod-1 apply -f node-config.toml
+opencapsulectl --node prod-1 drain
 ```
 
 See `crates/ctl/` for the management CLI.
 
 ## References
 
-- [WHITEPAPER.md](../docs/WHITEPAPER.md) - Graphene Network architecture
-- [GitHub Issue #103](https://github.com/marcus-sa/graphene/issues/103) - Node OS tracking
+- [WHITEPAPER.md](../docs/WHITEPAPER.md) - OpenCapsule architecture
+- [GitHub Issue #103](https://github.com/opencapsule/opencapsule/issues/103) - Node OS tracking

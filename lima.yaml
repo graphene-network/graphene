@@ -1,7 +1,7 @@
-# Lima VM configuration for Graphene development
+# Lima VM configuration for OpenCapsule development
 # Usage: limactl start lima.yaml
 
-name: graphene-dev
+name: opencapsule-dev
 
 # VM resources
 cpus: 4
@@ -33,7 +33,7 @@ nestedVirtualization: true
 # Environment variables
 env:
   CARGO_TERM_COLOR: always
-  RUST_LOG: graphene_node=info,graphene_worker=info
+  RUST_LOG: opencapsule_node=info,opencapsule_worker=info
   FIRECRACKER_VERSION: "1.11.0"
 
 # System-level provisioning (runs as root)
@@ -111,8 +111,8 @@ provision:
       # Solana
       export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
 
-      # Graphene
-      export RUST_LOG=graphene_node=info,graphene_worker=info
+      # OpenCapsule
+      export RUST_LOG=opencapsule_node=info,opencapsule_worker=info
       EOF
 
 # Probes to verify services are ready
@@ -164,7 +164,7 @@ probes:
 
 # Message shown after VM starts
 message: |
-  Graphene development VM is ready!
+  OpenCapsule development VM is ready!
 
   Usage:
     limactl shell lima.yaml
@@ -173,5 +173,5 @@ message: |
     ls -la /dev/kvm 2>/dev/null || echo "KVM not available"
 
   Run E2E tests:
-    cd ~/Git/graphene
+    cd ~/Git/opencapsule
     bun test:sdk:e2e

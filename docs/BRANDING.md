@@ -1,10 +1,10 @@
-# Graphene Network Branding Guide
+# OpenCapsule Branding Guide
 
 ## Core Brand Attributes
 
 ### Technical Foundation
 
-The name "Graphene" references the carbon lattice material known for being:
+The name "OpenCapsule" references the carbon lattice material known for being:
 - **Lightweight** - one atom thick, yet incredibly strong
 - **Strong** - 200x stronger than steel
 - **Efficient** - excellent conductor
@@ -31,7 +31,7 @@ This translates to product attributes:
 
 ### Design Direction: Carbon Precision
 
-The visual identity draws from graphene's material properties—engineered at the atomic level, minimal yet incredibly strong. The aesthetic is clean, technical, and precise without being cold or inaccessible.
+The visual identity draws from opencapsule's material properties—engineered at the atomic level, minimal yet incredibly strong. The aesthetic is clean, technical, and precise without being cold or inaccessible.
 
 **Vibe:** Engineered material science. Laboratory precision. Modern infrastructure.
 
@@ -71,7 +71,7 @@ The visual identity draws from graphene's material properties—engineered at th
 ### Visual Motifs
 
 **Hexagonal Lattice**
-- Core visual element derived from graphene's molecular structure
+- Core visual element derived from opencapsule's molecular structure
 - Use subtly in backgrounds, patterns, loading states
 - Can be abstract/partial—doesn't need to be literal
 - Suggests interconnection, strength, and atomic precision
@@ -160,7 +160,7 @@ The visual identity draws from graphene's material properties—engineered at th
 ### Writing Examples
 
 **Good:**
-> "Graphene compiles your Dockerfile into a sealed unikernel. No shell, no package manager, no attack surface."
+> "OpenCapsule compiles your Dockerfile into a sealed unikernel. No shell, no package manager, no attack surface."
 
 **Avoid:**
 > "Our revolutionary next-generation platform leverages cutting-edge unikernel technology to provide unprecedented security."

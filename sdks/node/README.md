@@ -1,17 +1,17 @@
-# @graphene/sdk
+# @opencapsule/sdk
 
-TypeScript SDK for Graphene Network - decentralized unikernel compute.
+TypeScript SDK for OpenCapsule - decentralized unikernel compute.
 
 ## Installation
 
 ```bash
-npm install @graphene/sdk
+npm install @opencapsule/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Client } from '@graphene/sdk';
+import { Client } from '@opencapsule/sdk';
 
 const client = await Client.create({
   secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
@@ -51,13 +51,13 @@ This SDK is a thin TypeScript wrapper over native Rust bindings. All heavy lifti
 
 ### `Client.create(config)`
 
-Create a new Graphene client.
+Create a new OpenCapsule client.
 
 **Parameters:**
 - `config.secretKey` - Your Ed25519 secret key (32 bytes)
 - `config.channelPda` - Solana payment channel PDA (32 bytes)
 - `config.workerNodeId` - Worker's node ID (64 hex chars = Ed25519 pubkey)
-- `config.storagePath?` - Storage path for persistent data (default: '.graphene-sdk')
+- `config.storagePath?` - Storage path for persistent data (default: '.opencapsule-sdk')
 - `config.useRelay?` - Enable relay servers for NAT traversal (default: true)
 - `config.bindPort?` - Local port to bind (default: random)
 
@@ -65,7 +65,7 @@ Create a new Graphene client.
 
 ### `client.run(options)`
 
-Run a job on a Graphene worker.
+Run a job on a OpenCapsule worker.
 
 **Parameters:**
 - `options.code` - Code to execute (string)
@@ -114,7 +114,7 @@ import {
   TransportError,
   CryptoError,
   ConfigError,
-} from '@graphene/sdk';
+} from '@opencapsule/sdk';
 
 try {
   await client.run({ code: 'bad code' });
@@ -149,7 +149,7 @@ import {
   decryptJobBlob,
   createPaymentTicket,
   blake3Hash,
-} from '@graphene/sdk';
+} from '@opencapsule/sdk';
 ```
 
 ## Security

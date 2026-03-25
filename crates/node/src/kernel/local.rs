@@ -8,9 +8,9 @@ use tokio::io::AsyncWriteExt;
 
 /// Local filesystem-based kernel registry
 ///
-/// Storage layout under `~/.graphene/kernels/`:
+/// Storage layout under `~/.opencapsule/kernels/`:
 /// ```text
-/// ~/.graphene/kernels/
+/// ~/.opencapsule/kernels/
 /// ├── blobs/
 /// │   └── <blake3-hash>           # Actual kernel binaries
 /// ├── refs/
@@ -32,7 +32,7 @@ impl LocalKernelRegistry {
     pub fn new(matrix: KernelMatrix) -> Result<Self, KernelError> {
         let base_dir = dirs::home_dir()
             .ok_or_else(|| KernelError::ConfigError("could not determine home directory".into()))?
-            .join(".graphene")
+            .join(".opencapsule")
             .join("kernels");
 
         Self::with_base_dir(base_dir, matrix)
@@ -43,7 +43,7 @@ impl LocalKernelRegistry {
         Ok(Self {
             base_dir,
             matrix,
-            download_base_url: "https://github.com/graphene-network/kernels/releases/download"
+            download_base_url: "https://github.com/opencapsule/kernels/releases/download"
                 .to_string(),
         })
     }

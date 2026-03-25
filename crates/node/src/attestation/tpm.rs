@@ -174,7 +174,7 @@ impl TpmAttestor {
 
         // For now, return placeholder that indicates TPM quote not implemented
         let quote = format!(
-            "GRAPHENE-QUOTE-STUB:pcr0={},pcr7={},nonce={}",
+            "OPENCAPSULE-QUOTE-STUB:pcr0={},pcr7={},nonce={}",
             pcr_values.pcr_0,
             pcr_values.pcr_7,
             hex::encode(nonce)

@@ -1,5 +1,5 @@
-use graphene_node::cache::local::LocalDiskCache;
-use graphene_node::cache::DependencyCache;
+use opencapsule_node::cache::local::LocalDiskCache;
+use opencapsule_node::cache::DependencyCache;
 use rand::RngCore;
 use std::fs;
 use tokio::runtime::Builder;

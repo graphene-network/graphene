@@ -58,7 +58,7 @@ Internal states are mapped to simplified user-visible states:
 ## Usage
 
 ```rust
-use graphene_node::job::{Job, JobState, exit_code};
+use opencapsule_node::job::{Job, JobState, exit_code};
 
 // Create a new job
 let mut job = Job::new("job-123");
@@ -106,7 +106,7 @@ The `JobMetrics` struct provides timing information:
 ## Error Handling
 
 ```rust
-use graphene_node::job::JobError;
+use opencapsule_node::job::JobError;
 
 match job.transition(JobState::Running) {
     Ok(()) => println!("Transitioned successfully"),

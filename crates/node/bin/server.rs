@@ -1,29 +1,29 @@
-//! Graphene worker node HTTP server.
+//! OpenCapsule worker node HTTP server.
 //!
 //! Starts an axum HTTP server exposing the worker REST API for job submission,
 //! status polling, result retrieval, health checks, and management operations.
 
 use anyhow::Result;
 use clap::Parser;
-use graphene_node::executor::MockJobExecutor;
-use graphene_node::http::{build_router, AppState};
-use graphene_node::types::WorkerCapabilities;
-use graphene_node::worker::{WorkerEvent, WorkerStateMachine};
+use opencapsule_node::executor::MockJobExecutor;
+use opencapsule_node::http::{build_router, AppState};
+use opencapsule_node::types::WorkerCapabilities;
+use opencapsule_node::worker::{WorkerEvent, WorkerStateMachine};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::signal;
 use tracing::info;
 
 #[derive(Parser)]
-#[command(name = "graphene-worker")]
-#[command(about = "Graphene worker node HTTP server")]
+#[command(name = "opencapsule-worker")]
+#[command(about = "OpenCapsule worker node HTTP server")]
 struct Args {
     /// Listen address.
-    #[arg(long, default_value = "0.0.0.0:9000", env = "GRAPHENE_LISTEN_ADDR")]
+    #[arg(long, default_value = "0.0.0.0:9000", env = "OPENCAPSULE_LISTEN_ADDR")]
     listen: SocketAddr,
 
     /// Maximum concurrent job slots.
-    #[arg(long, default_value = "4", env = "GRAPHENE_MAX_SLOTS")]
+    #[arg(long, default_value = "4", env = "OPENCAPSULE_MAX_SLOTS")]
     max_slots: u32,
 }
 
@@ -32,14 +32,14 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("graphene_node=debug".parse()?)
-                .add_directive("graphene_worker=info".parse()?),
+                .add_directive("opencapsule_node=debug".parse()?)
+                .add_directive("opencapsule_worker=info".parse()?),
         )
         .init();
 
     let args = Args::parse();
 
-    info!("Graphene Worker Node v{}", env!("CARGO_PKG_VERSION"));
+    info!("OpenCapsule Worker Node v{}", env!("CARGO_PKG_VERSION"));
     info!("Listening on {}", args.listen);
     info!("Max slots: {}", args.max_slots);
 

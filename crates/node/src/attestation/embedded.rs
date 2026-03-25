@@ -14,32 +14,32 @@
 
 /// Expected dm-verity root hash (hex-encoded)
 ///
-/// Set via `GRAPHENE_VERITY_ROOT` environment variable at build time.
+/// Set via `OPENCAPSULE_VERITY_ROOT` environment variable at build time.
 /// If not set, verification is skipped (development mode).
-pub const EXPECTED_VERITY_ROOT: Option<&str> = option_env!("GRAPHENE_VERITY_ROOT");
+pub const EXPECTED_VERITY_ROOT: Option<&str> = option_env!("OPENCAPSULE_VERITY_ROOT");
 
 /// Expected TPM PCR 0 value (hex-encoded)
 ///
-/// PCR 0 measures the BIOS/firmware. Set via `GRAPHENE_PCR_0`.
-pub const EXPECTED_PCR_0: Option<&str> = option_env!("GRAPHENE_PCR_0");
+/// PCR 0 measures the BIOS/firmware. Set via `OPENCAPSULE_PCR_0`.
+pub const EXPECTED_PCR_0: Option<&str> = option_env!("OPENCAPSULE_PCR_0");
 
 /// Expected TPM PCR 7 value (hex-encoded)
 ///
-/// PCR 7 measures the Secure Boot state. Set via `GRAPHENE_PCR_7`.
-pub const EXPECTED_PCR_7: Option<&str> = option_env!("GRAPHENE_PCR_7");
+/// PCR 7 measures the Secure Boot state. Set via `OPENCAPSULE_PCR_7`.
+pub const EXPECTED_PCR_7: Option<&str> = option_env!("OPENCAPSULE_PCR_7");
 
 /// Platform identifier embedded at build time
 ///
-/// Set via `GRAPHENE_PLATFORM_ID`. Defaults to "graphene-os-dev".
-pub const PLATFORM_ID: &str = match option_env!("GRAPHENE_PLATFORM_ID") {
+/// Set via `OPENCAPSULE_PLATFORM_ID`. Defaults to "opencapsule-os-dev".
+pub const PLATFORM_ID: &str = match option_env!("OPENCAPSULE_PLATFORM_ID") {
     Some(id) => id,
-    None => "graphene-os-dev",
+    None => "opencapsule-os-dev",
 };
 
 /// Build timestamp (Unix epoch)
 ///
-/// Set via `GRAPHENE_BUILD_TIME`. Used for quote freshness validation.
-pub const BUILD_TIME: Option<&str> = option_env!("GRAPHENE_BUILD_TIME");
+/// Set via `OPENCAPSULE_BUILD_TIME`. Used for quote freshness validation.
+pub const BUILD_TIME: Option<&str> = option_env!("OPENCAPSULE_BUILD_TIME");
 
 /// Check if we're running in development mode (no embedded values)
 pub fn is_development_mode() -> bool {

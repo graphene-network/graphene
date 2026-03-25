@@ -1,15 +1,15 @@
 /**
- * Graphene SDK - High-level TypeScript client for Graphene Network.
+ * OpenCapsule SDK - High-level TypeScript client for OpenCapsule Network.
  *
  * This SDK is a thin wrapper around native Rust bindings.
  * All cryptography, networking, and protocol handling is done in Rust.
  *
  * @packageDocumentation
- * @module @graphene/sdk
+ * @module @opencapsule/sdk
  *
  * @example
  * ```typescript
- * import { Client } from '@graphene/sdk';
+ * import { Client } from '@opencapsule/sdk';
  *
  * const client = await Client.create({
  *   secretKey: mySecretKey,    // Your Ed25519 secret key (32 bytes)
@@ -34,7 +34,7 @@ export { Client } from './client.js';
 
 // Error classes
 export {
-  GrapheneError,
+  OpenCapsuleError,
   JobRejectedError,
   JobFailedError,
   JobTimeoutError,
@@ -69,7 +69,7 @@ export type {
 } from './types.js';
 
 // Re-export native client for advanced usage
-export { GrapheneClient } from '@graphene/sdk-native';
+export { OpenCapsuleClient } from '@opencapsule/sdk-native';
 
 // Re-export native functions for advanced usage
 export {
@@ -77,4 +77,4 @@ export {
   encryptJobBlob,
   decryptJobBlob,
   blake3Hash,
-} from '@graphene/sdk-native';
+} from '@opencapsule/sdk-native';

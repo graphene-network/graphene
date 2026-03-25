@@ -1,9 +1,9 @@
 #![cfg(target_os = "linux")]
 
-use graphene_node::executor::drive::linux::LinuxDriveBuilder;
-use graphene_node::executor::drive::DriveConfig;
-use graphene_node::executor::drive::ExecutionDriveBuilder;
-use graphene_node::types::JobManifest;
+use opencapsule_node::executor::drive::linux::LinuxDriveBuilder;
+use opencapsule_node::executor::drive::DriveConfig;
+use opencapsule_node::executor::drive::ExecutionDriveBuilder;
+use opencapsule_node::types::JobManifest;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
@@ -138,7 +138,7 @@ fn env_json_has_reserved_vars() {
     let mut user_env = HashMap::new();
     user_env.insert("USER_VAR".to_string(), "abc".to_string());
     user_env.insert(
-        "GRAPHENE_JOB_ID".to_string(),
+        "OPENCAPSULE_JOB_ID".to_string(),
         "should_be_overridden".to_string(),
     );
 
@@ -162,20 +162,20 @@ fn env_json_has_reserved_vars() {
         .expect("prepare drive");
 
     let entries = cpio_list(&image_path);
-    let entry = find_entry(&entries, "etc/graphene/env.json");
+    let entry = find_entry(&entries, "etc/opencapsule/env.json");
     let env_json = cpio_cat(&image_path, &entry);
     assert!(
-        env_json.contains("\"GRAPHENE_JOB_ID\""),
-        "env.json missing GRAPHENE_JOB_ID: {}",
+        env_json.contains("\"OPENCAPSULE_JOB_ID\""),
+        "env.json missing OPENCAPSULE_JOB_ID: {}",
         env_json
     );
     assert!(
-        env_json.contains("\"GRAPHENE_TIMEOUT_MS\": \"42000\""),
+        env_json.contains("\"OPENCAPSULE_TIMEOUT_MS\": \"42000\""),
         "env.json missing timeout: {}",
         env_json
     );
     assert!(
-        env_json.contains("\"GRAPHENE_INPUT_PATH\": \"/input\""),
+        env_json.contains("\"OPENCAPSULE_INPUT_PATH\": \"/input\""),
         "env.json missing input path: {}",
         env_json
     );

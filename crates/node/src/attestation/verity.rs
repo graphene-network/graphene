@@ -30,7 +30,7 @@ impl VerityVerifier {
     pub fn verify(&self) -> Result<String, AttestationError> {
         let expected = self.expected_root.as_ref().ok_or_else(|| {
             AttestationError::MissingEmbeddedValues(
-                "GRAPHENE_VERITY_ROOT not set at build time".to_string(),
+                "OPENCAPSULE_VERITY_ROOT not set at build time".to_string(),
             )
         })?;
 

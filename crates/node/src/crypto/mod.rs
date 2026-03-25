@@ -118,8 +118,8 @@ impl EncryptionDirection {
     /// Get the HKDF info string for this direction.
     pub fn hkdf_info(&self) -> &'static [u8] {
         match self {
-            Self::Input => b"graphene-job-input-v1",
-            Self::Output => b"graphene-job-output-v1",
+            Self::Input => b"opencapsule-job-input-v1",
+            Self::Output => b"opencapsule-job-output-v1",
         }
     }
 }

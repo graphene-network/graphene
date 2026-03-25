@@ -1,4 +1,4 @@
-//! HTTP API request and response types for the Graphene worker node.
+//! HTTP API request and response types for the OpenCapsule worker node.
 //!
 //! These types define the JSON contract between clients (SDK, CLI) and the
 //! worker HTTP API. They wrap domain types from `types.rs`, `job/`, and `executor/`.

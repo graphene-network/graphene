@@ -1,6 +1,6 @@
 //! Worker module for job processing and lifecycle management.
 //!
-//! This module provides the core worker functionality for Graphene nodes:
+//! This module provides the core worker functionality for OpenCapsule nodes:
 //!
 //! - **State machine** ([`WorkerStateMachine`]): Manages worker lifecycle from
 //!   startup through graceful shutdown with atomic slot management.

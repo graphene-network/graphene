@@ -166,7 +166,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: Kernels v${{ steps.version.outputs.version }}
           body: |
-            Pre-built unikernels for Graphene Network.
+            Pre-built unikernels for OpenCapsule.
 
             ## Included Runtimes
             - Python 3.11, 3.12

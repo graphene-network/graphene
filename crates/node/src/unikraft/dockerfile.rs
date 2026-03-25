@@ -131,9 +131,9 @@ impl DockerfileValidator {
 
     fn validate_base_image(&self, image: &str) -> Result<Runtime, UnikraftError> {
         match image {
-            "graphene/node" => Ok(Runtime::Node20),
+            "opencapsule/node" => Ok(Runtime::Node20),
             _ => Err(UnikraftError::UnsupportedBaseImage(format!(
-                "Base image '{}' is not supported. Use one of: graphene/node:20",
+                "Base image '{}' is not supported. Use one of: opencapsule/node:20",
                 image
             ))),
         }
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_validate_allowed_dockerfile() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 WORKDIR /app
 COPY package.json .
 RUN npm install
@@ -185,7 +185,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_reject_forbidden_command() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 USER node
 CMD ["node", "index.js"]
 "#;
@@ -202,7 +202,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_reject_shell_form() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 CMD node index.js
 "#;
 
@@ -235,7 +235,7 @@ CMD ["bash"]
     #[test]
     fn test_reject_invalid_run_command() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 RUN apt-get update
 CMD ["node", "index.js"]
 "#;
@@ -249,7 +249,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_parse_line_continuation() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 RUN npm install \
     --production
 CMD ["node", "index.js"]
@@ -263,7 +263,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_env_variables() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 ENV NODE_ENV=production
 ENV PORT 3000
 RUN npm install
@@ -278,7 +278,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_arg_with_default() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 ARG NODE_ENV=production
 ARG VERSION
 RUN npm install
@@ -293,7 +293,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_entrypoint_exec_form() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 ENTRYPOINT ["node"]
 CMD ["index.js"]
 "#;
@@ -310,7 +310,7 @@ CMD ["index.js"]
     #[test]
     fn test_entrypoint_shell_form_rejected() {
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 ENTRYPOINT node index.js
 "#;
 

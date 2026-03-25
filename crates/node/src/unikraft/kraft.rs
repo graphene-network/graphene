@@ -59,7 +59,7 @@ impl UnikernelBuilder for KraftBuilder {
 
         // 2. Create temp build directory
         let build_dir = std::env::temp_dir()
-            .join("graphene-unikraft-builds")
+            .join("opencapsule-unikraft-builds")
             .join(&job.job_id);
         std::fs::create_dir_all(&build_dir)?;
 
@@ -221,7 +221,7 @@ mod tests {
     fn test_validate_valid_dockerfile() {
         let builder = KraftBuilder::with_defaults();
         let dockerfile = r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 WORKDIR /app
 COPY package.json .
 RUN npm install

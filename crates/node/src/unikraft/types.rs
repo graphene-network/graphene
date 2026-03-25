@@ -19,7 +19,7 @@ impl Runtime {
     /// Returns the expected base image for Dockerfiles
     pub fn base_image(&self) -> &'static str {
         match self {
-            Runtime::Node20 => "graphene/node:20",
+            Runtime::Node20 => "opencapsule/node:20",
         }
     }
 }
@@ -200,7 +200,7 @@ impl Default for KraftConfig {
     fn default() -> Self {
         Self {
             kraft_bin: PathBuf::from("kraft"),
-            cache_dir: std::env::temp_dir().join("graphene-unikraft-cache"),
+            cache_dir: std::env::temp_dir().join("opencapsule-unikraft-cache"),
             build_timeout: Duration::from_secs(300), // 5 minutes
         }
     }
@@ -245,6 +245,6 @@ mod tests {
 
     #[test]
     fn test_runtime_base_image() {
-        assert_eq!(Runtime::Node20.base_image(), "graphene/node:20");
+        assert_eq!(Runtime::Node20.base_image(), "opencapsule/node:20");
     }
 }

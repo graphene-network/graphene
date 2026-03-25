@@ -1,7 +1,7 @@
 /**
  * Worker process manager for E2E tests.
  *
- * Spawns the Graphene worker binary and manages its lifecycle.
+ * Spawns the OpenCapsule worker binary and manages its lifecycle.
  */
 
 import { spawn, type ChildProcess } from 'child_process';
@@ -10,13 +10,13 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Pipe worker stdout/stderr into test output by default.
-// Set GRAPHENE_E2E_VERBOSE_WORKER=0 to silence.
-const VERBOSE_WORKER_LOGS = process.env.GRAPHENE_E2E_VERBOSE_WORKER !== '0';
+// Set OPENCAPSULE_E2E_VERBOSE_WORKER=0 to silence.
+const VERBOSE_WORKER_LOGS = process.env.OPENCAPSULE_E2E_VERBOSE_WORKER !== '0';
 
 export interface WorkerConfig {
   /** Path to the worker binary (default: cargo run --bin server) */
   binaryPath?: string;
-  /** Test user public key (hex string) for GRAPHENE_TEST_USER_PUBKEY */
+  /** Test user public key (hex string) for OPENCAPSULE_TEST_USER_PUBKEY */
   testUserPubkeyHex: string;
   /** Storage path (default: temp directory) */
   storagePath?: string;
@@ -38,7 +38,7 @@ export interface WorkerInstance {
 }
 
 /**
- * Manages a Graphene worker process for E2E testing.
+ * Manages a OpenCapsule worker process for E2E testing.
  */
 export class WorkerManager {
   private config: Required<WorkerConfig>;
@@ -47,7 +47,7 @@ export class WorkerManager {
 
   constructor(config: WorkerConfig) {
     // Allow env var to override binary path (useful for CI with pre-built binary)
-    const envBinary = process.env.GRAPHENE_WORKER_BINARY;
+    const envBinary = process.env.OPENCAPSULE_WORKER_BINARY;
     this.config = {
       binaryPath: config.binaryPath ?? envBinary ?? 'cargo',
       testUserPubkeyHex: config.testUserPubkeyHex,
@@ -73,22 +73,22 @@ export class WorkerManager {
     // Create temp storage if not provided
     let storagePath = this.config.storagePath;
     if (!storagePath) {
-      storagePath = await mkdtemp(join(tmpdir(), 'graphene-test-'));
+      storagePath = await mkdtemp(join(tmpdir(), 'opencapsule-test-'));
       this.ownedStoragePath = true;
     }
 
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
-      GRAPHENE_STORAGE_PATH: storagePath,
-      GRAPHENE_TEST_USER_PUBKEY: this.config.testUserPubkeyHex,
-      RUST_LOG: 'graphene_node=debug,graphene_worker=debug',
-      GRAPHENE_KERNELS: process.env.GRAPHENE_KERNELS ?? 'python:3.12,node:21',
+      OPENCAPSULE_STORAGE_PATH: storagePath,
+      OPENCAPSULE_TEST_USER_PUBKEY: this.config.testUserPubkeyHex,
+      RUST_LOG: 'opencapsule_node=debug,opencapsule_worker=debug',
+      OPENCAPSULE_KERNELS: process.env.OPENCAPSULE_KERNELS ?? 'python:3.12,node:21',
       ...this.config.env,
     };
 
     // Spawn the worker process
     const args = this.config.binaryPath === 'cargo'
-      ? ['run', '--bin', 'graphene-worker', '--quiet']
+      ? ['run', '--bin', 'opencapsule-worker', '--quiet']
       : [];
 
     const proc = spawn(this.config.binaryPath, args, {

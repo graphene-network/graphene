@@ -1,4 +1,4 @@
-# Graphene
+# OpenCapsule
 
 **A Secure Code Execution Runtime for AI Agents**
 
@@ -9,11 +9,11 @@ March 2026
 
 ## Abstract
 
-Graphene is an open-source secure code execution runtime optimized for **AI agent execution** and ephemeral serverless functions. By combining **Unikraft unikernels** with **Firecracker MicroVMs**, Graphene achieves sub-second cold starts with hardware-level isolation -- without giving AI agents dangerous shell access.
+OpenCapsule is an open-source secure code execution runtime optimized for **AI agent execution** and ephemeral serverless functions. By combining **Unikraft unikernels** with **Firecracker MicroVMs**, OpenCapsule achieves sub-second cold starts with hardware-level isolation -- without giving AI agents dangerous shell access.
 
 Workers expose an **HTTP REST API** for job submission, status polling, and result retrieval. Clients authenticate using **Ed25519 channel keys** and encrypt all job I/O with **XChaCha20-Poly1305**.
 
-Unlike traditional approaches that give AI agents shell access inside containers (creating massive security risks), Graphene enforces a **Planner/Executor separation**: AI agents generate code manifests, which are compiled into sealed single-purpose unikernels with no shell, no package manager, and no arbitrary network access. This solves the "Agentic Dependency Problem" -- enabling autonomous AI agents to execute code safely without the ability to install malware, exfiltrate data, or cause system-wide damage.
+Unlike traditional approaches that give AI agents shell access inside containers (creating massive security risks), OpenCapsule enforces a **Planner/Executor separation**: AI agents generate code manifests, which are compiled into sealed single-purpose unikernels with no shell, no package manager, and no arbitrary network access. This solves the "Agentic Dependency Problem" -- enabling autonomous AI agents to execute code safely without the ability to install malware, exfiltrate data, or cause system-wide damage.
 
 ---
 
@@ -39,9 +39,9 @@ Existing solutions require complex infrastructure setup, container orchestration
 
 ---
 
-## 2. The Graphene Solution
+## 2. The OpenCapsule Solution
 
-Graphene is a self-hosted runtime that separates **code execution** from **infrastructure management**:
+OpenCapsule is a self-hosted runtime that separates **code execution** from **infrastructure management**:
 
 - **Submission** happens via HTTP REST API
 - **Execution** happens in sealed unikernels inside Firecracker MicroVMs
@@ -62,7 +62,7 @@ Graphene is a self-hosted runtime that separates **code execution** from **infra
 
 ## 3. Comparison
 
-| Feature | AWS Lambda | Northflank Sandboxes | Graphene |
+| Feature | AWS Lambda | Northflank Sandboxes | OpenCapsule |
 |---------|------------|----------------------|----------|
 | Cold Start | 100-500ms | 1-5s | 200-500ms |
 | Isolation | Container | Container | MicroVM + Unikernel |
@@ -79,7 +79,7 @@ Graphene is a self-hosted runtime that separates **code execution** from **infra
 
 ## 4. Architecture
 
-The Graphene stack consists of three layers, all implemented in Rust.
+The OpenCapsule stack consists of three layers, all implemented in Rust.
 
 ```
 +-----------------------------------------------------------+
@@ -511,9 +511,9 @@ Current "agentic" AI solutions treat the AI like a human user -- giving it shell
 - Lateral movement through network access
 - Data exfiltration via unrestricted egress
 
-### 7.2 The Graphene Solution: Function Sandboxing
+### 7.2 The OpenCapsule Solution: Function Sandboxing
 
-Graphene moves from **"Sandboxing an Environment"** to **"Sandboxing a Function"**.
+OpenCapsule moves from **"Sandboxing an Environment"** to **"Sandboxing a Function"**.
 
 The AI agent does not "run" inside a runtime. It *requests* a build, and the system executes a sealed, single-purpose unikernel.
 
@@ -549,7 +549,7 @@ The AI agent does not "run" inside a runtime. It *requests* a build, and the sys
 |                         |                                   |
 |                         v                                   |
 |   +---------------------------------------------+           |
-|   |         GRAPHENE WORKER (Ephemeral Builder)  |           |
+|   |         OPENCAPSULE WORKER (Ephemeral Builder)  |           |
 |   |                                             |           |
 |   |  1. Spawn isolated Builder VM               |           |
 |   |  2. Run BuildKit + Unikraft toolchain       |           |
@@ -577,7 +577,7 @@ The AI agent does not "run" inside a runtime. It *requests* a build, and the sys
 
 ### 7.3 Agent Architecture: Planner vs Executor
 
-Graphene enforces a strict separation between the **Planner** (AI) and **Executor** (Runtime):
+OpenCapsule enforces a strict separation between the **Planner** (AI) and **Executor** (Runtime):
 
 | Layer | Role | Has Shell? | Has Network? | Can Install? |
 |-------|------|------------|--------------|--------------|
@@ -627,7 +627,7 @@ Container:          Unikernel:
 
 ### 7.5 Supply Chain Security
 
-AI agents often request packages that could be compromised. Graphene mitigates this:
+AI agents often request packages that could be compromised. OpenCapsule mitigates this:
 
 **1. Approved Package Mirrors**
 Workers maintain mirrors of common packages (PyPI, npm) that are:
@@ -681,9 +681,9 @@ The manifest specifies an **allowlist** of permitted endpoints:
 - TLS certificate chain validated against public roots; self-signed certificates rejected
 - Wildcard patterns (e.g., `*.amazonaws.com`) expanded at build time, not runtime
 
-### 7.7 Comparison: Shell-Based vs Graphene
+### 7.7 Comparison: Shell-Based vs OpenCapsule
 
-| Capability | Shell-Based Agent | Graphene Agent |
+| Capability | Shell-Based Agent | OpenCapsule Agent |
 |------------|-------------------|-------------|
 | Run arbitrary commands | Yes (dangerous) | No |
 | Install packages at runtime | Yes (supply chain risk) | No (build-time only) |
@@ -705,7 +705,7 @@ Firecracker's attack surface is approximately 50,000 lines of Rust with minimal 
 
 ### 7.9 Computation Integrity
 
-Graphene v1 guarantees **delivery** but not **correctness**. A malicious worker could return fabricated results. This is a known limitation.
+OpenCapsule v1 guarantees **delivery** but not **correctness**. A malicious worker could return fabricated results. This is a known limitation.
 
 **Mitigations:**
 
@@ -720,7 +720,7 @@ For high-value computations requiring correctness guarantees before TEE support,
 
 ### 7.10 Encrypted Job I/O
 
-Graphene encrypts job inputs and outputs using keys derived from the channel key relationship, providing "soft confidential computing" without requiring TEE hardware.
+OpenCapsule encrypts job inputs and outputs using keys derived from the channel key relationship, providing "soft confidential computing" without requiring TEE hardware.
 
 **Key Derivation:**
 ```
@@ -780,7 +780,7 @@ When TEE is added, decryption moves inside the enclave, but the encryption layer
 
 ### 7.12 Hardened Node OS
 
-Worker nodes run a purpose-built operating system designed to eliminate attack surface and prevent operator tampering. This "Graphene Node OS" is built with Yocto and enforces security guarantees at the OS level.
+Worker nodes run a purpose-built operating system designed to eliminate attack surface and prevent operator tampering. This "OpenCapsule Node OS" is built with Yocto and enforces security guarantees at the OS level.
 
 **Core Security Properties:**
 
@@ -794,10 +794,10 @@ Worker nodes run a purpose-built operating system designed to eliminate attack s
 
 **Shell-Less Architecture:**
 
-Unlike traditional Linux servers, Graphene nodes have no shell interpreter:
+Unlike traditional Linux servers, OpenCapsule nodes have no shell interpreter:
 
 ```
-Traditional Server:          Graphene Node:
+Traditional Server:          OpenCapsule Node:
 +---------------------+     +---------------------+
 | SSH -> bash          |     | Management API      |
 | +-> arbitrary cmds   |     | +-> predefined ops  |
@@ -862,12 +862,12 @@ Operators manage nodes through a secure API instead of SSH:
 
 ```bash
 # Traditional (dangerous):
-ssh root@node "systemctl restart graphene-worker"
+ssh root@node "systemctl restart opencapsule-worker"
 
-# Graphene (safe):
-graphenectl --node <node-id> drain
-graphenectl --node <node-id> upgrade --version 1.2.0
-graphenectl --node <node-id> reboot
+# OpenCapsule (safe):
+opencapsulectl --node <node-id> drain
+opencapsulectl --node <node-id> upgrade --version 1.2.0
+opencapsulectl --node <node-id> reboot
 ```
 
 See Section 10.4 for the full management API specification.
@@ -919,16 +919,16 @@ Failed jobs return structured error information:
 
 **Worker Metrics:**
 Workers expose a Prometheus-compatible `/metrics` endpoint for operators, including:
-- `graphene_jobs_total{status="success|failed|timeout"}`
-- `graphene_job_duration_seconds`
-- `graphene_cache_hits_total{layer="L1|L2|L3"}`
-- `graphene_active_jobs`
+- `opencapsule_jobs_total{status="success|failed|timeout"}`
+- `opencapsule_job_duration_seconds`
+- `opencapsule_cache_hits_total{layer="L1|L2|L3"}`
+- `opencapsule_active_jobs`
 
 ---
 
 ## 9. Job Orchestration
 
-Graphene supports composing multiple jobs into workflows, enabling pipelines, fan-out parallelism, and conditional execution.
+OpenCapsule supports composing multiple jobs into workflows, enabling pipelines, fan-out parallelism, and conditional execution.
 
 ### 9.1 Orchestration Modes
 
@@ -995,8 +995,8 @@ The worker pipelines dependency loading with execution, minimizing total latency
 When workflow shape depends on runtime decisions, jobs can spawn children programmatically:
 
 ```python
-# Inside a Graphene job
-from graphene import spawn, fan_out
+# Inside a OpenCapsule job
+from opencapsule import spawn, fan_out
 
 # Sequential spawn
 result = spawn(
@@ -1243,13 +1243,13 @@ Workers can be deployed behind any standard HTTP load balancer (nginx, HAProxy, 
 
 ### 10.4 Node Configuration
 
-Graphene nodes are managed remotely through a secure API, replacing traditional SSH-based administration. This approach eliminates shell access while providing all necessary operational capabilities.
+OpenCapsule nodes are managed remotely through a secure API, replacing traditional SSH-based administration. This approach eliminates shell access while providing all necessary operational capabilities.
 
 **Management Architecture:**
 
 ```
 +-----------------+         +---------------------------------+
-|   graphenectl   |         |         Graphene Node           |
+|   opencapsulectl   |         |         OpenCapsule Node           |
 |   (operator)    |         |                                 |
 +--------+--------+         |  +---------------------------+  |
          |                  |  |    Management Daemon       |  |
@@ -1269,7 +1269,7 @@ Graphene nodes are managed remotely through a secure API, replacing traditional 
 
 **Capability-Based Authentication:**
 
-Instead of passwords or SSH keys, `graphenectl` uses capability tokens derived from a root secret:
+Instead of passwords or SSH keys, `opencapsulectl` uses capability tokens derived from a root secret:
 
 ```
 Root Secret (operator holds)
@@ -1296,13 +1296,13 @@ token = HKDF(root_secret, salt=node_id, info=role)
 
 | Command | Role Required | Description |
 |---------|--------------|-------------|
-| `graphenectl status` | Reader | Show node health and metrics |
-| `graphenectl logs` | Reader | Stream worker logs |
-| `graphenectl drain` | Operator | Stop accepting new jobs |
-| `graphenectl apply` | Operator | Update configuration |
-| `graphenectl upgrade` | Admin | Stage OS upgrade |
-| `graphenectl reboot` | Admin | Reboot node |
-| `graphenectl cap issue` | Admin | Generate new capability token |
+| `opencapsulectl status` | Reader | Show node health and metrics |
+| `opencapsulectl logs` | Reader | Stream worker logs |
+| `opencapsulectl drain` | Operator | Stop accepting new jobs |
+| `opencapsulectl apply` | Operator | Update configuration |
+| `opencapsulectl upgrade` | Admin | Stage OS upgrade |
+| `opencapsulectl reboot` | Admin | Reboot node |
+| `opencapsulectl cap issue` | Admin | Generate new capability token |
 
 **Configuration Flow:**
 
@@ -1314,7 +1314,7 @@ token = HKDF(root_secret, salt=node_id, info=role)
          |
          v
 +-----------------+     +-----------------+
-| 2. graphenectl  |---->| 3. Node daemon  |
+| 2. opencapsulectl  |---->| 3. Node daemon  |
 |    apply        |     |    validates    |
 +-----------------+     +--------+--------+
                                  |
@@ -1374,13 +1374,13 @@ Operators can stream logs without shell access:
 
 ```bash
 # Stream all worker logs
-graphenectl logs --follow
+opencapsulectl logs --follow
 
 # Filter by severity
-graphenectl logs --level=error
+opencapsulectl logs --level=error
 
 # Search historical logs
-graphenectl logs --since=1h --grep="payment"
+opencapsulectl logs --since=1h --grep="payment"
 ```
 
 Logs are structured JSON, enabling automated monitoring and alerting.
@@ -1391,10 +1391,10 @@ Nodes expose Prometheus-compatible metrics via the management API:
 
 ```bash
 # Fetch current metrics
-graphenectl metrics
+opencapsulectl metrics
 
 # Continuous export to Prometheus
-graphenectl metrics --prometheus-push=http://monitor:9091
+opencapsulectl metrics --prometheus-push=http://monitor:9091
 ```
 
 See Appendix D for the complete node configuration schema.
@@ -1407,19 +1407,19 @@ See Appendix D for the complete node configuration schema.
 
 ```bash
 # Python
-pip install graphene-sdk
+pip install opencapsule-sdk
 
 # TypeScript
-npm install @graphene/sdk
+npm install @opencapsule/sdk
 
 # Rust
-cargo add graphene-sdk
+cargo add opencapsule-sdk
 ```
 
 ### 11.2 Simple Function Execution
 
 ```python
-from graphene import Client
+from opencapsule import Client
 
 client = Client(
     worker_url="https://worker.example.com",
@@ -1445,7 +1445,7 @@ print(result.duration_ms)  # 234
 ### 11.3 Dockerfile-Based Jobs
 
 ```python
-from graphene import Client, Manifest
+from opencapsule import Client, Manifest
 
 client = Client(
     worker_url="https://worker.example.com",
@@ -1477,7 +1477,7 @@ output = result.download("output.json")
 ### 11.4 Workflow Execution
 
 ```python
-from graphene import Client, DAG
+from opencapsule import Client, DAG
 
 client = Client(
     worker_url="https://worker.example.com",
@@ -1505,7 +1505,7 @@ print(result.jobs["summarize"].output)
 ### 11.5 TypeScript Example
 
 ```typescript
-import { Client } from '@graphene/sdk';
+import { Client } from '@opencapsule/sdk';
 
 const client = new Client({
   workerUrl: 'https://worker.example.com',
@@ -1533,7 +1533,7 @@ The SDK handles authentication, encryption, and HTTP communication transparently
 
 **Client Creation:**
 ```typescript
-import { Client } from '@graphene/sdk';
+import { Client } from '@opencapsule/sdk';
 
 const client = new Client({
   workerUrl: 'https://worker.example.com',
@@ -1614,7 +1614,7 @@ const result = await client.run({
 
 ```json
 {
-  "$schema": "https://graphene.dev/schemas/manifest-v1.json",
+  "$schema": "https://opencapsule.dev/schemas/manifest-v1.json",
   "version": "1.0",
   "kernel": "python-3.11-unikraft",
   "entrypoint": "main.py",
@@ -1688,7 +1688,7 @@ const result = await client.run({
 
 ## Appendix C: Migration from AWS Lambda
 
-| AWS Lambda Concept | Graphene Equivalent |
+| AWS Lambda Concept | OpenCapsule Equivalent |
 |--------------------|---------------------|
 | `handler.py` / handler function | `entrypoint` in manifest |
 | `requirements.txt` | `RUN pip install` in Dockerfile |
@@ -1707,7 +1707,7 @@ const result = await client.run({
 
 2. **No persistent filesystem.** Jobs are stateless. Use input/output for data passing.
 
-3. **Explicit network allowlist.** Unlike Lambda VPCs which allow all egress by default, Graphene blocks all egress unless explicitly allowlisted.
+3. **Explicit network allowlist.** Unlike Lambda VPCs which allow all egress by default, OpenCapsule blocks all egress unless explicitly allowlisted.
 
 4. **Self-hosted.** You run the worker on your own infrastructure. No cloud vendor lock-in.
 
@@ -1720,13 +1720,13 @@ def handler(event, context):
     df = pd.read_csv(event['s3_path'])
     return {"row_count": len(df)}
 
-# Graphene Dockerfile
+# OpenCapsule Dockerfile
 FROM python:3.11-slim-unikraft
 RUN pip install pandas
 COPY handler.py /app/
 CMD ["python", "/app/handler.py"]
 
-# Graphene handler.py
+# OpenCapsule handler.py
 import json
 import pandas as pd
 
@@ -1741,11 +1741,11 @@ if __name__ == "__main__":
 
 ## Appendix D: Node Configuration Schema
 
-Complete TOML schema for Graphene node configuration, managed via `graphenectl apply`.
+Complete TOML schema for OpenCapsule node configuration, managed via `opencapsulectl apply`.
 
 ```toml
 # node-config.toml
-# Graphene Node Configuration Schema v1.0
+# OpenCapsule Node Configuration Schema v1.0
 
 # Schema version (required)
 version = "1.0"
@@ -1789,16 +1789,16 @@ metrics_listen = "0.0.0.0:9091"
 # Enable TLS (recommended for production)
 enabled = true
 # Certificate path
-cert_path = "/etc/graphene/tls/cert.pem"
+cert_path = "/etc/opencapsule/tls/cert.pem"
 # Key path
-key_path = "/etc/graphene/tls/key.pem"
+key_path = "/etc/opencapsule/tls/key.pem"
 
 # Firecracker MicroVM configuration
 [vmm]
 # Path to kernel binary
-kernel_path = "/var/lib/graphene/vmlinux"
+kernel_path = "/var/lib/opencapsule/vmlinux"
 # Default rootfs for unikernels
-rootfs_path = "/var/lib/graphene/rootfs.ext4"
+rootfs_path = "/var/lib/opencapsule/rootfs.ext4"
 # VM boot timeout in milliseconds
 boot_timeout_ms = 5000
 # Enable jailer for additional isolation
@@ -1820,7 +1820,7 @@ max_disk_mb = 10240
 # Cache configuration
 [cache]
 # Local cache directory
-path = "/var/cache/graphene"
+path = "/var/cache/opencapsule"
 # Maximum cache size in GB
 max_size_gb = 100
 # Cache TTL in hours (0 = infinite)
@@ -1835,7 +1835,7 @@ format = "json"
 # Log output: stdout, file, both
 output = "both"
 # Log file path (if output includes file)
-file_path = "/var/log/graphene/worker.log"
+file_path = "/var/log/opencapsule/worker.log"
 
 # Log rotation
 [logging.rotation]
@@ -1913,5 +1913,5 @@ All other fields use secure defaults when not specified.
 
 ---
 
-*For technical questions: developers@graphene.dev*
-*For partnerships: partners@graphene.dev*
+*For technical questions: developers@opencapsule.dev*
+*For partnerships: partners@opencapsule.dev*

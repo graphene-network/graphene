@@ -2,13 +2,13 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::http::management::{ManagementRequest, ManagementResponse};
+use opencapsule_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
-/// Minimum stake amount in GRAPHENE.
+/// Minimum stake amount in OPENCAPSULE.
 pub const MIN_STAKE: u64 = 1;
 
-/// Maximum stake amount in GRAPHENE (to prevent overflow issues).
+/// Maximum stake amount in OPENCAPSULE (to prevent overflow issues).
 pub const MAX_STAKE: u64 = 1_000_000_000;
 
 /// Unbonding period in days (from WHITEPAPER.md Section 12.4).
@@ -18,11 +18,11 @@ pub const UNBONDING_PERIOD_DAYS: u32 = 14;
 pub fn validate_stake(stake: u64) -> Result<(), String> {
     if stake < MIN_STAKE {
         Err(format!(
-            "Stake amount must be at least {} GRAPHENE",
+            "Stake amount must be at least {} OPENCAPSULE",
             MIN_STAKE
         ))
     } else if stake > MAX_STAKE {
-        Err(format!("Stake amount cannot exceed {} GRAPHENE", MAX_STAKE))
+        Err(format!("Stake amount cannot exceed {} OPENCAPSULE", MAX_STAKE))
     } else {
         Ok(())
     }
@@ -30,7 +30,7 @@ pub fn validate_stake(stake: u64) -> Result<(), String> {
 
 /// Format the registration success message.
 pub fn format_register_message(node: &str, stake: u64) -> String {
-    format!("Node {} registered with {} GRAPHENE stake", node, stake)
+    format!("Node {} registered with {} OPENCAPSULE stake", node, stake)
 }
 
 /// Format the unregister success message.
@@ -168,7 +168,7 @@ mod tests {
         let msg = format_register_message("my-node", 500);
         assert!(msg.contains("my-node"));
         assert!(msg.contains("500"));
-        assert!(msg.contains("GRAPHENE"));
+        assert!(msg.contains("OPENCAPSULE"));
     }
 
     #[test]

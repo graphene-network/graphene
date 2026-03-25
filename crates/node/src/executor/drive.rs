@@ -16,14 +16,14 @@
 //! /app/           # User code (decrypted from code_hash) - read-only
 //! /input/         # Input data (decrypted from input_hash) - read-only, optional
 //! /output/        # Job output directory - writable
-//! /etc/graphene/  # System config
+//! /etc/opencapsule/  # System config
 //!   env.json    # Environment variables
 //! ```
 //!
 //! # Environment Variables
 //!
 //! The env.json file contains merged environment variables:
-//! - Reserved `GRAPHENE_*` variables (always set, cannot be overridden)
+//! - Reserved `OPENCAPSULE_*` variables (always set, cannot be overridden)
 //! - User-provided variables from the job manifest
 //!
 //! Reserved variables take precedence over user-provided values with the same name.
@@ -43,10 +43,10 @@ pub mod paths {
     pub const INPUT_DIR: &str = "/input";
     /// Directory for job output.
     pub const OUTPUT_DIR: &str = "/output";
-    /// Directory for Graphene system configuration.
-    pub const CONFIG_DIR: &str = "/etc/graphene";
+    /// Directory for OpenCapsule system configuration.
+    pub const CONFIG_DIR: &str = "/etc/opencapsule";
     /// Path to the environment variables JSON file.
-    pub const ENV_FILE: &str = "/etc/graphene/env.json";
+    pub const ENV_FILE: &str = "/etc/opencapsule/env.json";
 }
 
 /// Configuration for the execution drive builder.
@@ -61,7 +61,7 @@ pub struct DriveConfig {
 impl Default for DriveConfig {
     fn default() -> Self {
         Self {
-            work_dir: PathBuf::from("/tmp/graphene-drives"),
+            work_dir: PathBuf::from("/tmp/opencapsule-drives"),
             image_size_mb: 64,
         }
     }
@@ -86,7 +86,7 @@ pub trait ExecutionDriveBuilder: Send + Sync {
     /// - `/app/` - Extracted code tarball
     /// - `/input/` - Extracted input tarball (if provided)
     /// - `/output/` - Empty directory for job outputs
-    /// - `/etc/graphene/env.json` - Merged environment variables
+    /// - `/etc/opencapsule/env.json` - Merged environment variables
     ///
     /// # Arguments
     ///
@@ -133,16 +133,16 @@ pub trait ExecutionDriveBuilder: Send + Sync {
 
 /// Builds the merged environment variables JSON.
 ///
-/// Reserved `GRAPHENE_*` variables override any user-provided values.
+/// Reserved `OPENCAPSULE_*` variables override any user-provided values.
 ///
 /// # Format
 ///
 /// ```json
 /// {
-///   "GRAPHENE_JOB_ID": "abc-123",
-///   "GRAPHENE_INPUT_PATH": "/input",
-///   "GRAPHENE_OUTPUT_PATH": "/output",
-///   "GRAPHENE_TIMEOUT_MS": "30000",
+///   "OPENCAPSULE_JOB_ID": "abc-123",
+///   "OPENCAPSULE_INPUT_PATH": "/input",
+///   "OPENCAPSULE_OUTPUT_PATH": "/output",
+///   "OPENCAPSULE_TIMEOUT_MS": "30000",
 ///   "USER_VAR": "user-value"
 /// }
 /// ```
@@ -155,7 +155,7 @@ pub fn build_env_json(
 
     // Add user-provided environment variables first (will be overridden by reserved)
     for (key, value) in user_env {
-        // Skip any user-provided GRAPHENE_* variables
+        // Skip any user-provided OPENCAPSULE_* variables
         if !reserved_env::is_reserved(key) {
             env.insert(key.clone(), value.clone());
         }
@@ -163,19 +163,19 @@ pub fn build_env_json(
 
     // Add reserved environment variables (always override user values)
     env.insert(
-        reserved_env::GRAPHENE_JOB_ID.to_string(),
+        reserved_env::OPENCAPSULE_JOB_ID.to_string(),
         job_id.to_string(),
     );
     env.insert(
-        reserved_env::GRAPHENE_INPUT_PATH.to_string(),
+        reserved_env::OPENCAPSULE_INPUT_PATH.to_string(),
         paths::INPUT_DIR.to_string(),
     );
     env.insert(
-        reserved_env::GRAPHENE_OUTPUT_PATH.to_string(),
+        reserved_env::OPENCAPSULE_OUTPUT_PATH.to_string(),
         paths::OUTPUT_DIR.to_string(),
     );
     env.insert(
-        reserved_env::GRAPHENE_TIMEOUT_MS.to_string(),
+        reserved_env::OPENCAPSULE_TIMEOUT_MS.to_string(),
         manifest.timeout_ms.to_string(),
     );
 
@@ -454,7 +454,7 @@ pub mod linux {
             let app_dir = staging_dir.join("app");
             let input_dir = staging_dir.join("input");
             let output_dir = staging_dir.join("output");
-            let config_dir = staging_dir.join("etc/graphene");
+            let config_dir = staging_dir.join("etc/opencapsule");
 
             // Create all directories
             fs::create_dir_all(&app_dir)
@@ -467,7 +467,7 @@ pub mod linux {
                 .await
                 .map_err(|e| ExecutionError::drive(format!("failed to create /output: {}", e)))?;
             fs::create_dir_all(&config_dir).await.map_err(|e| {
-                ExecutionError::drive(format!("failed to create /etc/graphene: {}", e))
+                ExecutionError::drive(format!("failed to create /etc/opencapsule: {}", e))
             })?;
 
             // Choose filename based on kernel runtime
@@ -594,7 +594,7 @@ pub mod mock {
             Self {
                 behavior: MockBehavior::HappyPath,
                 spy: Arc::new(Mutex::new(DriveBuilderSpyState::default())),
-                work_dir: std::env::temp_dir().join("graphene-mock-drives"),
+                work_dir: std::env::temp_dir().join("opencapsule-mock-drives"),
             }
         }
 
@@ -708,17 +708,17 @@ mod tests {
         let json = build_env_json("job-123", &user_env, &manifest);
         let parsed: HashMap<String, String> = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(parsed.get("GRAPHENE_JOB_ID"), Some(&"job-123".to_string()));
+        assert_eq!(parsed.get("OPENCAPSULE_JOB_ID"), Some(&"job-123".to_string()));
         assert_eq!(
-            parsed.get("GRAPHENE_INPUT_PATH"),
+            parsed.get("OPENCAPSULE_INPUT_PATH"),
             Some(&"/input".to_string())
         );
         assert_eq!(
-            parsed.get("GRAPHENE_OUTPUT_PATH"),
+            parsed.get("OPENCAPSULE_OUTPUT_PATH"),
             Some(&"/output".to_string())
         );
         assert_eq!(
-            parsed.get("GRAPHENE_TIMEOUT_MS"),
+            parsed.get("OPENCAPSULE_TIMEOUT_MS"),
             Some(&"30000".to_string())
         );
     }
@@ -734,7 +734,7 @@ mod tests {
         let parsed: HashMap<String, String> = serde_json::from_str(&json).unwrap();
 
         // Reserved vars are present
-        assert_eq!(parsed.get("GRAPHENE_JOB_ID"), Some(&"job-456".to_string()));
+        assert_eq!(parsed.get("OPENCAPSULE_JOB_ID"), Some(&"job-456".to_string()));
 
         // User vars are included
         assert_eq!(parsed.get("API_KEY"), Some(&"secret-key".to_string()));
@@ -746,8 +746,8 @@ mod tests {
         let manifest = make_test_manifest();
         let mut user_env = HashMap::new();
         // User tries to override reserved variables
-        user_env.insert("GRAPHENE_JOB_ID".to_string(), "malicious-id".to_string());
-        user_env.insert("GRAPHENE_CUSTOM".to_string(), "custom-value".to_string());
+        user_env.insert("OPENCAPSULE_JOB_ID".to_string(), "malicious-id".to_string());
+        user_env.insert("OPENCAPSULE_CUSTOM".to_string(), "custom-value".to_string());
         user_env.insert("SAFE_VAR".to_string(), "safe-value".to_string());
 
         let json = build_env_json("real-job-id", &user_env, &manifest);
@@ -755,12 +755,12 @@ mod tests {
 
         // Reserved var should have the real value, not the user's attempt
         assert_eq!(
-            parsed.get("GRAPHENE_JOB_ID"),
+            parsed.get("OPENCAPSULE_JOB_ID"),
             Some(&"real-job-id".to_string())
         );
 
-        // User's GRAPHENE_* var should be filtered out
-        assert!(!parsed.contains_key("GRAPHENE_CUSTOM"));
+        // User's OPENCAPSULE_* var should be filtered out
+        assert!(!parsed.contains_key("OPENCAPSULE_CUSTOM"));
 
         // Safe user var should be included
         assert_eq!(parsed.get("SAFE_VAR"), Some(&"safe-value".to_string()));
@@ -771,14 +771,14 @@ mod tests {
         assert_eq!(paths::APP_DIR, "/app");
         assert_eq!(paths::INPUT_DIR, "/input");
         assert_eq!(paths::OUTPUT_DIR, "/output");
-        assert_eq!(paths::CONFIG_DIR, "/etc/graphene");
-        assert_eq!(paths::ENV_FILE, "/etc/graphene/env.json");
+        assert_eq!(paths::CONFIG_DIR, "/etc/opencapsule");
+        assert_eq!(paths::ENV_FILE, "/etc/opencapsule/env.json");
     }
 
     #[test]
     fn test_drive_config_default() {
         let config = DriveConfig::default();
-        assert_eq!(config.work_dir, PathBuf::from("/tmp/graphene-drives"));
+        assert_eq!(config.work_dir, PathBuf::from("/tmp/opencapsule-drives"));
         assert_eq!(config.image_size_mb, 64);
     }
 
@@ -891,7 +891,7 @@ mod tests {
             let env_json = builder.get_last_env_json().unwrap();
             let parsed: HashMap<String, String> = serde_json::from_str(&env_json).unwrap();
 
-            assert_eq!(parsed.get("GRAPHENE_JOB_ID"), Some(&"job-env".to_string()));
+            assert_eq!(parsed.get("OPENCAPSULE_JOB_ID"), Some(&"job-env".to_string()));
             assert_eq!(parsed.get("MY_VAR"), Some(&"my_value".to_string()));
         }
 

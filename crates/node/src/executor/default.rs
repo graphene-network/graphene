@@ -220,11 +220,11 @@ where
         let filename = format!("{}_fc-x86_64", kernel_name);
 
         let search_paths = [
-            std::env::var("GRAPHENE_KERNEL_CACHE")
+            std::env::var("OPENCAPSULE_KERNEL_CACHE")
                 .ok()
                 .map(std::path::PathBuf::from),
-            dirs::home_dir().map(|h| h.join(".graphene/cache/kernels")),
-            Some(std::path::PathBuf::from("/usr/share/graphene/kernels")),
+            dirs::home_dir().map(|h| h.join(".opencapsule/cache/kernels")),
+            Some(std::path::PathBuf::from("/usr/share/opencapsule/kernels")),
         ];
 
         for path_opt in search_paths.into_iter().flatten() {

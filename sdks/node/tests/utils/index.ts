@@ -17,7 +17,7 @@ export {
   type ChannelInfo,
 } from './channel-setup.js';
 export {
-  GRAPHENE_PROGRAM_ID,
+  OPENCAPSULE_PROGRAM_ID,
   ED25519_PROGRAM_ID,
   parsePaymentChannel,
   deriveChannelPda,

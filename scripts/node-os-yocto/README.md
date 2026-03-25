@@ -15,7 +15,7 @@ sudo scripts/node-os-yocto/enable-userns.sh
 scripts/node-os-yocto/clone-deps.sh
 
 # Configure the Yocto build (pass MACHINE if you need aarch64)
-scripts/node-os-yocto/configure-build.sh graphene-node-x86_64
+scripts/node-os-yocto/configure-build.sh opencapsule-node-x86_64
 
 # Optional quick validation
 scripts/node-os-yocto/parse-recipes.sh
@@ -26,7 +26,7 @@ scripts/node-os-yocto/build-image.sh
 # Post-build checks
 scripts/node-os-yocto/verify-shell-removal.sh
 scripts/node-os-yocto/check-image-size.sh
-scripts/node-os-yocto/generate-build-metadata.sh graphene-node-x86_64
+scripts/node-os-yocto/generate-build-metadata.sh opencapsule-node-x86_64
 ```
 
 Each script is idempotent; rerun them and they will skip cloning steps when repositories already exist.

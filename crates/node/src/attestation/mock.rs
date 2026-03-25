@@ -74,7 +74,7 @@ impl PlatformAttestor for MockAttestor {
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_secs(),
-                    platform_id: "mock-graphene-os-v1.0.0".to_string(),
+                    platform_id: "mock-opencapsule-os-v1.0.0".to_string(),
                 })
             }
             MockBehavior::VerityMismatch => {
@@ -107,7 +107,7 @@ impl PlatformAttestor for MockAttestor {
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_secs(),
-                    platform_id: "mock-graphene-os-v1.0.0".to_string(),
+                    platform_id: "mock-opencapsule-os-v1.0.0".to_string(),
                 })
             }
         }

@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use graphene_node::http::management::{
+use opencapsule_node::http::management::{
     protocol::{CapabilityInfo, MetricsSnapshot, NodeStatus},
     NodeConfig,
 };
@@ -49,7 +49,7 @@ pub fn format_status_text(status: &NodeStatus) -> String {
 
     if let Some(stake) = &status.stake {
         out.push_str(&format!(
-            "Stake: {} GRAPHENE at {}\n",
+            "Stake: {} OPENCAPSULE at {}\n",
             stake.amount, stake.address
         ));
         if let Some(unbonds_at) = stake.unbonds_at {
@@ -116,7 +116,7 @@ pub fn format_metrics_text(metrics: &MetricsSnapshot) -> String {
     out.push('\n');
 
     let earnings = metrics.earnings_micros as f64 / 1_000_000.0;
-    out.push_str(&format!("Earnings: {:.6} GRAPHENE\n", earnings));
+    out.push_str(&format!("Earnings: {:.6} OPENCAPSULE\n", earnings));
 
     out
 }

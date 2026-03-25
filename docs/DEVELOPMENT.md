@@ -62,24 +62,24 @@ The E2E tests require pre-built unikernel images in the cache:
 
 ```bash
 # Create kernel cache directory
-mkdir -p ~/.graphene/cache/kernels
+mkdir -p ~/.opencapsule/cache/kernels
 
 # Build Python 3.12 kernel (required for most tests)
 cd kernels/python/3.12
 kraft build --plat fc --arch x86_64
 kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
-cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+cp .unikraft/pkg/unikraft/bin/kernel ~/.opencapsule/cache/kernels/python-3.12_fc-x86_64
 
 # Build other kernels as needed
 cd ../3.10
 kraft build --plat fc --arch x86_64
 kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.10"
-cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.10_fc-x86_64
+cp .unikraft/pkg/unikraft/bin/kernel ~/.opencapsule/cache/kernels/python-3.10_fc-x86_64
 
 cd ../../node/21
 kraft build --plat fc --arch x86_64
 kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/node:21"
-cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/node-21_fc-x86_64
+cp .unikraft/pkg/unikraft/bin/kernel ~/.opencapsule/cache/kernels/node-21_fc-x86_64
 ```
 
 #### Build and Run Tests
@@ -87,10 +87,10 @@ cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/node-21_fc-x86_64
 ```bash
 # Build the worker binary
 cd crates/node
-cargo build --bin graphene-worker --release
+cargo build --bin opencapsule-worker --release
 
 # Build the Anchor program
-cd ../../programs/graphene
+cd ../../programs/opencapsule
 anchor build
 
 # Build and test the SDK
@@ -113,13 +113,13 @@ brew install lima
 #### 2. Create VM with Nested Virtualization
 
 ```bash
-limactl start --set '.nestedVirtualization=true' --name=graphene template://ubuntu
+limactl start --set '.nestedVirtualization=true' --name=opencapsule template://ubuntu
 ```
 
 #### 3. Shell into the VM
 
 ```bash
-limactl shell graphene
+limactl shell opencapsule
 ```
 
 #### 4. Install Dependencies (inside VM)
@@ -166,23 +166,23 @@ source ~/.bashrc
 Lima mounts your home directory by default:
 
 ```bash
-cd /Users/$(whoami)/Git/graphene
+cd /Users/$(whoami)/Git/opencapsule
 ```
 
 #### 6. Build Kernels
 
 ```bash
 # Create kernel cache directory
-mkdir -p ~/.graphene/cache/kernels
+mkdir -p ~/.opencapsule/cache/kernels
 
 # Build Python 3.12 kernel
 cd kernels/python/3.12
 kraft build --plat fc --arch x86_64
 kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
-cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+cp .unikraft/pkg/unikraft/bin/kernel ~/.opencapsule/cache/kernels/python-3.12_fc-x86_64
 
 # Return to project root
-cd /Users/$(whoami)/Git/graphene
+cd /Users/$(whoami)/Git/opencapsule
 ```
 
 #### 7. Build and Run Tests
@@ -190,17 +190,17 @@ cd /Users/$(whoami)/Git/graphene
 ```bash
 # Build the worker binary
 cd crates/node
-cargo build --bin graphene-worker --release
+cargo build --bin opencapsule-worker --release
 
 # Build the Anchor program
-cd ../../programs/graphene
+cd ../../programs/opencapsule
 anchor build
 
 # Build and test the SDK
 cd ../../sdks/node
 bun install
 bun run build
-export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
+export OPENCAPSULE_KERNEL_CACHE="$HOME/.opencapsule/cache/kernels"
 bun test ./tests/*.e2e.test.ts
 ```
 
@@ -208,10 +208,10 @@ bun test ./tests/*.e2e.test.ts
 
 ```bash
 # From macOS host
-limactl stop graphene
+limactl stop opencapsule
 
 # To delete the VM entirely
-limactl delete graphene
+limactl delete opencapsule
 ```
 
 ---
@@ -296,8 +296,8 @@ Runs on `workflow_dispatch` (manual trigger).
 **What runs here:**
 ```bash
 # Rust tests requiring real Firecracker + kernels
-export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
-cargo test -p graphene_node --features e2e-tests
+export OPENCAPSULE_KERNEL_CACHE="$HOME/.opencapsule/cache/kernels"
+cargo test -p opencapsule_node --features e2e-tests
 
 # TypeScript SDK tests
 cd sdks/node
@@ -375,12 +375,12 @@ cargo test --workspace --features integration-tests
 cd kernels/python/3.12
 kraft build --plat fc --arch x86_64
 kraft pkg pull -w .unikraft/pkg --plat fc --arch x86_64 "unikraft.org/python:3.12"
-mkdir -p ~/.graphene/cache/kernels
-cp .unikraft/pkg/unikraft/bin/kernel ~/.graphene/cache/kernels/python-3.12_fc-x86_64
+mkdir -p ~/.opencapsule/cache/kernels
+cp .unikraft/pkg/unikraft/bin/kernel ~/.opencapsule/cache/kernels/python-3.12_fc-x86_64
 
 # 2. Run E2E tests
-export GRAPHENE_KERNEL_CACHE="$HOME/.graphene/cache/kernels"
-cargo test -p graphene_node --features e2e-tests
+export OPENCAPSULE_KERNEL_CACHE="$HOME/.opencapsule/cache/kernels"
+cargo test -p opencapsule_node --features e2e-tests
 ```
 
 ### Feature Flags Reference
@@ -408,7 +408,7 @@ crates/node/tests/
 
 ## Building the Native Node SDK
 
-The `@graphene/sdk` package depends on `@graphene/sdk-native`, a Rust NAPI module providing cryptographic primitives and protocol serialization. Pre-built binaries are available for common platforms, but you may need to build from source for development or unsupported platforms.
+The `@opencapsule/sdk` package depends on `@opencapsule/sdk-native`, a Rust NAPI module providing cryptographic primitives and protocol serialization. Pre-built binaries are available for common platforms, but you may need to build from source for development or unsupported platforms.
 
 ### Prerequisites
 
@@ -487,8 +487,8 @@ Ensure Node.js 18+ is installed. The native module requires NAPI version 9.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GRAPHENE_WORKER_BINARY` | Path to graphene-worker binary | Auto-detected |
-| `GRAPHENE_KERNEL_CACHE` | Path to kernel cache directory | `~/.graphene/cache/kernels` |
+| `OPENCAPSULE_WORKER_BINARY` | Path to opencapsule-worker binary | Auto-detected |
+| `OPENCAPSULE_KERNEL_CACHE` | Path to kernel cache directory | `~/.opencapsule/cache/kernels` |
 | `KVM_AVAILABLE` | Set to `false` to skip KVM-dependent tests | `true` |
 
 ### Troubleshooting
@@ -508,7 +508,7 @@ Run `solana-keygen new --no-bip39-passphrase` to generate a keypair.
 Ensure the Anchor program is built:
 
 ```bash
-cd programs/graphene
+cd programs/opencapsule
 anchor build
 ls -la target/deploy/
 ```

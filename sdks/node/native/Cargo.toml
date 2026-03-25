@@ -1,10 +1,10 @@
 [package]
-name = "graphene-sdk-native"
+name = "opencapsule-sdk-native"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true
 repository.workspace = true
-description = "Native bindings for Graphene Network SDK"
+description = "Native bindings for OpenCapsule SDK"
 
 [lib]
 crate-type = ["cdylib"]
@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "2", default-features = false, features = ["tokio_rt", "async", "napi9"] }
 napi-derive = "2"
-graphene_node = { path = "../../../crates/node" }
+opencapsule_node = { path = "../../../crates/node" }
 thiserror = "2.0"
 hex = "0.4"
 ed25519-dalek = { version = "3.0.0-pre", features = ["hazmat"] }

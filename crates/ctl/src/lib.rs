@@ -1,6 +1,6 @@
-//! graphenectl - Remote management CLI library for Graphene nodes
+//! opencapsulectl - Remote management CLI library for OpenCapsule nodes
 //!
-//! This library provides the core functionality for the graphenectl CLI,
+//! This library provides the core functionality for the opencapsulectl CLI,
 //! including client, config, and output modules.
 
 use clap::Subcommand;
@@ -82,7 +82,7 @@ pub mod shellexpand {
 /// Require node to be specified
 pub fn require_node(node: &Option<String>) -> anyhow::Result<String> {
     node.clone().ok_or_else(|| {
-        anyhow::anyhow!("No node specified. Use --node or set GRAPHENE_NODE env var")
+        anyhow::anyhow!("No node specified. Use --node or set OPENCAPSULE_NODE env var")
     })
 }
 

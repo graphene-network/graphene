@@ -47,6 +47,6 @@ assets/vm/*.zst
 
 poky/
 meta-rust-bin/
-graphene-test-*/
+opencapsule-test-*/
 
 **/CLAUDE.md

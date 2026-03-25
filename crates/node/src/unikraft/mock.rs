@@ -135,7 +135,7 @@ impl UnikernelBuilder for MockKraftBuilder {
                 // Generate mock output
                 let hash = blake3::hash(job.dockerfile.as_bytes());
                 let mock_path = std::env::temp_dir()
-                    .join("graphene-mock-unikraft")
+                    .join("opencapsule-mock-unikraft")
                     .join(format!("{}.unik", job.job_id));
 
                 // Create the mock file
@@ -209,7 +209,7 @@ mod tests {
         BuildJob {
             job_id: "test-123".to_string(),
             dockerfile: r#"
-FROM graphene/node:20
+FROM opencapsule/node:20
 WORKDIR /app
 COPY . .
 RUN npm install
@@ -285,7 +285,7 @@ CMD ["node", "index.js"]
     #[test]
     fn test_spy_tracks_validation_calls() {
         let builder = MockKraftBuilder::happy_path();
-        let dockerfile = "FROM graphene/node:20\nCMD [\"node\", \"index.js\"]";
+        let dockerfile = "FROM opencapsule/node:20\nCMD [\"node\", \"index.js\"]";
 
         let _ = builder.validate_dockerfile(dockerfile);
 

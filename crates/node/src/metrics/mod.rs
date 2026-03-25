@@ -47,7 +47,7 @@ impl MetricsConfig {
 ///
 /// This should be spawned as a separate tokio task:
 /// ```no_run
-/// use graphene_node::metrics::{start_metrics_server, MetricsConfig};
+/// use opencapsule_node::metrics::{start_metrics_server, MetricsConfig};
 /// tokio::spawn(start_metrics_server(MetricsConfig::default()));
 /// ```
 pub async fn start_metrics_server(config: MetricsConfig) -> Result<(), std::io::Error> {
