@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use graphene_node::executor::runner::{FirecrackerRunner, FirecrackerRunnerConfig, VmmRunner};
-use graphene_node::p2p::messages::JobManifest;
+use graphene_node::types::JobManifest;
 use graphene_node::vmm::{FirecrackerConfig, Virtualizer, VmmError};
 
 struct TestVirtualizer {

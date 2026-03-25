@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::p2p::messages::WorkerLoad;
+use crate::types::WorkerLoad;
 
 /// Errors that can occur during state transitions.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]

@@ -69,7 +69,10 @@ pub enum JobError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iroh_blobs::Hash;
+
+    fn test_hash(data: &[u8]) -> [u8; 32] {
+        *blake3::hash(data).as_bytes()
+    }
 
     #[test]
     fn test_full_happy_path_cache_miss() {
@@ -83,7 +86,7 @@ mod tests {
         job.transition_with_exit_code(JobState::Succeeded, exit_code::SUCCESS)
             .unwrap();
 
-        let result_hash = Hash::new(b"encrypted result");
+        let result_hash = test_hash(b"encrypted result");
         job.transition_to_delivering(result_hash).unwrap();
         job.transition(JobState::Delivered).unwrap();
 
@@ -109,7 +112,7 @@ mod tests {
         job.transition_with_exit_code(JobState::Succeeded, exit_code::SUCCESS)
             .unwrap();
 
-        let result_hash = Hash::new(b"encrypted result");
+        let result_hash = test_hash(b"encrypted result");
         job.transition_to_delivering(result_hash).unwrap();
         job.transition(JobState::Delivered).unwrap();
 
@@ -174,7 +177,7 @@ mod tests {
         job.transition_with_exit_code(JobState::Succeeded, 0)
             .unwrap();
 
-        let result_hash = Hash::new(b"result");
+        let result_hash = test_hash(b"result");
         job.transition_to_delivering(result_hash).unwrap();
 
         // Delivery times out

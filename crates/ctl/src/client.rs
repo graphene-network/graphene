@@ -1,15 +1,12 @@
-//! Iroh-based management client
+//! HTTP-based management client for Graphene worker nodes.
 
 #![allow(dead_code)]
 
 use crate::config::NodeEntry;
-use graphene_node::management::{ManagementRequest, ManagementResponse, MANAGEMENT_ALPN};
-use iroh::endpoint::Endpoint;
-use iroh::{EndpointAddr, PublicKey};
+use graphene_node::http::management::{ManagementRequest, ManagementResponse};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Client errors
 #[derive(Debug, Error)]
@@ -18,8 +15,8 @@ pub enum ClientError {
     ConnectionFailed(String),
     #[error("Node not found: {0}")]
     NodeNotFound(String),
-    #[error("Invalid node ID: {0}")]
-    InvalidNodeId(String),
+    #[error("Invalid URL: {0}")]
+    InvalidUrl(String),
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
     #[error("Forbidden: {0}")]
@@ -32,10 +29,8 @@ pub enum ClientError {
     Timeout,
     #[error("Server error: {0}")]
     ServerError(String),
-    #[error("Wire protocol error: {0}")]
-    WireError(String),
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 }
@@ -61,111 +56,112 @@ impl Default for ClientOptions {
     }
 }
 
-/// Authenticated request wrapper for wire protocol
+/// Authenticated request wrapper for HTTP transport.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticatedRequest {
     pub capability: String,
     pub request: ManagementRequest,
 }
 
-/// Management client for connecting to Graphene nodes
+/// Management client for connecting to Graphene worker nodes via HTTP.
 pub struct ManagementClient {
-    node_id: PublicKey,
+    base_url: String,
     capability: String,
-    #[allow(dead_code)]
-    endpoint_hint: Option<String>,
+    client: reqwest::Client,
     options: ClientOptions,
 }
 
 impl ManagementClient {
-    /// Create a client from a node entry configuration
+    /// Create a client from a node entry configuration.
     pub fn from_config(entry: &NodeEntry, options: ClientOptions) -> Result<Self, ClientError> {
-        let node_id: PublicKey = entry
-            .node_id
-            .parse()
-            .map_err(|e| ClientError::InvalidNodeId(format!("{}: {}", entry.node_id, e)))?;
+        let base_url = entry.url.clone();
+
+        // Basic URL validation
+        if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+            return Err(ClientError::InvalidUrl(format!(
+                "URL must start with http:// or https://: {}",
+                base_url
+            )));
+        }
+
+        let client = reqwest::Client::builder()
+            .timeout(options.request_timeout)
+            .build()
+            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
 
         Ok(Self {
-            node_id,
+            base_url: base_url.trim_end_matches('/').to_string(),
             capability: entry.capability.clone(),
-            endpoint_hint: entry.endpoint.clone(),
+            client,
             options,
         })
     }
 
-    /// Create a client directly from node ID and capability
+    /// Create a client directly from a URL and capability.
     pub fn new(
-        node_id: &str,
+        base_url: &str,
         capability: String,
-        endpoint_hint: Option<String>,
         options: ClientOptions,
     ) -> Result<Self, ClientError> {
-        let node_id: PublicKey = node_id
-            .parse()
-            .map_err(|e| ClientError::InvalidNodeId(format!("{}: {}", node_id, e)))?;
+        let client = reqwest::Client::builder()
+            .timeout(options.request_timeout)
+            .build()
+            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
 
         Ok(Self {
-            node_id,
+            base_url: base_url.trim_end_matches('/').to_string(),
             capability,
-            endpoint_hint,
+            client,
             options,
         })
     }
 
-    /// Send a management request and receive response
+    /// Send a management request and receive response.
     pub async fn request(
         &self,
         request: ManagementRequest,
     ) -> Result<ManagementResponse, ClientError> {
         let timeout = self.timeout_for_request(&request);
+        let (method, path, body) = self.map_request(&request);
 
-        tokio::time::timeout(timeout, self.send_request(request))
-            .await
-            .map_err(|_| ClientError::Timeout)?
-    }
+        let url = format!("{}{}", self.base_url, path);
 
-    /// Internal request sending logic
-    async fn send_request(
-        &self,
-        request: ManagementRequest,
-    ) -> Result<ManagementResponse, ClientError> {
-        // Create Iroh endpoint
-        let endpoint = Endpoint::builder()
-            .alpns(vec![MANAGEMENT_ALPN.to_vec()])
-            .bind()
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        // Build endpoint address from public key
-        let addr = EndpointAddr::new(self.node_id);
-
-        // Connect to node
-        let conn = endpoint
-            .connect(addr, MANAGEMENT_ALPN)
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        // Open bidirectional stream
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        // Build authenticated request
-        let auth_request = AuthenticatedRequest {
-            capability: self.capability.clone(),
-            request,
+        let mut req_builder = match method {
+            "GET" => self.client.get(&url),
+            "POST" => self.client.post(&url),
+            _ => self.client.get(&url),
         };
 
-        // Serialize and send
-        let request_bytes = serde_json::to_vec(&auth_request)?;
-        write_frame(&mut send, &request_bytes).await?;
-        send.finish()
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
+        req_builder = req_builder
+            .header("Authorization", format!("Bearer {}", self.capability))
+            .timeout(timeout);
 
-        // Receive response
-        let response_bytes = read_frame(&mut recv).await?;
-        let response: ManagementResponse = serde_json::from_slice(&response_bytes)?;
+        if let Some(body) = body {
+            req_builder = req_builder
+                .header("Content-Type", "application/json")
+                .body(body);
+        }
+
+        let resp = req_builder
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ClientError::Timeout
+                } else {
+                    ClientError::ConnectionFailed(e.to_string())
+                }
+            })?;
+
+        let status = resp.status();
+        let body_bytes = resp.bytes().await.map_err(ClientError::Http)?;
+
+        // Try to parse as ManagementResponse
+        let response: ManagementResponse = serde_json::from_slice(&body_bytes)
+            .map_err(|e| ClientError::ServerError(format!(
+                "Failed to parse response (HTTP {}): {}",
+                status, e
+            )))?;
 
         // Map error responses to ClientError
         if let ManagementResponse::Error { code, message } = &response {
@@ -181,7 +177,7 @@ impl ManagementClient {
         Ok(response)
     }
 
-    /// Stream logs from the node (one-shot mode)
+    /// Get logs from the node (one-shot mode).
     pub async fn get_logs(&self, lines: u32) -> Result<Vec<String>, ClientError> {
         let response = self
             .request(ManagementRequest::StreamLogs {
@@ -198,7 +194,10 @@ impl ManagementClient {
         }
     }
 
-    /// Stream logs with follow mode using a callback
+    /// Stream logs with follow mode using a callback.
+    ///
+    /// Note: HTTP-based log streaming uses polling. For real-time streaming,
+    /// consider WebSocket or SSE in a future version.
     pub async fn stream_logs_with_callback<F>(
         &self,
         lines: u32,
@@ -207,59 +206,101 @@ impl ManagementClient {
     where
         F: FnMut(String) -> bool,
     {
-        // Create Iroh endpoint
-        let endpoint = Endpoint::builder()
-            .alpns(vec![MANAGEMENT_ALPN.to_vec()])
-            .bind()
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        let addr = EndpointAddr::new(self.node_id);
-
-        let conn = endpoint
-            .connect(addr, MANAGEMENT_ALPN)
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        // Send StreamLogs request with follow=true
-        let auth_request = AuthenticatedRequest {
-            capability: self.capability.clone(),
-            request: ManagementRequest::StreamLogs {
+        // In HTTP mode, we poll for logs instead of streaming
+        let response = self
+            .request(ManagementRequest::StreamLogs {
                 follow: true,
                 lines: Some(lines),
-            },
-        };
+            })
+            .await?;
 
-        let request_bytes = serde_json::to_vec(&auth_request)?;
-        write_frame(&mut send, &request_bytes).await?;
-
-        // Read log responses until callback returns false or connection closes
-        while let Ok(bytes) = read_frame(&mut recv).await {
-            match serde_json::from_slice::<ManagementResponse>(&bytes) {
-                Ok(ManagementResponse::LogLines(log_lines)) => {
-                    for line in log_lines {
-                        if !callback(line) {
-                            return Ok(());
-                        }
-                    }
+        if let ManagementResponse::LogLines(log_lines) = response {
+            for line in log_lines {
+                if !callback(line) {
+                    return Ok(());
                 }
-                Ok(_) => break,
-                Err(e) => return Err(ClientError::Json(e)),
             }
         }
 
         Ok(())
     }
 
-    /// Determine timeout based on request type
+    /// Map a ManagementRequest to HTTP method, path, and optional JSON body.
+    fn map_request(&self, request: &ManagementRequest) -> (&'static str, String, Option<String>) {
+        match request {
+            ManagementRequest::GetStatus => ("GET", "/v1/management/status".to_string(), None),
+            ManagementRequest::GetConfig => ("GET", "/v1/management/config".to_string(), None),
+            ManagementRequest::GetMetrics => ("GET", "/v1/management/metrics".to_string(), None),
+            ManagementRequest::ApplyConfig { config } => (
+                "POST",
+                "/v1/management/config".to_string(),
+                Some(serde_json::to_string(config).unwrap_or_default()),
+            ),
+            ManagementRequest::Register { .. }  => (
+                "POST",
+                "/v1/management/lifecycle/register".to_string(),
+                Some(serde_json::to_string(request).unwrap_or_default()),
+            ),
+            ManagementRequest::Unregister => (
+                "POST",
+                "/v1/management/lifecycle/register".to_string(),
+                None,
+            ),
+            ManagementRequest::Join => (
+                "POST",
+                "/v1/management/lifecycle/join".to_string(),
+                None,
+            ),
+            ManagementRequest::Drain => (
+                "POST",
+                "/v1/management/lifecycle/drain".to_string(),
+                None,
+            ),
+            ManagementRequest::Undrain => (
+                "POST",
+                "/v1/management/lifecycle/undrain".to_string(),
+                None,
+            ),
+            ManagementRequest::Reboot => (
+                "POST",
+                "/v1/management/lifecycle/reboot".to_string(),
+                None,
+            ),
+            ManagementRequest::StreamLogs { .. } => {
+                // TODO(#200): Implement log streaming endpoint
+                ("GET", "/v1/management/logs".to_string(), None)
+            }
+            ManagementRequest::Upgrade { .. } => (
+                "POST",
+                "/v1/management/upgrade".to_string(),
+                Some(serde_json::to_string(request).unwrap_or_default()),
+            ),
+            ManagementRequest::ApplyUpgrade => (
+                "POST",
+                "/v1/management/upgrade/apply".to_string(),
+                None,
+            ),
+            ManagementRequest::GenerateCapability { .. } => (
+                "POST",
+                "/v1/management/capabilities".to_string(),
+                Some(serde_json::to_string(request).unwrap_or_default()),
+            ),
+            ManagementRequest::RevokeCapability { token_prefix } => (
+                "POST",
+                format!("/v1/management/capabilities/{}/revoke", token_prefix),
+                None,
+            ),
+            ManagementRequest::ListCapabilities => (
+                "GET",
+                "/v1/management/capabilities".to_string(),
+                None,
+            ),
+        }
+    }
+
+    /// Determine timeout based on request type.
     fn timeout_for_request(&self, request: &ManagementRequest) -> Duration {
         match request {
-            // Long operations
             ManagementRequest::Register { .. }
             | ManagementRequest::Unregister
             | ManagementRequest::Join
@@ -269,56 +310,9 @@ impl ManagementClient {
             | ManagementRequest::ApplyUpgrade
             | ManagementRequest::Reboot
             | ManagementRequest::ApplyConfig { .. } => self.options.long_timeout,
-
-            // Short operations
-            ManagementRequest::GetStatus
-            | ManagementRequest::GetConfig
-            | ManagementRequest::GetMetrics
-            | ManagementRequest::StreamLogs { .. }
-            | ManagementRequest::GenerateCapability { .. }
-            | ManagementRequest::RevokeCapability { .. }
-            | ManagementRequest::ListCapabilities => self.options.request_timeout,
+            _ => self.options.request_timeout,
         }
     }
-}
-
-/// Write a length-prefixed frame to the stream
-async fn write_frame<W: AsyncWriteExt + Unpin>(
-    writer: &mut W,
-    data: &[u8],
-) -> Result<(), ClientError> {
-    let len = data.len() as u32;
-    writer
-        .write_all(&len.to_be_bytes())
-        .await
-        .map_err(ClientError::Io)?;
-    writer.write_all(data).await.map_err(ClientError::Io)?;
-    writer.flush().await.map_err(ClientError::Io)?;
-    Ok(())
-}
-
-/// Read a length-prefixed frame from the stream
-async fn read_frame<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<Vec<u8>, ClientError> {
-    let mut len_buf = [0u8; 4];
-    reader
-        .read_exact(&mut len_buf)
-        .await
-        .map_err(ClientError::Io)?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-
-    if len > 10 * 1024 * 1024 {
-        return Err(ClientError::WireError(format!(
-            "Frame too large: {} bytes",
-            len
-        )));
-    }
-
-    let mut data = vec![0u8; len];
-    reader
-        .read_exact(&mut data)
-        .await
-        .map_err(ClientError::Io)?;
-    Ok(data)
 }
 
 #[cfg(test)]
@@ -342,5 +336,27 @@ mod tests {
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("test-cap"));
         assert!(json.contains("get_status"));
+    }
+
+    #[test]
+    fn test_client_invalid_url() {
+        let entry = NodeEntry {
+            url: "not-a-url".to_string(),
+            capability: "cap".to_string(),
+            description: None,
+        };
+        let result = ManagementClient::from_config(&entry, ClientOptions::default());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_client_valid_url() {
+        let entry = NodeEntry {
+            url: "http://localhost:9000".to_string(),
+            capability: "cap".to_string(),
+            description: None,
+        };
+        let result = ManagementClient::from_config(&entry, ClientOptions::default());
+        assert!(result.is_ok());
     }
 }

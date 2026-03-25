@@ -28,9 +28,10 @@ import { ConfigError } from './errors.js';
  * import { Client } from '@graphene/sdk';
  *
  * const client = await Client.create({
- *   secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
- *   channelPda: channelPda,  // Payment channel PDA (32 bytes)
- *   workerNodeId: nodeId,    // Worker's node ID (hex-encoded Ed25519 pubkey)
+ *   secretKey: mySecretKey,    // Your Ed25519 secret key (32 bytes)
+ *   channelId: channelId,      // Shared channel identifier (32 bytes)
+ *   workerPubkey: pubkey,      // Worker's Ed25519 public key (hex)
+ *   workerUrl: 'http://worker:3000',
  * });
  *
  * const result = await client.run({
@@ -63,25 +64,25 @@ export class Client {
         `secretKey must be 32 bytes, got ${config.secretKey.length}`
       );
     }
-    if (config.channelPda.length !== 32) {
+    if (config.channelId.length !== 32) {
       throw new ConfigError(
-        `channelPda must be 32 bytes, got ${config.channelPda.length}`
+        `channelId must be 32 bytes, got ${config.channelId.length}`
       );
     }
-    if (!config.workerNodeId || config.workerNodeId.length !== 64) {
+    if (!config.workerPubkey || config.workerPubkey.length !== 64) {
       throw new ConfigError(
-        'workerNodeId must be a 64-character hex string (Ed25519 public key)'
+        'workerPubkey must be a 64-character hex string (Ed25519 public key)'
       );
+    }
+    if (!config.workerUrl) {
+      throw new ConfigError('workerUrl is required');
     }
 
     const nativeConfig: NativeClientConfig = {
-      storagePath: config.storagePath ?? '.graphene-sdk',
+      workerUrl: config.workerUrl,
       secretKey: Buffer.from(config.secretKey),
-      channelPda: Buffer.from(config.channelPda),
-      workerNodeId: config.workerNodeId,
-      useRelay: config.useRelay ?? true,
-      bindPort: config.bindPort,
-      relayUrl: config.relayUrl,
+      channelId: Buffer.from(config.channelId),
+      workerPubkey: config.workerPubkey,
     };
 
     const native = await NativeClient.create(nativeConfig);
@@ -120,16 +121,12 @@ export class Client {
           : undefined,
         egressAllowlist,
       } : undefined,
-      assets: options.assets ? {
-        mode: options.assets.mode,
-        inlineCodeThreshold: options.assets.inlineCodeThreshold,
-        inlineInputThreshold: options.assets.inlineInputThreshold,
-        compress: options.assets.compress,
+      assets: options.compress !== undefined ? {
+        compress: options.compress,
       } : undefined,
       timeoutMs: options.timeoutMs !== undefined ? BigInt(options.timeoutMs) : undefined,
       runtime: options.runtime,
       env: options.env,
-      deliveryMode: options.deliveryMode,
     };
 
     const result: NativeJobResult = await this.native.submitJob(nativeOptions);
@@ -143,19 +140,8 @@ export class Client {
         cpuTimeMs: result.metrics.cpuTimeMs,
         networkRxBytes: result.metrics.networkRxBytes,
         networkTxBytes: result.metrics.networkTxBytes,
-        totalCostMicros: result.metrics.totalCostMicros,
-        cpuCostMicros: result.metrics.cpuCostMicros,
-        memoryCostMicros: result.metrics.memoryCostMicros,
-        egressCostMicros: result.metrics.egressCostMicros,
       },
     };
-  }
-
-  /**
-   * Get this client's node ID (public key) as a hex string.
-   */
-  async nodeId(): Promise<string> {
-    return this.native.nodeId();
   }
 
   /**

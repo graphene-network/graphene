@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::executor::types::{reserved_env, ExecutionError};
-use crate::p2p::messages::JobManifest;
+use crate::types::JobManifest;
 
 /// Paths used inside the execution drive.
 pub mod paths {

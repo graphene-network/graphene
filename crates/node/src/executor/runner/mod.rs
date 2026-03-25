@@ -28,7 +28,7 @@
 pub mod mock;
 
 use crate::ephemeral::NetworkStats;
-use crate::p2p::messages::JobManifest;
+use crate::types::JobManifest;
 use crate::vmm::{FirecrackerConfig, FirecrackerVirtualizer, Virtualizer, VmmError};
 use async_trait::async_trait;
 use std::future::Future;

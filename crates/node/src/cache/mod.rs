@@ -3,14 +3,52 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
-pub mod build;
-pub mod iroh;
 pub mod keys;
 pub mod local;
 pub mod mock;
 
-pub use build::{BuildCache, CacheLookupResult, LayeredBuildCache, MockBuildCache};
 pub use keys::{full_build_key, hash_bytes, l1_key, l2_key, l3_key};
+
+/// Cache level indicating where a hit was found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheLevel {
+    /// L1: exact match (runtime + deps + code hash)
+    L1,
+    /// L2: runtime + deps match (different code)
+    L2,
+    /// L3: runtime match only
+    L3,
+}
+
+/// Result of a successful cache lookup.
+#[derive(Debug, Clone)]
+pub struct CacheLookupResult {
+    /// Path to the cached kernel binary.
+    pub path: PathBuf,
+    /// Which cache level matched.
+    pub level: CacheLevel,
+}
+
+/// Trait for looking up cached unikernel builds.
+#[async_trait]
+pub trait BuildCache: Send + Sync {
+    /// Look up a cached kernel for the given spec.
+    async fn lookup(
+        &self,
+        kernel_spec: &str,
+        requirements: &[String],
+        code_hash: &[u8; 32],
+    ) -> Result<Option<CacheLookupResult>, CacheError>;
+
+    /// Store a built kernel in the cache.
+    async fn store(
+        &self,
+        kernel_spec: &str,
+        requirements: &[String],
+        code_hash: &[u8; 32],
+        kernel_path: &std::path::Path,
+    ) -> Result<PathBuf, CacheError>;
+}
 
 #[derive(Debug)]
 pub enum CacheError {

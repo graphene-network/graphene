@@ -12,9 +12,10 @@
  * import { Client } from '@graphene/sdk';
  *
  * const client = await Client.create({
- *   secretKey: mySecretKey,  // Your Ed25519 secret key (32 bytes)
- *   channelPda: channelPda,  // Payment channel PDA (32 bytes)
- *   workerNodeId: nodeId,    // Worker's node ID (hex-encoded Ed25519 pubkey)
+ *   secretKey: mySecretKey,    // Your Ed25519 secret key (32 bytes)
+ *   channelId: channelId,      // Shared channel identifier (32 bytes)
+ *   workerPubkey: pubkey,      // Worker's Ed25519 public key (hex)
+ *   workerUrl: 'http://worker:3000',
  * });
  *
  * const result = await client.run({
@@ -47,16 +48,6 @@ export {
 export type {
   ChannelKeys,
   EncryptedBlob,
-  PaymentTicket,
-  ChannelState,
-  JobRequest,
-  JobResponse,
-  JobManifest,
-  JobAssets,
-  JobResult,
-  JobMetrics,
-  EgressRule,
-  WireMessage,
   NativeClientConfig,
   NativeJobOptions,
   NativeJobResult,
@@ -85,12 +76,5 @@ export {
   deriveChannelKeys,
   encryptJobBlob,
   decryptJobBlob,
-  createPaymentTicket,
-  verifyTicketSignature,
-  validateTicket,
-  serializeJobRequest,
-  deserializeJobResponse,
-  encodeWireMessage,
-  decodeWireMessage,
   blake3Hash,
 } from '@graphene/sdk-native';

@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::management::{ManagementRequest, ManagementResponse};
+use graphene_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Upgrade action to perform

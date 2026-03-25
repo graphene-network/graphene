@@ -1,6 +1,0 @@
-{
-  "scripts": {
-    "setup": "bun install",
-    "archive": "cargo clean && rm -rf node_modules"
-  }
-}

@@ -20,13 +20,10 @@ pub struct ClientConfig {
 /// Configuration for a single node
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeEntry {
-    /// Node ID (ed25519 public key)
-    pub node_id: String,
+    /// Worker URL (e.g., "http://192.168.1.100:9000")
+    pub url: String,
     /// Capability token for authentication
     pub capability: String,
-    /// Optional direct endpoint (ip:port)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<String>,
     /// Optional description for this node
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -116,9 +113,8 @@ mod tests {
         config.set_node(
             "test-node".to_string(),
             NodeEntry {
-                node_id: "ed25519:abc123".to_string(),
+                url: "http://192.168.1.100:9000".to_string(),
                 capability: "graphene-cap:v1:admin:...".to_string(),
-                endpoint: Some("192.168.1.100:9000".to_string()),
                 description: Some("Test node".to_string()),
             },
         );
@@ -137,18 +133,16 @@ mod tests {
         config.set_node(
             "node1".to_string(),
             NodeEntry {
-                node_id: "key1".to_string(),
+                url: "http://host1:9000".to_string(),
                 capability: "cap1".to_string(),
-                endpoint: None,
                 description: None,
             },
         );
         config.set_node(
             "node2".to_string(),
             NodeEntry {
-                node_id: "key2".to_string(),
+                url: "http://host2:9000".to_string(),
                 capability: "cap2".to_string(),
-                endpoint: None,
                 description: None,
             },
         );
@@ -156,12 +150,15 @@ mod tests {
 
         // Explicit name takes precedence
         assert_eq!(
-            config.get_node_or_default(Some("node2")).unwrap().node_id,
-            "key2"
+            config.get_node_or_default(Some("node2")).unwrap().url,
+            "http://host2:9000"
         );
 
         // Falls back to default when no name given
-        assert_eq!(config.get_node_or_default(None).unwrap().node_id, "key1");
+        assert_eq!(
+            config.get_node_or_default(None).unwrap().url,
+            "http://host1:9000"
+        );
     }
 
     #[test]

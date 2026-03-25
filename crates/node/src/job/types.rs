@@ -2,8 +2,6 @@
 
 use super::state::{JobState, UserJobState};
 use super::JobError;
-use crate::p2p::messages::ResultDeliveryMode;
-use iroh_blobs::Hash;
 use serde::{Deserialize, Serialize};
 
 /// Exit code constants for job execution results.
@@ -140,13 +138,10 @@ pub struct Job {
     pub state_history: Vec<StateTransition>,
     /// Exit code (set when transitioning to Succeeded/Failed/Timeout)
     pub exit_code: Option<i32>,
-    /// Hash of the encrypted result blob (set when transitioning to Delivering)
-    pub result_hash: Option<Hash>,
+    /// BLAKE3 hash of the result blob (set when transitioning to Delivering)
+    pub result_hash: Option<[u8; 32]>,
     /// ID of the worker processing this job
     pub worker_id: Option<String>,
-    /// Requested result delivery mode
-    #[serde(default)]
-    pub delivery_mode: ResultDeliveryMode,
 }
 
 impl Job {
@@ -161,15 +156,7 @@ impl Job {
             exit_code: None,
             result_hash: None,
             worker_id: None,
-            delivery_mode: ResultDeliveryMode::default(),
         }
-    }
-
-    /// Creates a new job with a specific delivery mode.
-    pub fn with_delivery_mode(id: impl Into<String>, delivery_mode: ResultDeliveryMode) -> Self {
-        let mut job = Self::new(id);
-        job.delivery_mode = delivery_mode;
-        job
     }
 
     /// Transitions the job to a new state.
@@ -232,7 +219,7 @@ impl Job {
     /// # Errors
     ///
     /// Returns `JobError::InvalidTransition` if the current state cannot transition to Delivering.
-    pub fn transition_to_delivering(&mut self, result_hash: Hash) -> Result<(), JobError> {
+    pub fn transition_to_delivering(&mut self, result_hash: [u8; 32]) -> Result<(), JobError> {
         self.result_hash = Some(result_hash);
         self.transition(JobState::Delivering)
     }
@@ -391,7 +378,7 @@ mod tests {
         assert_eq!(job.exit_code, Some(0));
 
         // Create a fake hash for testing
-        let result_hash = Hash::new(b"test result");
+        let result_hash = *blake3::hash(b"test result").as_bytes();
 
         // Succeeded → Delivering
         assert!(job.transition_to_delivering(result_hash).is_ok());
@@ -420,7 +407,7 @@ mod tests {
         job.transition_with_exit_code(JobState::Succeeded, exit_code::SUCCESS)
             .unwrap();
 
-        let result_hash = Hash::new(b"test result");
+        let result_hash = *blake3::hash(b"test result").as_bytes();
         job.transition_to_delivering(result_hash).unwrap();
         job.transition(JobState::Delivered).unwrap();
 
@@ -467,7 +454,7 @@ mod tests {
         job.transition(JobState::Running).unwrap();
         job.transition_with_exit_code(JobState::Succeeded, 0)
             .unwrap();
-        job.transition_to_delivering(Hash::new(b"test")).unwrap();
+        job.transition_to_delivering(*blake3::hash(b"test").as_bytes()).unwrap();
         job.transition(JobState::Delivered).unwrap();
 
         // Any transition from Delivered should fail
@@ -586,7 +573,6 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
-            delivery_mode: ResultDeliveryMode::default(),
         };
 
         // Simulate state transitions with specific timestamps
@@ -620,7 +606,6 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
-            delivery_mode: ResultDeliveryMode::default(),
         };
 
         // Simulate cache hit path
@@ -658,7 +643,6 @@ mod tests {
             exit_code: None,
             result_hash: None,
             worker_id: None,
-            delivery_mode: ResultDeliveryMode::default(),
         };
 
         let metrics = job.compute_metrics();
@@ -770,12 +754,4 @@ mod tests {
         assert!(matches!(err, JobError::InvalidTransition { .. }));
     }
 
-    #[test]
-    fn test_job_with_delivery_mode() {
-        let job_sync = Job::new("job-sync");
-        assert_eq!(job_sync.delivery_mode, ResultDeliveryMode::Sync);
-
-        let job_async = Job::with_delivery_mode("job-async", ResultDeliveryMode::Async);
-        assert_eq!(job_async.delivery_mode, ResultDeliveryMode::Async);
-    }
 }

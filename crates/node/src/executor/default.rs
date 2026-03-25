@@ -1,39 +1,17 @@
 //! Default job executor implementation.
 //!
-//! This module provides [`DefaultJobExecutor`], which wires together all executor
-//! components to implement the full job execution pipeline:
-//!
-//! 1. Fetch and decrypt code/input blobs from P2P network
+//! Wires together all executor components for the full job execution pipeline:
+//! 1. Decompress code/input assets
 //! 2. Cache lookup or build the unikernel
 //! 3. Prepare the execution drive with code, input, and environment
 //! 4. Run the VM with resource limits and timeout enforcement
-//! 5. Process and encrypt the output
-//!
-//! # Example
-//!
-//! ```ignore
-//! use graphene_node::executor::{DefaultJobExecutor, ExecutionRequest, JobExecutor};
-//!
-//! // Create executor with all dependencies injected
-//! let executor = DefaultJobExecutor::new(
-//!     drive_builder,
-//!     runner,
-//!     output_processor,
-//!     crypto,
-//!     network,
-//!     cache,
-//! );
-//!
-//! // Execute a job
-//! let result = executor.execute(request).await?;
-//! ```
+//! 5. Process output
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
-use iroh_blobs::Hash;
 use tracing::{debug, info, instrument, warn};
 
 use super::drive::ExecutionDriveBuilder;
@@ -42,9 +20,7 @@ use super::runner::{RunnerError, VmmRunner};
 use super::types::{ExecutionError, ExecutionRequest, ExecutionResult};
 use super::JobExecutor;
 use crate::cache::BuildCache;
-use crate::crypto::{ChannelKeys, CryptoProvider, EncryptedBlob, EncryptionDirection};
-use crate::p2p::protocol::types::{AssetData, Compression};
-use crate::p2p::P2PNetwork;
+use crate::types::{AssetData, Compression};
 
 /// Configuration for the default job executor.
 #[derive(Debug, Clone)]
@@ -67,7 +43,6 @@ impl Default for ExecutorConfig {
 /// Cancellation handle for a running job.
 #[derive(Debug)]
 struct JobHandle {
-    /// Flag indicating whether cancellation has been requested.
     cancelled: AtomicBool,
 }
 
@@ -89,53 +64,27 @@ impl JobHandle {
 
 /// Default implementation of [`JobExecutor`].
 ///
-/// This executor wires together all components needed for job execution:
-/// - Drive builder for creating ext4 images
-/// - VMM runner for executing unikernels in Firecracker
-/// - Output processor for encrypting results
-/// - Crypto provider for decrypting inputs
-/// - P2P network for fetching blobs
-/// - Build cache for caching unikernel builds
-///
-/// # Thread Safety
-///
-/// The executor is fully thread-safe and can handle concurrent job executions.
-/// Each job runs in isolation in its own MicroVM.
-///
-/// # Cancellation
-///
-/// Jobs can be cancelled via the [`cancel`] method. Cancellation is cooperative:
-/// the job will be cancelled at the next cancellation point (typically before
-/// each major phase).
-pub struct DefaultJobExecutor<D, R, O, C, N, B>
+/// Wires together drive builder, VMM runner, output processor, and build cache.
+pub struct DefaultJobExecutor<D, R, O, B>
 where
     D: ExecutionDriveBuilder,
     R: VmmRunner,
     O: OutputProcessor,
-    C: CryptoProvider,
-    N: P2PNetwork,
     B: BuildCache,
 {
     drive_builder: Arc<D>,
     runner: Arc<R>,
     output_processor: Arc<O>,
-    crypto: Arc<C>,
-    network: Arc<N>,
     cache: Arc<B>,
     config: ExecutorConfig,
-    /// Tracks running jobs with their cancellation handles.
     running_jobs: RwLock<HashMap<String, Arc<JobHandle>>>,
-    /// Worker's Ed25519 secret key for deriving channel keys.
-    worker_secret: [u8; 32],
 }
 
-impl<D, R, O, C, N, B> DefaultJobExecutor<D, R, O, C, N, B>
+impl<D, R, O, B> DefaultJobExecutor<D, R, O, B>
 where
     D: ExecutionDriveBuilder,
     R: VmmRunner,
     O: OutputProcessor,
-    C: CryptoProvider,
-    N: P2PNetwork,
     B: BuildCache,
 {
     /// Create a new executor with the given components.
@@ -143,130 +92,57 @@ where
         drive_builder: Arc<D>,
         runner: Arc<R>,
         output_processor: Arc<O>,
-        crypto: Arc<C>,
-        network: Arc<N>,
         cache: Arc<B>,
-        worker_secret: [u8; 32],
     ) -> Self {
         Self {
             drive_builder,
             runner,
             output_processor,
-            crypto,
-            network,
             cache,
             config: ExecutorConfig::default(),
             running_jobs: RwLock::new(HashMap::new()),
-            worker_secret,
         }
     }
 
     /// Create a new executor with custom configuration.
-    #[allow(clippy::too_many_arguments)]
     pub fn with_config(
         drive_builder: Arc<D>,
         runner: Arc<R>,
         output_processor: Arc<O>,
-        crypto: Arc<C>,
-        network: Arc<N>,
         cache: Arc<B>,
-        worker_secret: [u8; 32],
         config: ExecutorConfig,
     ) -> Self {
         Self {
             drive_builder,
             runner,
             output_processor,
-            crypto,
-            network,
             cache,
             config,
             running_jobs: RwLock::new(HashMap::new()),
-            worker_secret,
         }
     }
 
-    /// Derive channel keys for the given request.
-    fn derive_channel_keys(
-        &self,
-        request: &ExecutionRequest,
-    ) -> Result<ChannelKeys, ExecutionError> {
-        self.crypto
-            .derive_channel_keys(
-                &self.worker_secret,
-                &request.payer_pubkey,
-                &request.channel_pda,
-            )
-            .map_err(|e| {
-                ExecutionError::decryption(format!("Failed to derive channel keys: {}", e))
-            })
-    }
-
-    /// Fetch a blob from the P2P network.
-    ///
-    /// If `client_node_id` is provided, attempts to download directly from the client.
-    async fn fetch_blob(
-        &self,
-        hash: Hash,
-        client_node_id: Option<&[u8; 32]>,
-    ) -> Result<Vec<u8>, ExecutionError> {
-        // Convert client node ID to EndpointAddr if provided
-        let from = client_node_id.and_then(|id| {
-            iroh::PublicKey::try_from(id.as_slice())
-                .ok()
-                .map(iroh::EndpointAddr::new)
-        });
-
-        self.network.download_blob(hash, from).await.map_err(|e| {
-            ExecutionError::asset_fetch(format!("Failed to fetch blob {}: {}", hash, e))
-        })
-    }
-
-    /// Fetch and decrypt an asset, handling both inline and blob modes.
-    ///
-    /// For inline assets, the data is already present and just needs decryption.
-    /// For blob assets, fetches from the P2P network first.
-    async fn fetch_asset(
+    /// Fetch asset data, handling both inline and hash-ref modes.
+    fn get_asset_data(
         &self,
         asset: &AssetData,
-        channel_keys: &ChannelKeys,
         job_id: &str,
-        client_node_id: Option<&[u8; 32]>,
         compression: Compression,
     ) -> Result<Vec<u8>, ExecutionError> {
-        let encrypted_bytes = match asset {
+        let raw_bytes = match asset {
             AssetData::Inline { data } => {
                 debug!(job_id, size = data.len(), "Using inline asset data");
                 data.clone()
             }
-            AssetData::Blob { hash, .. } => {
-                debug!(job_id, blob = %hash, "Fetching blob asset");
-                self.fetch_blob(*hash, client_node_id).await?
+            AssetData::Hash { .. } => {
+                // TODO(#200): Implement HTTP-based asset fetching for hash refs
+                return Err(ExecutionError::asset_fetch(
+                    "Hash-ref asset fetching not yet implemented",
+                ));
             }
         };
 
-        // Parse encrypted blob format
-        let encrypted = EncryptedBlob::from_bytes(&encrypted_bytes).map_err(|e| {
-            ExecutionError::decryption(format!("Invalid encrypted blob format: {}", e))
-        })?;
-
-        // Decrypt
-        let decrypted = self
-            .crypto
-            .decrypt_job_blob(&encrypted, channel_keys, job_id, EncryptionDirection::Input)
-            .map_err(|e| ExecutionError::decryption(format!("Decryption failed: {}", e)))?;
-
-        // Decompress if needed
-        let result = self.decompress(decrypted, compression)?;
-
-        debug!(
-            job_id,
-            decrypted_size = result.len(),
-            compression = ?compression,
-            "Asset fetched and decrypted successfully"
-        );
-
-        Ok(result)
+        self.decompress(raw_bytes, compression)
     }
 
     /// Decompress data if compression is enabled.
@@ -278,19 +154,16 @@ where
         match compression {
             Compression::None => Ok(data),
             Compression::Zstd => zstd::decode_all(data.as_slice()).map_err(|e| {
-                ExecutionError::decryption(format!("Zstd decompression failed: {}", e))
+                ExecutionError::decompression(format!("Zstd decompression failed: {}", e))
             }),
         }
     }
 
     /// Compute a cache key hash for the code asset.
-    ///
-    /// For inline assets, computes a hash of the data.
-    /// For blob assets, uses the existing blob hash.
     fn compute_code_hash(&self, asset: &AssetData) -> [u8; 32] {
         match asset {
             AssetData::Inline { data } => *blake3::hash(data).as_bytes(),
-            AssetData::Blob { hash, .. } => *hash.as_bytes(),
+            AssetData::Hash { hash, .. } => *hash,
         }
     }
 
@@ -302,11 +175,9 @@ where
         let kernel_spec = request.manifest.runtime.clone();
         let code_hash_bytes: [u8; 32] = self.compute_code_hash(&request.assets.code);
 
-        // For now, we don't parse requirements from the code blob
         // TODO(#42): Extract requirements.txt from code blob for proper L3 cache key
         let requirements: Vec<String> = vec![];
 
-        // Check cache
         match self
             .cache
             .lookup(&kernel_spec, &requirements, &code_hash_bytes)
@@ -331,15 +202,12 @@ where
             }
         }
 
-        // Check for pre-built kernel at known paths
-        // This supports CI/testing scenarios where kernels are pre-built but not in the cache
         if let Some(kernel_path) = self.find_prebuilt_kernel(&kernel_spec) {
             info!(kernel = kernel_spec, path = ?kernel_path, "Found pre-built kernel");
             return Ok(kernel_path);
         }
 
         // TODO(#43): Implement actual unikernel build
-        // For now, return an error indicating build is not implemented
         Err(ExecutionError::build(format!(
             "Unikernel build not yet implemented for runtime: {}. Cache miss.",
             kernel_spec
@@ -347,17 +215,10 @@ where
     }
 
     /// Find a pre-built kernel at known paths.
-    ///
-    /// Checks for kernels in:
-    /// 1. GRAPHENE_KERNEL_CACHE environment variable
-    /// 2. $HOME/.graphene/cache/kernels
-    /// 3. /usr/share/graphene/kernels
     fn find_prebuilt_kernel(&self, runtime_spec: &str) -> Option<std::path::PathBuf> {
-        // Convert kernel spec like "python:3.12" to filename like "python-3.12_fc-x86_64"
         let kernel_name = runtime_spec.replace(':', "-");
         let filename = format!("{}_fc-x86_64", kernel_name);
 
-        // Check paths in priority order
         let search_paths = [
             std::env::var("GRAPHENE_KERNEL_CACHE")
                 .ok()
@@ -382,7 +243,6 @@ where
         None
     }
 
-    /// Check cancellation and return error if cancelled.
     fn check_cancelled(&self, handle: &JobHandle) -> Result<(), ExecutionError> {
         if handle.is_cancelled() {
             Err(ExecutionError::Cancelled)
@@ -391,7 +251,6 @@ where
         }
     }
 
-    /// Register a job as running.
     fn register_job(&self, job_id: &str) -> Arc<JobHandle> {
         let handle = Arc::new(JobHandle::new());
         self.running_jobs
@@ -401,35 +260,25 @@ where
         handle
     }
 
-    /// Unregister a job.
     fn unregister_job(&self, job_id: &str) {
         self.running_jobs.write().unwrap().remove(job_id);
     }
 }
 
 #[async_trait]
-impl<D, R, O, C, N, B> JobExecutor for DefaultJobExecutor<D, R, O, C, N, B>
+impl<D, R, O, B> JobExecutor for DefaultJobExecutor<D, R, O, B>
 where
     D: ExecutionDriveBuilder + 'static,
     R: VmmRunner + 'static,
     O: OutputProcessor + 'static,
-    C: CryptoProvider + 'static,
-    N: P2PNetwork + 'static,
     B: BuildCache + 'static,
 {
     #[instrument(skip(self, request), fields(job_id = %request.job_id))]
     async fn execute(&self, request: ExecutionRequest) -> Result<ExecutionResult, ExecutionError> {
         let job_id = request.job_id.clone();
-
-        // Register the job as running
         let handle = self.register_job(&job_id);
-
-        // Execute and ensure cleanup
         let result = self.execute_inner(&request, &handle).await;
-
-        // Always unregister the job
         self.unregister_job(&job_id);
-
         result
     }
 
@@ -450,16 +299,13 @@ where
     }
 }
 
-impl<D, R, O, C, N, B> DefaultJobExecutor<D, R, O, C, N, B>
+impl<D, R, O, B> DefaultJobExecutor<D, R, O, B>
 where
     D: ExecutionDriveBuilder + 'static,
     R: VmmRunner + 'static,
     O: OutputProcessor + 'static,
-    C: CryptoProvider + 'static,
-    N: P2PNetwork + 'static,
     B: BuildCache + 'static,
 {
-    /// Inner execution logic, separated for cleaner error handling.
     async fn execute_inner(
         &self,
         request: &ExecutionRequest,
@@ -468,54 +314,27 @@ where
         let job_id = &request.job_id;
         info!(job_id, kernel = %request.manifest.runtime, "Starting job execution");
 
-        // Phase 1: Derive channel keys
+        // Phase 1: Get code asset
         self.check_cancelled(handle)?;
-        let channel_keys = self.derive_channel_keys(request)?;
-        debug!(job_id, "Channel keys derived");
-
-        // Phase 2: Fetch and decrypt code asset
-        self.check_cancelled(handle)?;
-        let client_node_id = request.client_node_id.as_ref();
         let compression = request.assets.compression;
-        let code = self
-            .fetch_asset(
-                &request.assets.code,
-                &channel_keys,
-                job_id,
-                client_node_id,
-                compression,
-            )
-            .await?;
-        info!(
-            job_id,
-            code_size = code.len(),
-            "Code asset fetched and decrypted"
-        );
+        let code = self.get_asset_data(&request.assets.code, job_id, compression)?;
+        info!(job_id, code_size = code.len(), "Code asset ready");
 
-        // Phase 3: Fetch and decrypt input asset (if present)
+        // Phase 2: Get input asset (if present)
         self.check_cancelled(handle)?;
         let input = if let Some(ref input_asset) = request.assets.input {
-            Some(
-                self.fetch_asset(
-                    input_asset,
-                    &channel_keys,
-                    job_id,
-                    client_node_id,
-                    compression,
-                )
-                .await?,
-            )
+            Some(self.get_asset_data(input_asset, job_id, compression)?)
         } else {
             debug!(job_id, "No input asset specified");
             None
         };
 
-        // Phase 4: Cache lookup or build kernel
+        // Phase 3: Cache lookup or build kernel
         self.check_cancelled(handle)?;
         let kernel_path = self.get_kernel(request).await?;
         info!(job_id, kernel_path = %kernel_path.display(), "Kernel ready");
 
-        // Phase 5: Prepare execution drive
+        // Phase 4: Prepare execution drive
         self.check_cancelled(handle)?;
         let drive_path = self
             .drive_builder
@@ -529,18 +348,15 @@ where
             .await?;
         info!(job_id, drive_path = %drive_path.display(), "Execution drive prepared");
 
-        // Phase 6: Run VM
+        // Phase 5: Run VM
         self.check_cancelled(handle)?;
         let boot_args = if request.manifest.runtime.starts_with("python") {
-            // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
             "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/python3 /app/main.py"
                 .to_string()
         } else if request.manifest.runtime.starts_with("node") {
-            // Initrd rootfs + vfs.fstab + "--" is required for Unikraft app arguments.
             "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ] -- /usr/bin/node /app/index.js"
                 .to_string()
         } else {
-            // Default to mounting initrd even if no explicit command is known.
             "console=ttyS0 vfs.fstab=[ \"initrd0:/:extract:::\" ]".to_string()
         };
 
@@ -580,7 +396,7 @@ where
             "VM execution completed"
         );
 
-        // Phase 7: Process and encrypt output
+        // Phase 6: Process output
         let result = self
             .output_processor
             .process(
@@ -589,23 +405,19 @@ where
                 vmm_output.stderr,
                 vmm_output.exit_code,
                 vmm_output.duration,
-                request,
-                &channel_keys,
             )
             .await?;
 
         info!(
             job_id,
             exit_code = result.exit_code,
-            result_hash = %result.result_hash,
             "Output processed"
         );
 
-        // Phase 8: Cleanup drive (if configured)
+        // Phase 7: Cleanup drive (if configured)
         if self.config.cleanup_drives {
             if let Err(e) = self.drive_builder.cleanup(&drive_path).await {
                 warn!(job_id, error = %e, "Failed to cleanup drive");
-                // Don't fail the job for cleanup errors
             }
         }
 
@@ -617,28 +429,18 @@ where
 // Mock Implementation
 // ============================================================================
 
-/// Mock implementation of [`JobExecutor`] for testing.
-///
-/// Configurable behavior allows testing various scenarios without
-/// requiring real infrastructure.
 pub mod mock {
     use super::*;
     use std::sync::atomic::AtomicUsize;
     use std::time::Duration;
 
-    /// Behavior configuration for mock executor.
     #[derive(Clone)]
     #[allow(clippy::type_complexity)]
     pub enum MockExecutorBehavior {
-        /// Always succeed with the given result.
         Success { exit_code: i32, duration: Duration },
-        /// Always fail with the given error.
         Failure(String),
-        /// Simulate timeout.
         Timeout,
-        /// Cancelled.
         Cancelled,
-        /// Custom handler.
         Custom(
             Arc<dyn Fn(&ExecutionRequest) -> Result<ExecutionResult, ExecutionError> + Send + Sync>,
         ),
@@ -656,10 +458,7 @@ pub mod mock {
     impl std::fmt::Debug for MockExecutorBehavior {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::Success {
-                    exit_code,
-                    duration,
-                } => f
+                Self::Success { exit_code, duration } => f
                     .debug_struct("Success")
                     .field("exit_code", exit_code)
                     .field("duration", duration)
@@ -672,7 +471,6 @@ pub mod mock {
         }
     }
 
-    /// Mock job executor for testing.
     pub struct MockJobExecutor {
         behavior: std::sync::Mutex<MockExecutorBehavior>,
         call_count: AtomicUsize,
@@ -695,7 +493,6 @@ pub mod mock {
     }
 
     impl MockJobExecutor {
-        /// Create a new mock executor with the given behavior.
         pub fn new(behavior: MockExecutorBehavior) -> Self {
             Self {
                 behavior: std::sync::Mutex::new(behavior),
@@ -704,22 +501,18 @@ pub mod mock {
             }
         }
 
-        /// Create a mock that always succeeds.
         pub fn success() -> Self {
             Self::new(MockExecutorBehavior::default())
         }
 
-        /// Create a mock that always fails.
         pub fn failing(error: impl Into<String>) -> Self {
             Self::new(MockExecutorBehavior::Failure(error.into()))
         }
 
-        /// Set the behavior for subsequent calls.
         pub fn set_behavior(&self, behavior: MockExecutorBehavior) {
             *self.behavior.lock().unwrap() = behavior;
         }
 
-        /// Get the number of execute calls.
         pub fn call_count(&self) -> usize {
             self.call_count.load(Ordering::SeqCst)
         }
@@ -739,10 +532,8 @@ pub mod mock {
                 .unwrap()
                 .insert(request.job_id.clone(), Arc::clone(&handle));
 
-            // Simulate some work
             tokio::time::sleep(Duration::from_millis(10)).await;
 
-            // Check for cancellation
             if handle.is_cancelled() {
                 self.running_jobs.write().unwrap().remove(&request.job_id);
                 return Err(ExecutionError::Cancelled);
@@ -752,17 +543,15 @@ pub mod mock {
 
             let behavior = self.behavior.lock().unwrap().clone();
             match behavior {
-                MockExecutorBehavior::Success {
-                    exit_code,
-                    duration,
-                } => Ok(ExecutionResult::new(
-                    exit_code,
-                    duration,
-                    b"mock_result".to_vec(),
-                    b"mock_stdout".to_vec(),
-                    vec![],
-                    Hash::new(b"mock_result"),
-                )),
+                MockExecutorBehavior::Success { exit_code, duration } => {
+                    Ok(ExecutionResult::new(
+                        exit_code,
+                        duration,
+                        b"mock_result".to_vec(),
+                        b"mock_stdout".to_vec(),
+                        vec![],
+                    ))
+                }
                 MockExecutorBehavior::Failure(msg) => Err(ExecutionError::vmm(msg)),
                 MockExecutorBehavior::Timeout => {
                     Err(ExecutionError::timeout(Duration::from_secs(30)))
@@ -792,8 +581,7 @@ pub mod mock {
 mod tests {
     use super::mock::{MockExecutorBehavior, MockJobExecutor};
     use super::*;
-    use crate::p2p::messages::{JobManifest, ResultDeliveryMode};
-    use crate::p2p::protocol::types::JobAssets;
+    use crate::types::{JobAssets, JobManifest};
     use std::time::Duration;
 
     fn make_test_request(job_id: &str) -> ExecutionRequest {
@@ -809,11 +597,7 @@ mod tests {
                 estimated_egress_mb: None,
                 estimated_ingress_mb: None,
             },
-            JobAssets::blobs(Hash::from_bytes([1u8; 32]), None),
-            [0u8; 32],
-            [0u8; 32],
-            [0u8; 32],
-            ResultDeliveryMode::Sync,
+            JobAssets::inline(b"print('hi')".to_vec(), None),
         )
     }
 
@@ -851,16 +635,12 @@ mod tests {
     #[tokio::test]
     async fn test_mock_executor_is_running() {
         let executor = Arc::new(MockJobExecutor::success());
-
-        // Job not running yet
         assert!(!executor.is_running("job-4").await);
     }
 
     #[tokio::test]
     async fn test_mock_executor_cancel() {
         let executor = MockJobExecutor::success();
-
-        // Can't cancel non-existent job
         assert!(!executor.cancel("nonexistent").await);
     }
 
@@ -874,14 +654,12 @@ mod tests {
                     b"special_result".to_vec(),
                     vec![],
                     vec![],
-                    Hash::new(b"special_result"),
                 ))
             } else {
                 Err(ExecutionError::vmm("not special"))
             }
         })));
 
-        // Special job succeeds
         let special_request = ExecutionRequest::new(
             "special",
             JobManifest {
@@ -894,16 +672,11 @@ mod tests {
                 estimated_egress_mb: None,
                 estimated_ingress_mb: None,
             },
-            JobAssets::blobs(Hash::from_bytes([1u8; 32]), None),
-            [0u8; 32],
-            [0u8; 32],
-            [0u8; 32],
-            ResultDeliveryMode::Sync,
+            JobAssets::inline(b"print('hi')".to_vec(), None),
         );
         let result = executor.execute(special_request).await.unwrap();
         assert_eq!(result.exit_code, 42);
 
-        // Other jobs fail
         let other_request = make_test_request("other");
         let result = executor.execute(other_request).await;
         assert!(result.is_err());
@@ -930,7 +703,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait_object_safe() {
-        // Verify JobExecutor can be used as a trait object
         let executor: Box<dyn JobExecutor> = Box::new(MockJobExecutor::success());
         let request = make_test_request("trait-object-test");
         let result = executor.execute(request).await;

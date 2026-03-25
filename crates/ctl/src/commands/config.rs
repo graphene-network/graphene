@@ -36,18 +36,14 @@ pub async fn run(config_path: &str, action: ConfigAction) -> anyhow::Result<()> 
     match action {
         ConfigAction::Add {
             name,
-            node_id,
+            url,
             capability,
-            endpoint,
         } => {
             validate_node_name(&name).map_err(|e| anyhow::anyhow!("{}", e))?;
 
             println!("Adding node '{}' to config at {}", name, config_path);
-            println!("  Node ID: {}", node_id);
+            println!("  URL: {}", url);
             println!("  Capability: {}", truncate_capability(&capability, 20));
-            if let Some(ep) = endpoint {
-                println!("  Endpoint: {}", ep);
-            }
             // TODO(#130): Update config file
         }
         ConfigAction::Remove { name } => {

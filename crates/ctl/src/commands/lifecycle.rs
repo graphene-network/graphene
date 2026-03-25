@@ -2,7 +2,7 @@
 
 use crate::client::{ClientOptions, ManagementClient};
 use crate::config::ClientConfig;
-use graphene_node::management::{ManagementRequest, ManagementResponse};
+use graphene_node::http::management::{ManagementRequest, ManagementResponse};
 use std::path::Path;
 
 /// Minimum stake amount in GRAPHENE.
@@ -55,6 +55,7 @@ pub async fn register(config_path: &str, node: &str, stake: u64) -> anyhow::Resu
             stake_amount: stake,
         })
         .await?;
+
 
     match response {
         ManagementResponse::Ok => println!("{}", format_register_message(node, stake)),

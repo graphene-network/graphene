@@ -11,16 +11,6 @@
 export type {
   ChannelKeys,
   EncryptedBlob,
-  PaymentTicket,
-  ChannelState,
-  JobRequest,
-  JobResponse,
-  JobManifest,
-  JobAssets,
-  JobResult,
-  JobMetrics,
-  EgressRule,
-  WireMessage,
   // Native client types
   ClientConfig as NativeClientConfig,
   JobOptions as NativeJobOptions,
@@ -40,18 +30,12 @@ export {
 export interface ClientConfig {
   /** Ed25519 secret key (32 bytes) */
   secretKey: Uint8Array;
-  /** Solana payment channel PDA (32 bytes) */
-  channelPda: Uint8Array;
-  /** Worker's node ID - hex-encoded Ed25519 public key (64 hex chars) */
-  workerNodeId: string;
-  /** Storage path for persistent data (default: '.graphene-sdk') */
-  storagePath?: string;
-  /** Whether to use relay servers for NAT traversal (default: true) */
-  useRelay?: boolean;
-  /** Optional bind port (0 for random) */
-  bindPort?: number;
-  /** Worker's relay URL for NAT traversal (obtained from worker's connection info) */
-  relayUrl?: string;
+  /** Shared channel identifier (32 bytes) - used for key derivation */
+  channelId: Uint8Array;
+  /** Worker's Ed25519 public key - hex-encoded (64 hex chars) */
+  workerPubkey: string;
+  /** Worker HTTP URL (e.g., "http://192.168.1.100:3000") */
+  workerUrl: string;
 }
 
 /**
@@ -77,63 +61,6 @@ export interface NetworkingOptions {
 }
 
 /**
- * Asset delivery mode.
- *
- * - `auto` (default): Inline if under threshold, blob if over
- * - `inline`: Always inline, reject if over message limit (16 MB)
- * - `blob`: Always upload to Iroh first (for pre-staging, deduplication)
- */
-export type AssetMode = 'auto' | 'inline' | 'blob';
-
-/**
- * Options for asset delivery.
- */
-export interface AssetOptions {
-  /**
-   * Delivery mode for assets.
-   * - `auto` (default): Inline if under threshold, blob if over
-   * - `inline`: Always inline, reject if over 16 MB message limit
-   * - `blob`: Always upload to Iroh (for pre-staging, deduplication)
-   */
-  mode?: AssetMode;
-
-  /**
-   * Threshold for inline code in bytes (only for 'auto' mode).
-   * Code larger than this will use blob mode.
-   * @default 4194304 (4 MB)
-   */
-  inlineCodeThreshold?: number;
-
-  /**
-   * Threshold for inline input in bytes (only for 'auto' mode).
-   * Input larger than this will use blob mode.
-   * @default 8388608 (8 MB)
-   */
-  inlineInputThreshold?: number;
-
-  /**
-   * Enable zstd compression for assets before encryption.
-   * Reduces payload size for compressible data.
-   * @default false
-   */
-  compress?: boolean;
-
-  /**
-   * Additional files to include in the job.
-   * Maps destination paths in the unikernel filesystem to local source paths.
-   *
-   * @example
-   * ```typescript
-   * files: {
-   *   '/data/model.bin': './model.bin',
-   *   '/config/settings.json': './config.json'
-   * }
-   * ```
-   */
-  files?: Record<string, string>;
-}
-
-/**
  * Options for running a job.
  */
 export interface RunOptions {
@@ -145,16 +72,14 @@ export interface RunOptions {
   resources?: ResourceOptions;
   /** Networking options (egress allowlist, bandwidth estimates) */
   networking?: NetworkingOptions;
-  /** Asset delivery options (mode, compression, files) */
-  assets?: AssetOptions;
+  /** Enable zstd compression for assets */
+  compress?: boolean;
   /** Execution timeout in milliseconds (default: 30000) */
   timeoutMs?: number;
   /** Runtime image to use (default: "python:3.12") */
   runtime?: string;
   /** Environment variables to pass to the job */
   env?: Record<string, string>;
-  /** Delivery mode: "sync" waits for result, "async" returns immediately */
-  deliveryMode?: 'sync' | 'async';
 }
 
 /**
@@ -180,5 +105,10 @@ export interface RunResult {
   /** Execution duration in milliseconds */
   durationMs: number;
   /** Resource usage metrics */
-  metrics: import('@graphene/sdk-native').JobMetrics;
+  metrics: {
+    peakMemoryBytes: bigint;
+    cpuTimeMs: bigint;
+    networkRxBytes: bigint;
+    networkTxBytes: bigint;
+  };
 }
