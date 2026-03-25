@@ -46,40 +46,36 @@ Graphene enforces a **Planner/Executor separation**: AI agents generate code man
 | Feature | Benefit |
 |---------|---------|
 | **Unikraft Unikernels** | 1-5MB images instead of gigabytes |
+| **KVM Isolation** | Hardware-level security, not software sandboxes |
 | **Content-Addressable Caching** | 99% cache hit rate for common stacks |
-| **Payment Channels** | Zero blockchain latency per job |
 | **Ephemeral Builder VMs** | Secure builds without trusting user code |
-| **Sub-second Cold Starts** | 200-500ms vs 30-120s on other DePIN |
+| **Sub-second Cold Starts** | 200-500ms with sealed unikernel images |
+| **E2E Encryption** | XChaCha20-Poly1305 with per-job ephemeral keys |
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   USER / AGENT                              │
+│                   USER / AI AGENT                            │
 └─────────────────────┬───────────────────────────────────────┘
-                      │ Job Request + Payment Ticket
+                      │ HTTP REST API
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              LAYER 4: ECONOMIC PLANE                        │
-│         Off-chain Payment Channels (Ed25519)                │
-└─────────────────────┬───────────────────────────────────────┘
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│              LAYER 3: DATA PLANE                            │
-│              Iroh (QUIC + Gossip)                           │
-│    Discovery · NAT Traversal · Blob Transfer                │
+│              LAYER 3: API PLANE                             │
+│         HTTP + E2E Encryption (XChaCha20-Poly1305)          │
+│      Job Submission · Status Polling · Result Delivery      │
 └─────────────────────┬───────────────────────────────────────┘
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              LAYER 2: EXECUTION PLANE                       │
-│         Firecracker MicroVMs + Unikraft                     │
+│         Firecracker MicroVMs + Unikraft Unikernels          │
 │      Ephemeral Builders · Content-Addressed Cache           │
 └─────────────────────┬───────────────────────────────────────┘
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              LAYER 1: SETTLEMENT PLANE                      │
-│              Solana (Anchor Program)                        │
-│       Channel Management · Staking · Slashing               │
+│              LAYER 1: ISOLATION PLANE                       │
+│              KVM Hardware Virtualization                     │
+│       Per-Job MicroVMs · Allowlist Egress · No Shell        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -89,8 +85,10 @@ Graphene enforces a **Planner/Executor separation**: AI agents generate code man
 import { Client } from '@graphene/sdk';
 
 const client = await Client.create({
-  secretKey: mySecretKey,
-  channelPda: channelPda,
+  secretKey: mySecretKey,       // Your Ed25519 secret key (32 bytes)
+  channelId: channelId,         // Shared channel identifier (32 bytes)
+  workerPubkey: workerPubkey,   // Worker's Ed25519 public key (hex)
+  workerUrl: 'http://worker:3000',
 });
 
 const result = await client.run({
@@ -107,35 +105,23 @@ const outputText = new TextDecoder().decode(result.output);
 console.log(outputText); // {"sum": 15}
 ```
 
-For more complex jobs with files, higher resources, and egress allowlists:
+For more complex jobs with egress allowlists and higher resources:
 
 ```typescript
-import { Client } from '@graphene/sdk';
-
-const client = await Client.create({
-  secretKey: mySecretKey,
-  channelPda: channelPda,
-});
-
 const result = await client.run({
   code: `
-import * as fs from 'node:fs/promises';
-const contents = await fs.readFile('/data/input.csv', 'utf8');
-const lines = contents.trim().split('\\n').length;
-console.log(JSON.stringify({ lines }));
+import pandas as pd
+import json, sys
+data = pd.read_csv('/dev/stdin')
+print(json.dumps({"rows": len(data), "columns": list(data.columns)}))
 `,
-  assets: {
-    mode: 'blob',
-    files: {
-      '/data/input.csv': './data.csv',
-    },
-  },
+  input: Buffer.from(csvData),
   resources: { vcpu: 2, memoryMb: 2048 },
   networking: {
     egressAllowlist: [{ host: 'api.openai.com', port: 443 }],
   },
   timeoutMs: 60000,
-  runtime: 'node:24',
+  runtime: 'python:3.12',
 });
 
 console.log(new TextDecoder().decode(result.output));
@@ -145,28 +131,42 @@ console.log(new TextDecoder().decode(result.output));
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| Settlement | Solana + Anchor | Payment channels, staking |
-| Networking | Iroh | P2P discovery, data transfer |
+| API | Axum (HTTP REST) | Job submission, management |
 | Compute | Firecracker | MicroVM runtime |
-| Unikernels | Unikraft + BuildKit | Dockerfile → minimal kernel |
-| Signatures | Ed25519 | Payment tickets, identity |
+| Unikernels | Unikraft | Dockerfile → minimal kernel |
+| Encryption | XChaCha20-Poly1305 | Per-job E2E encryption |
+| Signatures | Ed25519 | Identity, key derivation |
+| Hashing | BLAKE3 | Content addressing |
 
 ## Comparison
 
-| Feature | AWS Lambda | Akash | Graphene |
-|---------|------------|-------|----------|
-| Cold Start | 100-500ms | 30-120s | **200-500ms** |
-| Isolation | Container | Container | **MicroVM + Unikernel** |
-| Permissionless | No | Yes | Yes |
-| AI Agent Shell Access | Yes (risky) | Yes (risky) | **No (safe)** |
-| Network Egress | Unrestricted | Unrestricted | **Allowlist only** |
+| Feature | Cloudflare Workers | AWS Lambda | Akash | Graphene |
+|---------|-------------------|------------|-------|----------|
+| Cold Start | <1ms | 100-500ms | 30-120s | **200-500ms** |
+| Isolation | V8 Isolate | Container | Container | **MicroVM + Unikernel** |
+| Runtimes | JS/WASM only | Many (containers) | Any (containers) | **Python, Node, Bun** |
+| Shell Access | No | Yes (risky) | Yes (risky) | **No (by design)** |
+| Network Egress | Unrestricted | Unrestricted | Unrestricted | **Allowlist only** |
+| Arbitrary Binaries | No | Yes | Yes | **Yes (build-time)** |
+| Max CPU Time | 30s (paid) | 15min | Unlimited | Configurable |
+| Self-Hostable | No | No | Yes | **Yes** |
+| Vendor Lock-in | Cloudflare | AWS | No | **No** |
+
+### Graphene vs Cloudflare Workers
+
+Cloudflare Workers are fast and globally distributed, but they run inside V8 isolates—a software sandbox sharing a process with other tenants. This means:
+
+- **JS/WASM only**: No Python, no native binaries, no `ffmpeg`, no ML frameworks. Graphene runs full unikernels with any statically-linked binary.
+- **Software isolation**: V8 isolates rely on the V8 engine for security. A V8 bug = tenant escape. Graphene uses KVM hardware virtualization—each job gets its own virtual machine.
+- **Not designed for AI agents**: Workers are built for HTTP middleware (rewrite headers, transform responses). Graphene is built for compute jobs: run a Python script, process data, call an API, return a result.
+- **Centralized**: You can't run Cloudflare Workers on your own hardware. Graphene workers run anywhere with KVM support.
+- **No filesystem**: Workers have no persistent or temporary filesystem. Graphene unikernels get a full (ephemeral) filesystem with your code and dependencies baked in at build time.
 
 ## Roadmap
 
-- **Q1 2026**: Engine—Single-node worker, Iroh networking, Firecracker + Unikraft
-- **Q2 2026**: Network—Multi-node testnet, Solana integration, payment channels
-- **Q3 2026**: Launch—Mainnet, $GRAPHENE token, SDK release
-- **Q4 2026+**: Scale—GPU support, confidential compute (TEE), enterprise features
+- **Q1 2026**: Engine—Single-node worker, HTTP API, Firecracker + Unikraft
+- **Q2 2026**: Platform—Multi-worker orchestration, SDK release, managed service
+- **Q3 2026**: Scale—GPU support, confidential compute (TEE), enterprise features
 
 ## Documentation
 
