@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCapsule — Secure Code Execution for AI Agents</title>
+  <meta name="description" content="Open-source runtime combining unikernels with MicroVMs. Sub-second cold starts, hardware-level isolation, no shell access. Built for AI agents.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-subtle: #111118;
+      --bg-card: #16161f;
+      --border: #1e1e2e;
+      --border-hover: #2a2a3e;
+      --text: #e4e4ef;
+      --text-muted: #8888a0;
+      --text-dim: #55556a;
+      --accent: #00d4aa;
+      --accent-dim: rgba(0, 212, 170, 0.12);
+      --accent-glow: rgba(0, 212, 170, 0.25);
+      --danger: #ff4466;
+      --danger-dim: rgba(255, 68, 102, 0.12);
+      --code-bg: #0d0d14;
+      --radius: 0px;
+      --radius-sm: 0px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+    a:hover { opacity: 0.8; }
+    code { font-family: var(--font-mono); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+    /* ─── Nav ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .logo-icon {
+      width: 28px; height: 28px; border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), #00a888);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--bg);
+    }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a { color: var(--text-muted); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); opacity: 1; }
+    .nav-cta {
+      background: var(--accent); color: var(--bg); padding: 8px 18px;
+      border-radius: var(--radius); font-size: 14px; font-weight: 600;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .nav-cta:hover { box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); opacity: 1; }
+
+    /* ─── Hero ─── */
+    .hero {
+      padding: 140px 0 100px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center; position: relative;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent-dim); border: 1px solid rgba(0, 212, 170, 0.2);
+      padding: 6px 14px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500; color: var(--accent);
+      margin-bottom: 24px;
+    }
+    .hero-badge span { opacity: 0.6; }
+    .hero h1 {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 800; letter-spacing: -0.03em;
+      line-height: 1.1; margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--accent), #66ffdd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-description {
+      font-size: 18px; color: var(--text-muted);
+      line-height: 1.7; margin-bottom: 32px; max-width: 480px;
+    }
+    .hero-actions { display: flex; gap: 12px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: var(--bg);
+      padding: 12px 24px; border-radius: var(--radius);
+      font-size: 15px; font-weight: 600; border: none; cursor: pointer;
+      transition: box-shadow 0.3s, transform 0.2s;
+    }
+    .btn-primary:hover { box-shadow: 0 0 30px var(--accent-glow); transform: translateY(-1px); opacity: 1; }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--text-muted);
+      padding: 12px 24px; border-radius: var(--radius);
+      font-size: 15px; font-weight: 500;
+      border: 1px solid var(--border); cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); opacity: 1; }
+
+    /* ─── Code Block (archil-style stacked panels) ─── */
+    .code-stack {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--code-bg);
+    }
+    .code-panel + .code-panel {
+      border-top: 1px solid var(--border);
+    }
+    .code-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-panel-label {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 13px; color: var(--text-muted);
+    }
+    .code-panel-label .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent);
+    }
+    .code-panel-badge {
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .code-body {
+      padding: 20px; overflow-x: auto;
+      font-family: var(--font-mono); font-size: 13px;
+      line-height: 1.8; color: var(--text-muted);
+      white-space: pre;
+    }
+    .code-body .kw { color: #c792ea; }
+    .code-body .fn { color: #82aaff; }
+    .code-body .str { color: #c3e88d; }
+    .code-body .cm { color: var(--text-dim); }
+    .code-body .num { color: #f78c6c; }
+    .code-body .type { color: #ffcb6b; }
+    .code-body .prop { color: #89ddff; }
+    .code-body .accent { color: var(--accent); }
+    .code-body .bold { color: var(--text); font-weight: 600; }
+
+
+    /* ─── Sections ─── */
+    section { padding: 100px 0; }
+
+    .section-label {
+      font-size: 13px; font-weight: 600; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 3.5vw, 40px);
+      font-weight: 700; letter-spacing: -0.02em;
+      line-height: 1.2; margin-bottom: 16px;
+    }
+    .section-subtitle {
+      font-size: 17px; color: var(--text-muted);
+      max-width: 600px; line-height: 1.7;
+    }
+
+    /* ─── Problem Band ─── */
+    .problem-band {
+      background: var(--bg-subtle);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .problem-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; margin-top: 60px;
+    }
+    .problem-list { display: flex; flex-direction: column; gap: 36px; }
+    .problem-item { display: flex; gap: 20px; }
+    .problem-num {
+      font-family: var(--font-mono); font-size: 14px;
+      font-weight: 600; color: var(--danger);
+      min-width: 32px; padding-top: 2px;
+    }
+    .problem-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .problem-item p { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    .solution-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+    }
+    .solution-card h3 {
+      font-size: 20px; font-weight: 700; margin-bottom: 24px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .solution-card h3 .icon {
+      width: 32px; height: 32px; border-radius: var(--radius);
+      background: var(--accent-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .solution-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+    .solution-list li {
+      display: flex; align-items: flex-start; gap: 12px;
+      font-size: 15px; color: var(--text-muted);
+    }
+    .solution-list li::before {
+      content: '✓';
+      color: var(--accent); font-weight: 700;
+      min-width: 18px; text-align: center;
+    }
+
+    /* ─── Architecture ─── */
+    .arch-visual {
+      margin-top: 60px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 48px;
+    }
+    .arch-layers { display: flex; flex-direction: column; gap: 0; }
+    .arch-layer {
+      padding: 28px 32px;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .arch-layer:first-child { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+    .arch-layer:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+    .arch-layer + .arch-layer { border-top: none; }
+    .arch-layer-label {
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--accent); margin-bottom: 8px;
+    }
+    .arch-layer-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .arch-layer-desc { font-size: 14px; color: var(--text-muted); }
+    .arch-layer-tags { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .arch-tag {
+      font-family: var(--font-mono); font-size: 11px;
+      padding: 4px 10px; border-radius: var(--radius);
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid rgba(0, 212, 170, 0.15);
+    }
+    .arch-connector {
+      display: flex; justify-content: center; padding: 4px 0;
+      color: var(--text-dim); font-size: 18px;
+    }
+
+    /* ─── Features ─── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px; margin-top: 60px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      transition: border-color 0.3s, transform 0.2s;
+    }
+    .feature-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; margin-bottom: 20px;
+    }
+    .feature-icon.green  { background: var(--accent-dim); }
+    .feature-icon.red    { background: var(--danger-dim); }
+    .feature-icon.purple { background: rgba(167, 139, 250, 0.12); }
+    .feature-icon.blue   { background: rgba(96, 165, 250, 0.12); }
+    .feature-icon.amber  { background: rgba(251, 191, 36, 0.12); }
+    .feature-icon.pink   { background: rgba(244, 114, 182, 0.12); }
+    .feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ─── Comparison ─── */
+    .comparison-table {
+      margin-top: 60px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .comparison-table table { width: 100%; border-collapse: collapse; }
+    .comparison-table th {
+      text-align: left; padding: 16px 20px;
+      font-size: 13px; font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .comparison-table th:first-child { color: var(--text); }
+    .comparison-table th.highlight { color: var(--accent); }
+    .comparison-table td {
+      padding: 14px 20px; font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table td:first-child { font-weight: 500; color: var(--text); }
+    .comparison-table td.highlight {
+      color: var(--accent); font-weight: 500;
+      background: rgba(0, 212, 170, 0.03);
+    }
+    .comparison-table .yes { color: var(--accent); }
+    .comparison-table .no  { color: var(--danger); }
+
+    /* ─── SDK Section ─── */
+    .sdk-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: start; margin-top: 60px;
+    }
+
+    /* ─── Stats ─── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 20px; margin-top: 60px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px; text-align: center;
+    }
+    .stat-value {
+      font-size: 36px; font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, var(--accent), #66ffdd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label { font-size: 14px; color: var(--text-muted); }
+
+    /* ─── Security ─── */
+    .security-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 20px; margin-top: 60px;
+    }
+    .security-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+    .security-card h3 {
+      font-size: 17px; font-weight: 600; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .security-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .security-item:last-child { border-bottom: none; }
+    .security-item .label { color: var(--text-muted); }
+    .security-item .value {
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--accent);
+    }
+
+    /* ─── CTA ─── */
+    .cta-section {
+      text-align: center;
+      padding: 120px 0;
+    }
+    .cta-section h2 {
+      font-size: clamp(28px, 3.5vw, 44px);
+      font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    .cta-section p {
+      font-size: 18px; color: var(--text-muted);
+      margin-bottom: 36px; max-width: 500px; margin-inline: auto;
+    }
+    .cta-actions { display: flex; gap: 12px; justify-content: center; }
+
+    /* ─── Footer ─── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 0;
+    }
+    .footer-inner {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-left { font-size: 14px; color: var(--text-dim); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { font-size: 14px; color: var(--text-muted); }
+
+    /* ─── Marquee ─── */
+    .marquee-section {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 0;
+      overflow: hidden;
+    }
+    .marquee-label {
+      font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-dim); text-align: center;
+      margin-bottom: 16px;
+    }
+    .marquee-track {
+      display: flex; gap: 16px;
+      animation: marquee 30s linear infinite;
+    }
+    .marquee-item {
+      flex-shrink: 0;
+      padding: 8px 20px; border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      white-space: nowrap;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .marquee-item .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+    }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ─── Scroll animations ─── */
+    .fade-in {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 900px) {
+      .hero-grid, .problem-grid, .sdk-grid, .security-grid {
+        grid-template-columns: 1fr; gap: 40px;
+      }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .nav-links a:not(.nav-cta) { display: none; }
+    }
+    @media (max-width: 600px) {
+      .features-grid, .stats-grid { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; }
+      .hero { padding: 120px 0 60px; }
+      section { padding: 60px 0; }
+      .comparison-table { overflow-x: auto; }
+      .comparison-table table { min-width: 640px; }
+      .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon">⬡</div>
+        OpenCapsule
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#comparison">Compare</a>
+        <a href="https://github.com/opencapsule/opencapsule" class="nav-cta">GitHub →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div>
+          <div class="hero-badge">
+            <span>●</span> Open Source · AGPL-3.0
+          </div>
+          <h1>Secure code execution for <em>AI agents</em></h1>
+          <p class="hero-description">
+            Unikernels + MicroVMs. Sub-second cold starts with hardware-level isolation.
+            No shell, no escape. The runtime AI agents were missing.
+          </p>
+          <div class="hero-actions">
+            <a href="https://github.com/opencapsule/opencapsule" class="btn-primary">
+              Get Started →
+            </a>
+            <a href="#architecture" class="btn-secondary">
+              How it works
+            </a>
+          </div>
+        </div>
+        <div class="code-stack">
+          <!-- Panel 1: Install -->
+          <div class="code-panel">
+            <div class="code-panel-header">
+              <span class="code-panel-label">Install</span>
+              <span class="code-panel-badge">Terminal</span>
+            </div>
+            <div class="code-body">$ <span class="bold">npm install @opencapsule/sdk</span></div>
+          </div>
+          <!-- Panel 2: SDK Code -->
+          <div class="code-panel">
+            <div class="code-panel-header">
+              <span class="code-panel-label"><span class="dot"></span> run.ts</span>
+              <span class="code-panel-badge">TypeScript</span>
+            </div>
+            <div class="code-body"><span class="kw">import</span> { <span class="type">Client</span> } <span class="kw">from</span> <span class="str">'@opencapsule/sdk'</span>;
+
+<span class="kw">const</span> client = <span class="kw">await</span> <span class="type">Client</span>.<span class="fn">create</span>({
+  <span class="prop">secretKey</span>: mySecretKey,
+  <span class="prop">workerUrl</span>: <span class="str">'http://worker:3000'</span>,
+});
+
+<span class="kw">const</span> result = <span class="kw">await</span> client.<span class="fn">run</span>({
+  <span class="prop">code</span>: <span class="str">`
+    const sum = [1,2,3,4,5].reduce((a, b) => a + b, 0);
+    console.log(JSON.stringify({ sum }));
+  `</span>,
+  <span class="prop">runtime</span>: <span class="str">'node:24'</span>,
+  <span class="prop">resources</span>: { <span class="prop">vcpu</span>: <span class="num">1</span>, <span class="prop">memoryMb</span>: <span class="num">512</span> },
+});</div>
+          </div>
+          <!-- Panel 3: Output -->
+          <div class="code-panel">
+            <div class="code-panel-header">
+              <span class="code-panel-label"><span class="dot"></span> Output</span>
+              <span class="code-panel-badge">Terminal</span>
+            </div>
+            <div class="code-body">$ <span class="bold">npx tsx run.ts</span>
+<span class="cm"># ✓</span> <span class="str">{"sum": 15}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Marquee -->
+  <div class="marquee-section">
+    <div class="marquee-label">Runs on any KVM-capable host</div>
+    <div style="display:flex;overflow:hidden;">
+      <div class="marquee-track">
+        <div class="marquee-item"><span class="dot"></span> Bare Metal</div>
+        <div class="marquee-item"><span class="dot"></span> AWS (Nitro)</div>
+        <div class="marquee-item"><span class="dot"></span> GCP (Nested KVM)</div>
+        <div class="marquee-item"><span class="dot"></span> Hetzner</div>
+        <div class="marquee-item"><span class="dot"></span> OVH</div>
+        <div class="marquee-item"><span class="dot"></span> Vultr</div>
+        <div class="marquee-item"><span class="dot"></span> Self-Hosted</div>
+        <div class="marquee-item"><span class="dot"></span> On-Premise</div>
+        <!-- duplicate for seamless loop -->
+        <div class="marquee-item"><span class="dot"></span> Bare Metal</div>
+        <div class="marquee-item"><span class="dot"></span> AWS (Nitro)</div>
+        <div class="marquee-item"><span class="dot"></span> GCP (Nested KVM)</div>
+        <div class="marquee-item"><span class="dot"></span> Hetzner</div>
+        <div class="marquee-item"><span class="dot"></span> OVH</div>
+        <div class="marquee-item"><span class="dot"></span> Vultr</div>
+        <div class="marquee-item"><span class="dot"></span> Self-Hosted</div>
+        <div class="marquee-item"><span class="dot"></span> On-Premise</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Problem -->
+  <section class="problem-band" id="problem">
+    <div class="container">
+      <div class="section-label">The Problem</div>
+      <h2 class="section-title">Containers give AI agents the keys to the kingdom</h2>
+      <p class="section-subtitle">
+        Shell access is the wrong abstraction for AI agents. They need to execute code, not operate environments.
+      </p>
+
+      <div class="problem-grid fade-in">
+        <div class="problem-list">
+          <div class="problem-item">
+            <div class="problem-num">01</div>
+            <div>
+              <h3>Hallucination → Destruction</h3>
+              <p>An AI that hallucinates can execute <code>rm -rf /</code> or pipe a malicious URL to bash. In a container, nothing stops it.</p>
+            </div>
+          </div>
+          <div class="problem-item">
+            <div class="problem-num">02</div>
+            <div>
+              <h3>Prompt Injection → Exploitation</h3>
+              <p>Attackers embed instructions in data. When agents process it with shell access, they become unwitting attack vectors.</p>
+            </div>
+          </div>
+          <div class="problem-item">
+            <div class="problem-num">03</div>
+            <div>
+              <h3>Supply Chain Attacks</h3>
+              <p>Runtime <code>pip install</code> means every package is an attack surface. One compromised dependency = full system access.</p>
+            </div>
+          </div>
+          <div class="problem-item">
+            <div class="problem-num">04</div>
+            <div>
+              <h3>Data Exfiltration</h3>
+              <p>Unrestricted network egress lets agents send sensitive data anywhere. Current sandboxes don't enforce allowlists.</p>
+            </div>
+          </div>
+          <div class="problem-item">
+            <div class="problem-num">05</div>
+            <div>
+              <h3>Bloated Cold Starts</h3>
+              <p>Gigabyte container images mean 30-120 second cold starts. Unacceptable for real-time agentic workloads.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="solution-card">
+          <h3><span class="icon">⬡</span> The OpenCapsule Model</h3>
+          <ul class="solution-list">
+            <li>No shell exists — <code>/bin/bash</code> is structurally absent</li>
+            <li>No package manager at runtime — all deps are build-time only</li>
+            <li>No process spawning — single-process unikernel architecture</li>
+            <li>No arbitrary network — allowlist-only egress rules</li>
+            <li>1-5MB images — sub-second cold starts from cache</li>
+            <li>KVM hardware isolation — not a software sandbox</li>
+            <li>E2E encrypted — per-job ephemeral keys</li>
+            <li>Fully open source — AGPL-3.0 licensed</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <div class="container">
+      <div class="section-label">Architecture</div>
+      <h2 class="section-title">Three isolation layers. Zero shell access.</h2>
+      <p class="section-subtitle">
+        AI agents submit code manifests via HTTP. The system compiles, seals, and executes them in ephemeral MicroVMs.
+      </p>
+
+      <div class="arch-visual fade-in">
+        <div class="arch-layers">
+          <div class="arch-layer">
+            <div class="arch-layer-label">Layer 3 — API Plane</div>
+            <div class="arch-layer-title">HTTP REST API</div>
+            <div class="arch-layer-desc">Job submission, status polling, result delivery. E2E encrypted with XChaCha20-Poly1305.</div>
+            <div class="arch-layer-tags">
+              <span class="arch-tag">Ed25519 Auth</span>
+              <span class="arch-tag">Axum</span>
+              <span class="arch-tag">REST</span>
+            </div>
+          </div>
+          <div class="arch-layer">
+            <div class="arch-layer-label">Layer 2 — Execution Plane</div>
+            <div class="arch-layer-title">Firecracker MicroVMs + Unikraft Unikernels</div>
+            <div class="arch-layer-desc">Ephemeral builders compile Dockerfiles into sealed unikernels. Content-addressed cache provides 99% hit rate.</div>
+            <div class="arch-layer-tags">
+              <span class="arch-tag">Firecracker</span>
+              <span class="arch-tag">Unikraft</span>
+              <span class="arch-tag">BLAKE3</span>
+            </div>
+          </div>
+          <div class="arch-layer">
+            <div class="arch-layer-label">Layer 1 — Isolation Plane</div>
+            <div class="arch-layer-title">KVM Hardware Virtualization</div>
+            <div class="arch-layer-desc">Per-job MicroVMs with allowlist-only egress. No shell, no escape. The unikernel is the entire OS.</div>
+            <div class="arch-layer-tags">
+              <span class="arch-tag">KVM</span>
+              <span class="arch-tag">No Shell</span>
+              <span class="arch-tag">Allowlist Egress</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" style="background: var(--bg-subtle); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+    <div class="container">
+      <div class="section-label">Features</div>
+      <h2 class="section-title">Built for the agentic era</h2>
+      <p class="section-subtitle">
+        Every feature exists to make AI code execution safe, fast, and simple.
+      </p>
+
+      <div class="features-grid fade-in">
+        <div class="feature-card">
+          <div class="feature-icon green">🔒</div>
+          <h3>No Shell by Design</h3>
+          <p>Unikernels don't have <code>/bin/bash</code>. Shell injection is structurally impossible, not just restricted.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">⚡</div>
+          <h3>Sub-Second Cold Starts</h3>
+          <p>1-5MB unikernel images boot in 200-500ms. Content-addressed caching means near-instant starts for common stacks.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">🛡️</div>
+          <h3>KVM Hardware Isolation</h3>
+          <p>Each job runs in its own Firecracker MicroVM with hardware virtualization. Not a software sandbox — real isolation.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber">🔐</div>
+          <h3>E2E Encryption</h3>
+          <p>XChaCha20-Poly1305 with per-job ephemeral keys. Code and results are encrypted in transit and at rest.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon pink">🌐</div>
+          <h3>Allowlist-Only Egress</h3>
+          <p>Agents can only reach endpoints you explicitly allow. No data exfiltration, no calling home to unknown servers.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon red">📦</div>
+          <h3>Multi-Runtime Support</h3>
+          <p>Python 3.10+, Node.js 20+, and Bun 1.1. Run any language with statically-linked binaries baked in at build time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison -->
+  <section id="comparison">
+    <div class="container">
+      <div class="section-label">Comparison</div>
+      <h2 class="section-title">How OpenCapsule stacks up</h2>
+      <p class="section-subtitle">
+        Built from the ground up for AI agent workloads. Not a container with restrictions bolted on.
+      </p>
+
+      <div class="comparison-table fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Cloudflare Workers</th>
+              <th>AWS Lambda</th>
+              <th>Northflank</th>
+              <th class="highlight">OpenCapsule</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Cold Start</td>
+              <td>&lt;1ms</td>
+              <td>100-500ms</td>
+              <td>1-5s</td>
+              <td class="highlight">200-500ms</td>
+            </tr>
+            <tr>
+              <td>Isolation</td>
+              <td>V8 Isolate</td>
+              <td>Container</td>
+              <td>MicroVM</td>
+              <td class="highlight">MicroVM + Unikernel</td>
+            </tr>
+            <tr>
+              <td>Shell Access</td>
+              <td class="no">No (JS only)</td>
+              <td class="no">Yes (risky)</td>
+              <td class="no">Yes (risky)</td>
+              <td class="yes">No (by design)</td>
+            </tr>
+            <tr>
+              <td>Runtimes</td>
+              <td>JS/WASM</td>
+              <td>Many</td>
+              <td>Any</td>
+              <td class="highlight">Python, Node, Bun</td>
+            </tr>
+            <tr>
+              <td>E2E Encryption</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Network Egress</td>
+              <td>Unrestricted</td>
+              <td>Unrestricted</td>
+              <td>Configurable</td>
+              <td class="highlight">Allowlist only</td>
+            </tr>
+            <tr>
+              <td>Self-Hostable</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+              <td>BYOC</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Open Source</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+              <td class="yes">AGPL-3.0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SDK -->
+  <section class="sdk-section" style="background: var(--bg-subtle); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+    <div class="container">
+      <div class="sdk-grid fade-in">
+        <div>
+          <div class="section-label">SDK</div>
+          <h2 class="section-title">Five lines to secure execution</h2>
+          <p class="section-subtitle" style="margin-bottom: 32px;">
+            Submit code, get results. Ed25519 authentication and XChaCha20 encryption happen automatically. No infrastructure to manage.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="color: var(--accent); font-weight: 700; font-size: 18px;">1</span>
+              <span style="font-size: 15px; color: var(--text-muted);">Initialize client with your keys</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="color: var(--accent); font-weight: 700; font-size: 18px;">2</span>
+              <span style="font-size: 15px; color: var(--text-muted);">Submit code with runtime and resources</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="color: var(--accent); font-weight: 700; font-size: 18px;">3</span>
+              <span style="font-size: 15px; color: var(--text-muted);">Get encrypted results back</span>
+            </div>
+          </div>
+        </div>
+        <div class="code-stack">
+          <div class="code-panel">
+            <div class="code-panel-header">
+              <span class="code-panel-label"><span class="dot"></span> agent.py</span>
+              <span class="code-panel-badge">Python</span>
+            </div>
+            <div class="code-body"><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> json, sys
+
+<span class="cm"># Read input data from stdin</span>
+data = pd.<span class="fn">read_csv</span>(<span class="str">'/dev/stdin'</span>)
+
+<span class="cm"># Process and return results</span>
+result = {
+    <span class="str">"rows"</span>: <span class="fn">len</span>(data),
+    <span class="str">"columns"</span>: <span class="fn">list</span>(data.columns),
+    <span class="str">"summary"</span>: data.<span class="fn">describe</span>().<span class="fn">to_dict</span>()
+}
+
+<span class="fn">print</span>(json.<span class="fn">dumps</span>(result))</div>
+          </div>
+          <div class="code-panel">
+            <div class="code-panel-header">
+              <span class="code-panel-label">Run it</span>
+              <span class="code-panel-badge">Terminal</span>
+            </div>
+            <div class="code-body">$ <span class="bold">cat data.csv | opencapsule run --runtime python:3.12</span>
+<span class="str">{"rows": 1000, "columns": ["id", "name", "value"], ...}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section>
+    <div class="container">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div class="section-label">By the Numbers</div>
+        <h2 class="section-title">Designed for production AI workloads</h2>
+      </div>
+      <div class="stats-grid fade-in">
+        <div class="stat-card">
+          <div class="stat-value">1-5MB</div>
+          <div class="stat-label">Unikernel image size</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;500ms</div>
+          <div class="stat-label">Cold start latency</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">99%</div>
+          <div class="stat-label">Cache hit rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Shell commands possible</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security -->
+  <section style="background: var(--bg-subtle); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+    <div class="container">
+      <div class="section-label">Security</div>
+      <h2 class="section-title">Triple-layer isolation</h2>
+      <p class="section-subtitle">
+        Attack surface eliminated at the architectural level, not restricted by policy.
+      </p>
+
+      <div class="security-grid fade-in">
+        <div class="security-card">
+          <h3>🔐 Encryption</h3>
+          <div class="security-item">
+            <span class="label">Cipher</span>
+            <span class="value">XChaCha20-Poly1305</span>
+          </div>
+          <div class="security-item">
+            <span class="label">Key Exchange</span>
+            <span class="value">Ed25519 → X25519</span>
+          </div>
+          <div class="security-item">
+            <span class="label">Key Scope</span>
+            <span class="value">Per-job ephemeral</span>
+          </div>
+          <div class="security-item">
+            <span class="label">Hashing</span>
+            <span class="value">BLAKE3</span>
+          </div>
+        </div>
+        <div class="security-card">
+          <h3>🛡️ Isolation</h3>
+          <div class="security-item">
+            <span class="label">Virtualization</span>
+            <span class="value">KVM (hardware)</span>
+          </div>
+          <div class="security-item">
+            <span class="label">MicroVM</span>
+            <span class="value">Firecracker</span>
+          </div>
+          <div class="security-item">
+            <span class="label">Kernel</span>
+            <span class="value">Unikraft unikernel</span>
+          </div>
+          <div class="security-item">
+            <span class="label">Network</span>
+            <span class="value">Allowlist egress</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>The runtime your agents<br>are missing</h2>
+      <p>Open source. Self-hostable. No shell, no escape.</p>
+      <div class="cta-actions">
+        <a href="https://github.com/opencapsule/opencapsule" class="btn-primary">
+          View on GitHub →
+        </a>
+        <a href="docs/WHITEPAPER.md" class="btn-secondary">
+          Read the Whitepaper
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-left">
+          © 2026 OpenCapsule · AGPL-3.0
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/opencapsule/opencapsule">GitHub</a>
+          <a href="docs/WHITEPAPER.md">Whitepaper</a>
+          <a href="mailto:developers@opencapsule.dev">Contact</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scroll animation -->
+  <script>
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+  </script>
+
+</body>
+</html>
